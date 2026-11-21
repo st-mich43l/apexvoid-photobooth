@@ -267,3 +267,12 @@ func TestBasePreviewIgnoresEdits(t *testing.T) {
 		t.Fatalf("%s != %s", base, want)
 	}
 }
+
+func TestLayoutAbsRejectsWindowsStyleEscapes(t *testing.T) {
+	l := storage.Layout{Root: t.TempDir()}
+	for _, bad := range []string{`\evil`, `C:\Windows\x`, `C:x`, `sessions/a:b`, `/rooted`} {
+		if _, err := l.Abs(bad); err == nil {
+			t.Fatalf("%q accepted", bad)
+		}
+	}
+}

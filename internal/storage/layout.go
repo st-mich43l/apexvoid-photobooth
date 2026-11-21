@@ -34,7 +34,8 @@ func (l Layout) SessionDir(id string) string {
 // Abs resolves a library-relative path and refuses anything that escapes the
 // root (defence against corrupted database rows).
 func (l Layout) Abs(rel string) (string, error) {
-	if rel == "" || filepath.IsAbs(rel) {
+	// reject absolute, rooted ("/x", "\\x" — not "absolute" on Windows without a drive) and drive-qualified paths
+	if rel == "" || filepath.IsAbs(rel) || filepath.VolumeName(rel) != "" || strings.HasPrefix(rel, "/") || strings.HasPrefix(rel, `\`) || strings.Contains(rel, ":") {
 		return "", fmt.Errorf("invalid library path %q", rel)
 	}
 	p := filepath.Join(l.Root, filepath.FromSlash(rel))
