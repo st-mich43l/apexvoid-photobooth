@@ -1,83 +1,78 @@
+// Command photobooth is the ApexVoid Photobooth desktop application: a thin
+// Wails 3 shell around internal/app. It needs no server, Enterprise
+// installation, Docker or external database and makes no network connections.
 package main
 
 import (
-	"context"
-	"errors"
+	"embed"
+	"io/fs"
 	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
-	"time"
 
-	"github.com/st-mich43l/apexvoid-photobooth/internal/bootstrap"
-	"github.com/st-mich43l/apexvoid-photobooth/internal/service"
+	"github.com/wailsapp/wails/v3/pkg/application"
+
+	"github.com/st-mich43l/apexvoid-photobooth/internal/app"
 )
 
+//go:embed all:frontend_dist
+var assets embed.FS
+
+// version is set at build time: -ldflags "-X main.version=..."
+var version = "0.2.0-dev"
+
 func main() {
-	log.SetFlags(0)
-	config := bootstrap.Config{
-		StateDir:         env("BOOTSTRAP_STATE_DIR", "/var/lib/apexvoid/bootstrap"),
-		MigrationPath:    os.Getenv("SCHEMA_PATH"),
-		MigrationDir:     env("SCHEMA_DIR", "db/migrations"),
-		AppVersion:       env("APEXVOID_APP_VERSION", "0.2.0"),
-		MigrationVersion: env("APEXVOID_MIGRATION_BUNDLE_VERSION", "0.2.0"),
-		DatabaseHost:     env("DATABASE_HOST", "postgres"),
-		DatabasePort:     envInt("DATABASE_PORT", 5432),
-		DatabaseSSLMode:  env("DATABASE_SSLMODE", "disable"),
-		PlatformURL:      env("APEXVOID_URL", "http://backend:6868"),
-		ServiceURL:       env("SERVICE_URL", "http://photobooth:8090"),
+	if len(os.Args) >= 2 && os.Args[1] == "--selftest" {
+		os.Exit(app.SelfTest(version, os.Args[2:]))
 	}
-	manager, firstStart, err := bootstrap.New(config)
-	if err != nil {
-		log.Fatalf("bootstrap initialization failed: %v", err)
-	}
-	if firstStart {
-		log.Printf("ApexVoid Photobooth registration pending")
-		log.Printf("Application: photobooth")
-		log.Printf("Service URL: %s", config.ServiceURL)
-		log.Printf("Manifest: %s/.well-known/apexvoid/manifest.json", config.ServiceURL)
-		log.Printf("One-time enrollment code: %s", manager.SetupCodeForOperator())
-		log.Printf("Keep this code private; it is required by Enterprise registration")
-	} else if manager.Phase() == "ACTIVE" {
-		log.Printf("ApexVoid Photobooth enrollment state loaded; verifying shared database")
-	}
+	var wapp *application.App
 
-	app := service.New(nil, nil, env("WEB_DIST", "web/dist"))
-	app.SetRuntimeProvider(func() (service.Store, service.Authorizer, bool) {
-		store, auth, active := manager.Snapshot()
-		return store, auth, active
+	svc, err := app.New(app.Options{
+		Version: version,
+		Emit: func(name string, v any) {
+			if wapp != nil {
+				wapp.Event.Emit(name, v)
+			}
+		},
+		PickFolder: func() (string, error) {
+			return wapp.Dialog.OpenFile().
+				CanChooseDirectories(true).CanChooseFiles(false).CanCreateDirectories(true).
+				SetTitle("Choose media folder").PromptForSingleSelection()
+		},
 	})
-	handler := manager.Handler(app.Handler())
-	server := &http.Server{Addr: env("LISTEN_ADDR", ":8090"), Handler: handler, ReadHeaderTimeout: 5 * time.Second}
+	if err != nil {
+		log.Fatalf("ApexVoid Photobooth could not start: %v", err)
+	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	go manager.Start(ctx)
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
-	}()
-	log.Printf("ApexVoid Photobooth listening on %s", server.Addr)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	dist, err := fs.Sub(assets, "frontend_dist")
+	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func env(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	wapp = application.New(application.Options{
+		Name:        "ApexVoid Photobooth",
+		Description: "Camera-operated photobooth software",
+		Services:    []application.Service{application.NewService(svc)},
+		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(dist)},
+		// two instances would fight over the same camera
+		SingleInstance: &application.SingleInstanceOptions{UniqueID: "net.apexvoid.photobooth"},
+		// release the camera, SDK and database before the process ends
+		OnShutdown: func() {
+			if err := svc.Shutdown(); err != nil {
+				log.Printf("shutdown: %v", err)
+			}
+		},
+		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+	})
+	wapp.Window.NewWithOptions(application.WebviewWindowOptions{
+		Name:             "main",
+		Title:            "ApexVoid Photobooth",
+		Width:            1360,
+		Height:           860,
+		MinWidth:         900,
+		MinHeight:        620,
+		BackgroundColour: application.NewRGB(15, 11, 26),
+		URL:              "/",
+	})
+	if err := wapp.Run(); err != nil {
+		log.Fatal(err)
 	}
-	return fallback
-}
-
-func envInt(key string, fallback int) int {
-	value, err := strconv.Atoi(env(key, strconv.Itoa(fallback)))
-	if err != nil || value <= 0 {
-		return fallback
-	}
-	return value
 }
