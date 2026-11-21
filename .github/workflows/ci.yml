@@ -125,9 +125,12 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "native print self-test failed (exit $($p.ExitCode))" }
           if (-not (Test-Path $out)) { throw "the printer produced no output file at $out" }
           $len = (Get-Item $out).Length
-          $head = [System.Text.Encoding]::ASCII.GetString((Get-Content $out -Encoding Byte -TotalCount 4))
+          $bytes = [System.IO.File]::ReadAllBytes($out)
+          $head = [System.Text.Encoding]::ASCII.GetString($bytes, 0, [Math]::Min(5, $bytes.Length))
           Write-Host "output: $out ($len bytes), header '$head'"
           if ($len -lt 1000) { throw "output file is implausibly small" }
+          if ($ext -eq 'pdf' -and -not $head.StartsWith('%PDF')) { throw "the output is not a PDF (header '$head')" }
+          if ($ext -eq 'xps' -and -not $head.StartsWith('PK')) { throw "the output is not an XPS/zip package (header '$head')" }
           Copy-Item $out dist\ci-print-output.$ext
           Copy-Item print-real.json dist\print-selftest-report.json
       - name: Assemble portable package
