@@ -45,8 +45,12 @@ try {
     try {
         & go mod tidy
         if ($LASTEXITCODE -ne 0) { throw 'go mod tidy failed' }
-        & npm --prefix frontend install --no-audit --no-fund
-        if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+        Push-Location (Join-Path $desktop 'frontend')
+        try {
+            & npm install --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+        }
+        finally { Pop-Location }
         if (-not $SkipBuild) {
             & wails3 build GOOS=windows GOARCH=amd64
             if ($LASTEXITCODE -ne 0) { throw 'Wails Windows build failed' }
