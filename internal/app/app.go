@@ -192,6 +192,7 @@ func (s *Service) initLogger(l storage.Layout) {
 	}
 	s.logFile = f
 	s.log = slog.New(slog.NewTextHandler(f, nil))
+	slog.SetDefault(s.log) // device-open diagnostics from the camera/video packages land in the library log
 }
 
 // Shutdown releases everything: shooting engine, recording, the camera (so it

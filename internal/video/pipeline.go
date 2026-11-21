@@ -28,6 +28,70 @@ type Source struct {
 	// arguments (used to feed FFmpeg a synthetic lavfi source in CI).
 	InputOverride []string
 	AudioMap      string
+
+	// Fallback levels (see Attempts): drop the strict DirectShow buffering
+	// options, or open the device by its friendly name instead of its path.
+	Minimal   bool
+	ForceName bool
+}
+
+// Describe is a short human description of how the device is opened.
+func (s Source) Describe() string {
+	mode := "device default mode"
+	if s.Width > 0 {
+		mode = fmt.Sprintf("%dx%d", s.Width, s.Height)
+		if s.FPS > 0 {
+			mode += fmt.Sprintf("@%d", s.FPS)
+		}
+		if s.Format != "" {
+			mode += " " + s.Format
+		}
+	}
+	id := "by id"
+	if s.ForceName || !strings.HasPrefix(s.Video.ID, "@device") {
+		id = "by name"
+	}
+	if s.Minimal {
+		id += ", minimal options"
+	}
+	return mode + ", " + id
+}
+
+// Attempts lists the ways a device is tried, strictest first. Drivers differ
+// (infrared/Windows Hello streams, cameras that list modes they then refuse,
+// devices that reject buffering options), so opening walks down this ladder
+// until a frame arrives instead of failing on the first "Invalid argument".
+func (s Source) Attempts() []Source {
+	if s.InputOverride != nil {
+		return []Source{s}
+	}
+	var out []Source
+	seen := map[string]bool{}
+	add := func(x Source) {
+		args, am := x.inputArgs()
+		k := strings.Join(args, "\x00") + am
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, x)
+		}
+	}
+	add(s)
+	noFmt := s
+	noFmt.Format = ""
+	add(noFmt)
+	dflt := s
+	dflt.Format, dflt.Width, dflt.Height, dflt.FPS = "", 0, 0, 0
+	add(dflt)
+	named := dflt
+	named.ForceName = true
+	add(named)
+	minimal := dflt
+	minimal.Minimal = true
+	add(minimal)
+	minNamed := minimal
+	minNamed.ForceName = true
+	add(minNamed)
+	return out
 }
 
 // RecordOptions configures the MP4 output of a pipeline.
@@ -47,6 +111,8 @@ type PipelineOptions struct {
 	PreviewFPS     int // default 15
 	PreviewQuality int // mjpeg -q:v, default 3 (lower = better)
 	Record         *RecordOptions
+	// FirstFrameTimeout bounds the wait for the first preview frame (default 20 s).
+	FirstFrameTimeout time.Duration
 }
 
 func (s Source) inputArgs() (args []string, audioMap string) {
@@ -57,7 +123,10 @@ func (s Source) inputArgs() (args []string, audioMap string) {
 	fps := strconv.Itoa(s.FPS)
 	switch runtime.GOOS {
 	case "windows":
-		args = []string{"-f", "dshow", "-rtbufsize", "256M", "-thread_queue_size", "1024", "-use_wallclock_as_timestamps", "1"}
+		args = []string{"-f", "dshow"}
+		if !s.Minimal {
+			args = append(args, "-rtbufsize", "256M", "-thread_queue_size", "1024", "-use_wallclock_as_timestamps", "1")
+		}
 		if s.Width > 0 {
 			args = append(args, "-video_size", size)
 		}
@@ -73,7 +142,7 @@ func (s Source) inputArgs() (args []string, audioMap string) {
 		}
 		// the alternative name (@device_pnp_...) is unambiguous when two cameras share a name
 		devName := s.Video.Name
-		if strings.HasPrefix(s.Video.ID, "@device") {
+		if strings.HasPrefix(s.Video.ID, "@device") && !s.ForceName {
 			devName = s.Video.ID
 		}
 		in := "video=" + devName
@@ -182,11 +251,25 @@ type Process struct {
 	frames int
 }
 
+// OpenError is returned when ffmpeg could not deliver a first frame. It keeps
+// the complete command line and log so the real cause can be diagnosed.
+type OpenError struct {
+	Args   []string
+	Stderr string
+	Reason string
+}
+
+func (e *OpenError) Error() string { return e.Reason }
+
 // StartPipeline launches ffmpeg and waits for the first preview frame. onFrame
 // is called for every JPEG frame from a reader goroutine.
 func StartPipeline(ctx context.Context, o PipelineOptions, onFrame func([]byte)) (*Process, error) {
 	cmd := exec.Command(o.FFmpeg, BuildArgs(o)...)
 	hide(cmd)
+	ffTimeout := o.FirstFrameTimeout
+	if ffTimeout <= 0 {
+		ffTimeout = 20 * time.Second
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -220,10 +303,10 @@ func StartPipeline(ctx context.Context, o PipelineOptions, onFrame func([]byte))
 	case <-first:
 		return p, nil
 	case <-p.done:
-		return nil, fmt.Errorf("ffmpeg exited before the first frame: %s", Explain(p.stderr.String()))
-	case <-time.After(20 * time.Second):
+		return nil, &OpenError{Args: cmd.Args, Stderr: p.stderr.String(), Reason: fmt.Sprintf("ffmpeg exited before the first frame: %s", Explain(p.stderr.String()))}
+	case <-time.After(ffTimeout):
 		p.Kill()
-		return nil, fmt.Errorf("camera produced no frames within 20 s: %s", Explain(p.stderr.String()))
+		return nil, &OpenError{Args: cmd.Args, Stderr: p.stderr.String(), Reason: fmt.Sprintf("camera produced no frames within %d s: %s", int(ffTimeout.Seconds()), Explain(p.stderr.String()))}
 	case <-ctx.Done():
 		p.Kill()
 		return nil, ctx.Err()
