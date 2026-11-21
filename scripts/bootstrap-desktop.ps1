@@ -12,7 +12,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$desktop = Join-Path $root 'desktop'
+$desktopRoot = Join-Path $root 'desktop'
+$desktop = Join-Path $desktopRoot 'apexvoidphotobooth'
 $overlay = Join-Path $root 'desktop-bootstrap'
 
 if (-not (Get-Command 'wails3' -ErrorAction SilentlyContinue)) {
@@ -24,8 +25,8 @@ if (-not (Get-Command 'go' -ErrorAction SilentlyContinue)) { throw 'Go 1.26+ is 
 Push-Location $root
 try {
     if (-not (Test-Path (Join-Path $desktop 'Taskfile.yml'))) {
-        if (Test-Path $desktop) {
-            throw 'desktop/ exists but is not a Wails project. Move it aside before bootstrapping.'
+        if (Test-Path $desktopRoot) {
+            throw 'desktop/ exists but is not a complete Wails project. Move it aside before bootstrapping.'
         }
         & wails3 init -q -n apexvoidphotobooth -t react -d desktop -mod github.com/st-mich43l/apexvoid-photobooth/desktop -productname 'ApexVoid Photobooth' -productdescription 'Offline-first desktop photo booth' -productversion '0.1.0' -productcompany 'ApexVoid' -productidentifier 'net.apexvoid.photobooth'
         if ($LASTEXITCODE -ne 0) { throw 'Wails project generation failed' }

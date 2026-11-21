@@ -19,7 +19,7 @@ wails3 doctor
 .\scripts\bootstrap-desktop.ps1
 ```
 
-The script generates the official Wails React starter under `desktop/`, replaces it with the tracked ApexVoid standalone shell, and builds `desktop/bin/*.exe`. It does **not** require Docker, PostgreSQL, Enterprise credentials, or an internet connection at runtime. The initial build requires internet access for dependencies. Windows WebView2 Runtime must be present (commonly preinstalled; check with `wails3 doctor`).
+The script generates the official Wails React starter under `desktop/apexvoidphotobooth/`, replaces it with the tracked ApexVoid standalone shell, and builds `desktop/apexvoidphotobooth/bin/*.exe`. It does **not** require Docker, PostgreSQL, Enterprise credentials, or an internet connection at runtime. The initial build requires internet access for dependencies. Windows WebView2 Runtime must be present (commonly preinstalled; check with `wails3 doctor`).
 
 Run the resulting EXE directly. This is a **portable application**, not a fully self-contained OS runtime bundle. It can be copied to another Windows x64 machine with WebView2 installed.
 
