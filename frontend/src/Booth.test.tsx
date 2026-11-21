@@ -4,8 +4,8 @@ import type { Settings, ShootSnapshot, VideoState } from "./types";
 
 // ---- mocks: state, api, window helpers and the heavy flows ----------------
 const h = vi.hoisted(() => ({
-  S: {} as { video: VideoState; shoot: ShootSnapshot; settings: Settings; camera: object },
-  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn() },
+  S: {} as { video: VideoState; shoot: ShootSnapshot; settings: Settings; camera: object; toast?: unknown },
+  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn(), prepareMode: vi.fn() },
   enter: vi.fn(), leave: vi.fn(),
 }));
 const { S, api, enter, leave } = h;
@@ -23,8 +23,10 @@ const shoot = (state: ShootSnapshot["state"]): ShootSnapshot => ({ state, versio
 beforeEach(() => {
   S.video = video(); S.shoot = shoot("IDLE");
   S.settings = { shots: 4, video: { maxSeconds: 30 }, kioskPinSet: false } as unknown as Settings;
+  S.toast = vi.fn();
   S.camera = { device: { id: "c", name: "Cam", driver: "uvc", simulated: false }, state: "connected", reconnecting: false, liveView: true };
   enter.mockResolvedValue(undefined); leave.mockResolvedValue(undefined);
+  api.prepareMode.mockResolvedValue({ mode: "photo", ready: true, switched: false, needsFallback: false, preferred: {}, message: "" });
   api.verifyKioskPin.mockResolvedValue(undefined); api.stopRecording.mockResolvedValue(undefined); api.cancelShooting.mockResolvedValue(undefined);
   window.location.hash = "";
 });
@@ -38,11 +40,11 @@ describe("Booth exit", () => {
     render(<Booth onExited={() => {}} />);
     expect(exitButton()).toBeTruthy();                                  // welcome
     fireEvent.click(screen.getByRole("button", { name: /Photo/ }));
-    expect(screen.getByTestId("photo-flow")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
     expect(exitButton()).toBeTruthy();                                  // photo
     fireEvent.click(screen.getByRole("button", { name: /Home/ }));
     fireEvent.click(screen.getByRole("button", { name: /Video/ }));
-    expect(screen.getByTestId("video-flow")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("video-flow")).toBeTruthy());
     expect(exitButton()).toBeTruthy();                                  // video
   });
 
@@ -211,5 +213,68 @@ describe("Booth exit with kiosk PIN", () => {
     const input = screen.getByLabelText("Operator PIN") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "12ab34" } });
     expect(input.value).toBe("1234");
+  });
+});
+
+
+describe("Booth Photo/Video buttons prepare the right camera", () => {
+  const photoBtn = () => screen.getByRole("button", { name: /Photo/ });
+
+  it("opens the flow when the preferred camera is ready", async () => {
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(photoBtn());
+    await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
+    expect(api.prepareMode).toHaveBeenCalledWith("photo", "");
+  });
+
+  it("asks before using a different camera and does not switch by itself", async () => {
+    const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
+    api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: { name: "Logitech C920" }, message: "Your preferred photo camera “Logitech C920” is not available." });
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(photoBtn());
+    await waitFor(() => screen.getByText("Use a different camera?"));
+    expect(screen.getByText(/Logitech C920/)).toBeTruthy();
+    expect(screen.queryByTestId("photo-flow")).toBeNull();
+    expect(api.prepareMode).toHaveBeenCalledTimes(1);                   // nothing was switched yet
+    api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: true, switched: true, needsFallback: false, preferred: {}, message: "Using Integrated Webcam for Photo mode." });
+    fireEvent.click(screen.getByRole("button", { name: "Use Integrated Webcam" }));
+    await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
+    expect(api.prepareMode).toHaveBeenLastCalledWith("photo", "uvc:a");
+  });
+
+  it("stays on the welcome screen when the operator declines the substitute", async () => {
+    const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
+    api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: {}, message: "No photo camera has been chosen." });
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(photoBtn());
+    await waitFor(() => screen.getByText("Use a different camera?"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByText("Use a different camera?")).toBeNull());
+    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    expect(api.prepareMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires the kiosk PIN to approve a substitute", async () => {
+    S.settings = { ...S.settings, kioskPinSet: true };
+    const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
+    api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: {}, message: "m" });
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(photoBtn());
+    await waitFor(() => screen.getByText("Use a different camera?"));
+    const use = screen.getByRole("button", { name: "Use Integrated Webcam" }) as HTMLButtonElement;
+    expect(use.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Operator PIN"), { target: { value: "2468" } });
+    api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: true, switched: true, needsFallback: false, preferred: {}, message: "ok" });
+    fireEvent.click(use);
+    await waitFor(() => expect(api.verifyKioskPin).toHaveBeenCalledWith("2468"));
+    await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
+  });
+
+  it("shows why a mode cannot start when no camera is available", async () => {
+    api.prepareMode.mockRejectedValueOnce(Object.assign(new Error("No camera available for Video mode.\nConnect a webcam and press Refresh."), {}));
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Video/ }));
+    await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /No camera available for Video mode/.test(a.textContent ?? ""))).toBe(true));
+    expect(screen.queryByTestId("video-flow")).toBeNull();
   });
 });

@@ -53,6 +53,44 @@ UVC alternative.
 > headers from memory and **must be compared with `EDSDKTypes.h` / `EDSDKErrors.h` of your SDK version** during
 > hardware validation (HARDWARE_TESTS.md step 2). Struct *sizes* are unit-tested.
 
+## Camera sources (Phase 2)
+
+Studio → Camera lists every source: name, kind, backend, USB id, supported resolutions and status. Backends:
+
+| Source | Backend | Notes |
+|---|---|---|
+| Canon EOS R50 (photo) | Canon EDSDK | full-resolution originals; photo only |
+| Built-in laptop camera, external USB webcam | Windows video device (FFmpeg/DirectShow) | frame grabs + video; "built-in vs USB" cannot be told apart reliably, both are labelled *Webcam* |
+| USB capture card / HDMI grabber | same | labelled by name heuristics; capture where Windows exposes it as a video device |
+| Virtual camera (OBS, EOS Webcam Utility, …) | same | needs its own program running; may hold the real camera exclusively |
+| Canon body in USB streaming mode | same | labelled *Canon camera in UVC mode*; hidden as a **duplicate** while the same body is listed through the Canon SDK |
+| Simulated | mock | development only |
+
+* **Enumeration without FFmpeg (Windows):** Plug-and-Play devices of class *Camera*/*Image* via SetupAPI plus the
+  DirectShow software-camera registry give names, USB ids and stable instance keys. FFmpeg, when present, adds the
+  supported resolutions and the exact DirectShow names. *Media Foundation* was evaluated and **not** used: its enumeration
+  and capture need COM vtable calls from Go that cannot be exercised without Windows hardware; the SetupAPI/registry path
+  uses plain syscalls. Preview, photos and recording still need FFmpeg.
+* **Stable ids** come from the USB instance key (`usb#vid_xxxx&pid_xxxx#instance`), not list order, so a replug is
+  recognised. Identical names get distinct ids. A device moved to another USB port is re-found by USB id / unique name.
+* **Duplicates** (same USB id reached twice; one Canon via the SDK + one Canon-vendor UVC device) are flagged and
+  cannot be opened; only one camera is ever active.
+* **Preferred cameras** are stored separately for Photo and Video and restored at start-up. If one is missing nothing is
+  substituted silently: the operator is shown the candidate and must approve (PIN if set). Video accepts only UVC sources.
+* **Switching** is refused during a session/recording/capture; otherwise: stop preview → release the old device and its
+  FFmpeg process → connect → restart the preview if it was running. Resolution/fps is remembered per source.
+* A webcam photo is described as a **frame grab at the stream resolution**, never as a camera original.
+
+`photobooth.exe --probe-cameras [report.json] [--include-mock]` exercises every source (connect, live-view fps, still,
+3 s recording, release) with a throw-away library and writes a JSON report plus the captured files. Steps that could not
+run are `attempted:false` = **unverified**, never "passed".
+
+### Canon hardening in this phase
+Auto power-off is prevented (keep-alive every 30 s and on the camera's "will soon shut down" event). To verify the
+constants against your real SDK: `EDSDK_HEADERS=<folder with EDSDKTypes.h/EDSDKErrors.h> go test ./internal/camera/edsdk -run Headers -v`
+(skipped in CI because the headers are proprietary). Nothing else changed in the unverified-capability policy: movie
+recording through EDSDK is still **not implemented and unverified**.
+
 ## UVC / webcam adapter
 
 Works with any OS video device: USB webcams, capture cards, and the R50 in streaming mode.

@@ -198,3 +198,14 @@ button.big { min-height: 64px; padding: 14px 36px; font-size: 20px; border-radiu
 .path { word-break: break-all; font-weight: 500; font-size: 15px; }
 .progress { height: 10px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); overflow: hidden; margin: 10px 0 4px; }
 .progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--purple-d), var(--rose)); transition: width .2s; }
+
+.source-chip { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--muted); background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; align-self: center; }
+.source-chip b { color: var(--text); }
+.booth .source-chip { font-size: 14px; background: #0006; }
+.sources-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; }
+.source { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.source.active { border-color: var(--purple); box-shadow: 0 0 0 1px var(--purple) inset; }
+.source.dup { opacity: .65; }
+.source-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.row.tight { justify-content: flex-start; gap: 6px; margin-top: 4px; }
+.form-line { display: grid; gap: 6px; color: var(--muted); font-size: 13px; margin-top: 12px; }

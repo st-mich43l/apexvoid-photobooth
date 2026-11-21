@@ -33,13 +33,48 @@ type Capabilities struct {
 	Notes            []string `json:"notes,omitempty"`
 }
 
-// DeviceInfo identifies a discoverable camera.
+// Mode is one capture format of a device (resolution, frame rate, pixel format / codec).
+type Mode struct {
+	Width  int     `json:"width"`
+	Height int     `json:"height"`
+	FPSMin float64 `json:"fpsMin"`
+	FPSMax float64 `json:"fpsMax"` // 0 = unknown
+	Format string  `json:"format"` // mjpeg, yuyv422, nv12 ...
+}
+
+// Device kinds shown in the Camera Sources screen.
+const (
+	KindDSLR        = "dslr"         // Canon body through EDSDK
+	KindWebcam      = "webcam"       // built-in or external USB webcam
+	KindCaptureCard = "capture-card" // HDMI/USB capture device
+	KindVirtual     = "virtual"      // OBS/NDI/EOS Webcam Utility and similar software cameras
+	KindSimulated   = "simulated"
+	KindCanonUVC    = "dslr-uvc" // a Canon body in USB streaming (UVC) mode
+)
+
+// DeviceInfo identifies a discoverable camera source.
 type DeviceInfo struct {
+	// ID is stable across refreshes and unplug/replug (derived from the USB
+	// instance path when the OS provides one, never from a list position).
 	ID        string `json:"id"`
 	Name      string `json:"name"`
-	Driver    string `json:"driver"` // "canon-edsdk", "uvc", "mock"
+	Driver    string `json:"driver"` // backend: "canon-edsdk", "uvc", "mock"
 	Port      string `json:"port,omitempty"`
 	Simulated bool   `json:"simulated"` // true only for the mock driver
+	Kind      string `json:"kind"`
+	Vendor    string `json:"vendor,omitempty"`
+	USBID     string `json:"usbId,omitempty"` // "vid:pid" lower-case hex, when known
+	Modes     []Mode `json:"modes,omitempty"` // supported resolutions / frame rates (UVC)
+	// DuplicateOf is set when this entry is the same physical device as
+	// another listed entry reached through a different backend; it must not
+	// be opened as well.
+	DuplicateOf string `json:"duplicateOf,omitempty"`
+	Note        string `json:"note,omitempty"`
+}
+
+// ModeReporter is implemented by cameras that stream in a selectable mode.
+type ModeReporter interface {
+	ActiveMode() (Mode, bool)
 }
 
 // State is the connection state of a camera.
@@ -125,6 +160,8 @@ const (
 	CodeTimeout         = "timeout"
 	CodePlatform        = "platform_unsupported"
 	CodeInvalidArgument = "invalid_argument"
+	CodeDuplicate       = "duplicate_device"
+	CodeBusyOperation   = "operation_in_progress"
 )
 
 // Error is an actionable camera error: Message says what happened, Action

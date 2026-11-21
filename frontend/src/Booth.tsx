@@ -5,6 +5,7 @@ import { ShootFlow } from "./ShootFlow";
 import { SimulatedRibbon } from "./ui";
 import { useApp } from "./state";
 import { VideoFlow } from "./VideoFlow";
+import { usePrepareMode } from "./usePrepareMode";
 
 type Screen = "welcome" | "photo" | "video";
 
@@ -18,6 +19,8 @@ export function Booth({ onExited }: { onExited: () => void }) {
   const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "photo" : window.location.hash === "#booth/video" ? "video" : "welcome"));
   const [asking, setAsking] = useState(false);
   const [fsError, setFsError] = useState("");
+  const { prepare, dialog: modeDialog, error: modeError } = usePrepareMode();
+  const choose = async (m: "photo" | "video") => { if (await prepare(m)) setScreen(m); };
   const idle = useRef<number | undefined>(undefined);
 
   const goFullscreen = useCallback(() => {
@@ -68,15 +71,17 @@ export function Booth({ onExited }: { onExited: () => void }) {
           <h1>Say cheese!</h1>
           <p>Choose what you would like to make</p>
           {!ready && <div className="note warn">The camera is not ready yet. Please ask the host.</div>}
+          {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
           <div className="choices">
-            <button className="choice photo" disabled={!ready} onClick={() => setScreen("photo")}><span aria-hidden>📷</span>Photo<small>{settings.shots} shots</small></button>
-            <button className="choice video" disabled={!ready} onClick={() => setScreen("video")}><span aria-hidden>🎬</span>Video<small>up to {settings.video.maxSeconds}s</small></button>
+            <button className="choice photo" onClick={() => choose("photo")}><span aria-hidden>📷</span>Photo<small>{settings.shots} shots</small></button>
+            <button className="choice video" onClick={() => choose("video")}><span aria-hidden>🎬</span>Video<small>up to {settings.video.maxSeconds}s</small></button>
           </div>
         </div>
       )}
       {screen === "photo" && <ShootFlow variant="booth" onDone={() => setScreen("welcome")} />}
       {screen === "video" && <VideoFlow variant="booth" onDone={() => setScreen("welcome")} />}
       {screen !== "welcome" && <button className="home-btn" onClick={() => setScreen("welcome")}>← Home</button>}
+      {modeDialog}
       {asking && <ExitDialog onClose={() => setAsking(false)} onExited={onExited} />}
     </div>
   );

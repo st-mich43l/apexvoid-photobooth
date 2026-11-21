@@ -215,3 +215,15 @@ type Recordable interface {
 	// SetOnRecordEnd registers a callback for recordings that end by themselves.
 	SetOnRecordEnd(func(RecordResult))
 }
+
+// Kill terminates the running ffmpeg process immediately. The stream then
+// reports the loss through OnLost (and OnRecordEnd when recording) exactly as
+// if the device had been unplugged.
+func (s *Stream) Kill() {
+	s.mu.Lock()
+	p := s.proc
+	s.mu.Unlock()
+	if p != nil {
+		p.Kill()
+	}
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useApp } from "./state";
+import { SourceChip } from "./SourceChip";
 import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
 
 /** The photo workflow, shared by Studio and Booth:
@@ -37,6 +38,7 @@ export function ShootFlow({ variant, shots: fixedShots, onDone }: { variant: "st
   return (
     <div className={`shoot ${booth ? "booth" : ""}`}>
       {!booth && <SimulatedRibbon />}
+      <SourceChip />
       {camera.reconnecting && <div className="note warn">Camera disconnected — reconnecting automatically…</div>}
       <ErrorNote error={error} onClose={clear} />
 
