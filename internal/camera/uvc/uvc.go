@@ -6,9 +6,12 @@
 package uvc
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
 	"sync"
 	"time"
 
@@ -113,6 +116,17 @@ func (d *Driver) Discover(ctx context.Context) ([]camera.DeviceInfo, error) {
 		if ffNote != "" {
 			info.Note = ffNote
 		}
+		if v.USBID != "" && info.Note == "" {
+			n := 0
+			for _, o := range merged {
+				if o.USBID == v.USBID {
+					n++
+				}
+			}
+			if n > 1 {
+				info.Note = "This USB device exposes several video streams (for example a Windows Hello camera has an RGB and an infrared stream). Infrared streams do not give a normal picture: try the other entry."
+			}
+		}
 		d.devices[ids[i]] = v
 		d.infos[ids[i]] = info
 		out = append(out, info)
@@ -189,6 +203,7 @@ type Camera struct {
 	onRecEnd   func(video.RecordResult)
 	liveStart  time.Time
 	eventsDone bool
+	sizeSeen   bool
 }
 
 func (c *Camera) Info() camera.DeviceInfo { return c.info }
@@ -278,14 +293,18 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 		c.mu.Unlock()
 		return camera.Errf(camera.CodeSDKMissing, "Place ffmpeg.exe next to the application (or set its path in Settings), then connect again. See docs/CAMERAS.md.", nil, "FFmpeg is required for the camera preview")
 	}
+	c.sizeSeen = false
 	src := c.source()
 	c.mu.Unlock()
 
 	var s *video.Stream
 	s = video.NewStream(video.StreamOptions{
 		FFmpeg: c.ffmpeg, Source: src,
-		OnFrame: func(b []byte) { c.frames.Publish(b) },
-		OnLost:  func(err error, detail string) { c.lost(s, err, detail) },
+		OnFrame: func(b []byte) {
+			c.noteFrameSize(b)
+			c.frames.Publish(b)
+		},
+		OnLost: func(err error, detail string) { c.lost(s, err, detail) },
 		OnRecordEnd: func(r video.RecordResult) {
 			c.mu.Lock()
 			f := c.onRecEnd
@@ -296,7 +315,7 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 		},
 	})
 	if err := s.Start(ctx); err != nil {
-		return camera.Errf(camera.CodeDeviceBusy, "Close other programs using the camera (EOS Utility, OBS, Zoom, browsers) and retry. For a Canon body, set USB streaming mode.", err, "could not start the camera preview")
+		return camera.Errf(camera.CodeDeviceBusy, "Close other programs using the camera (Teams, Zoom, OBS, browsers) and retry. If the device lists several streams (e.g. RGB and infrared), try the other entry. For a Canon body, set USB streaming mode. Every attempt is written to the log (Settings → Media library → Open Library Folder → logs).", err, "could not start the camera preview")
 	}
 	c.mu.Lock()
 	if c.closed {
@@ -307,6 +326,27 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 	c.stream, c.state, c.liveStart = s, camera.StateLiveView, time.Now()
 	c.mu.Unlock()
 	return nil
+}
+
+// noteFrameSize records the real stream size from the first frame of a stream
+// (the open may have fallen back to the device's default mode).
+func (c *Camera) noteFrameSize(jpegData []byte) {
+	c.mu.Lock()
+	seen := c.sizeSeen
+	c.mu.Unlock()
+	if seen {
+		return
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(jpegData))
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	c.sizeSeen = true
+	if c.mode.Width != cfg.Width || c.mode.Height != cfg.Height {
+		c.mode.Width, c.mode.Height = cfg.Width, cfg.Height
+	}
+	c.mu.Unlock()
 }
 
 func (c *Camera) lost(s *video.Stream, err error, detail string) {
