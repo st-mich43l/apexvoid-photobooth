@@ -1,10 +1,17 @@
-.env
-web/node_modules/
-web/dist/
-web/tsconfig.tsbuildinfo
-/photobooth
+# build output
+/bin/
+/dist/
+frontend/node_modules/
+frontend/dist/
+!frontend/dist/.gitkeep
+*.exe
+*.syso
 *.log
 .DS_Store
-
-# Phase-0 generated desktop project: canonical overlay is in desktop-bootstrap/
-desktop/
+# proprietary SDKs must never be committed
+EDSDK*/
+EDSDK.dll
+EdsImage.dll
+/sdk/
+cmd/photobooth/frontend_dist/*
+!cmd/photobooth/frontend_dist/.gitkeep

@@ -1,44 +1,37 @@
-# ApexVoid Photobooth — Desktop
+# ApexVoid Photobooth
 
-ApexVoid Photobooth is being rebuilt as an **offline-first, standalone desktop photobooth**. It is not an ApexVoid Enterprise / ERP / CRM application.
+Camera-operated photobooth desktop software for Windows (macOS/Linux later): connects to real
+cameras, shows live view, shoots photos with a countdown, records video, manages sessions and a local media
+library, composes photo strips at exact print size, and (later) prints.
 
-## Current milestone: Windows portable preview (Phase 0)
+It is **standalone**: no server, Docker, Enterprise/CRM/ERP integration, account system or external database.
+Data lives in a local SQLite file and ordinary folders; the app makes no network connections.
 
-This branch contains a Windows-native bootstrapping proof of concept. The result is a Windows x64 `.exe` built with Wails 3, Go and React. The preview shows a touch-friendly photo-session flow using **simulated** shots.
+**Stack:** Wails 3 + Go · React + TypeScript + Vite · SQLite (pure Go) · FFmpeg (external) · Canon EDSDK (external, not bundled).
 
-**Not yet implemented:** Canon EOS R50 capture, real live view, photo file storage, image rendering, printing, payments, kiosk lockdown and hardware diagnostics. No camera integration is claimed by this preview.
+## What works, and how it was verified
 
-### On a Windows 10/11 x64 development machine
+| Area | Status | Verified by |
+|---|---|---|
+| Camera abstraction, capability model, reconnect, single-capture lock | working | CI unit + contract tests |
+| Simulated (mock) camera | dev tool, always labelled SIMULATED | CI |
+| **Canon EOS R50 via EDSDK** (discover, live view, shutter, JPEG original download, USB-drop recovery, clean release) | **implemented, NOT hardware-tested** | adapter logic tested against a fake SDK in CI; the real DLL binding is only compiled (cross-vet), never executed |
+| **UVC / webcam via FFmpeg** (preview, stills, MP4 recording, mic selection) | pipeline tested with a synthetic FFmpeg source; **real DirectShow device untested** | CI |
+| Canon movie start/stop + movie file transfer via EDSDK | **not implemented, unverified** (see docs/CAMERAS.md) | — |
+| Photo state machine (IDLE→PREVIEW→COUNTDOWN→CAPTURING→REVIEW→SAVING→COMPLETED, ERROR, CANCELLED) | working | CI incl. race detector, cancel, retake, disconnect, repeat sessions |
+| Media library: sessions, originals never overwritten, thumbnails, gallery, edit (rotate/crop/brightness/contrast/saturation), export, trash/restore, crash recovery | working | CI |
+| Layouts (2×6 strips, 4×6 sheets, single, custom JSON/overlay) at exact size and DPI | working | CI |
+| Printing | printer **discovery** only; submission implemented for CUPS, **not for Windows**; no printer validated | CI (fake driver) |
+| Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
+| Windows x64 portable exe | built by CI; start-up self-test runs on the Windows runner | CI |
 
-Prerequisites: Go 1.26+, Node.js 22+, and Wails CLI v3.0.0.
+Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
+[docs/CAMERAS.md](docs/CAMERAS.md). Market review and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Install/build/test: [docs/INSTALL.md](docs/INSTALL.md).
 
-```powershell
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
-$env:PATH += ";$env:USERPROFILE\go\bin"
-wails3 doctor
-.\scripts\bootstrap-desktop.ps1
-```
+## Quick start (no camera)
+Run the app, Settings → enable **Simulated camera**, Camera → Connect, Photo → Start.
 
-The script generates the official Wails React starter under `desktop/apexvoidphotobooth/`, replaces it with the tracked ApexVoid standalone shell, and builds `desktop/apexvoidphotobooth/bin/*.exe`. It does **not** require Docker, PostgreSQL, Enterprise credentials, or an internet connection at runtime. The initial build requires internet access for dependencies. Windows WebView2 Runtime must be present (commonly preinstalled; check with `wails3 doctor`).
-
-Run the resulting EXE directly. This is a **portable application**, not a fully self-contained OS runtime bundle. It can be copied to another Windows x64 machine with WebView2 installed.
-
-### GitHub Actions
-
-The `Windows portable preview` workflow builds the same EXE on `windows-latest` and uploads it as a downloadable workflow artifact. Check the job status before relying on the artifact.
-
-### Architecture decision
-
-- Desktop shell: Wails v3, Go, system webview
-- UI: React + TypeScript + Vite
-- Camera: adapter interface; Canon EDSDK driver first on Windows, platform adapters later
-- Local persistence: SQLite + filesystem in a later phase
-- Photo pipeline: full-resolution originals, layouts/templates, printer interface in later phases
-- Offline-first: no Enterprise gateway or mandatory server
-- Target platforms: Windows first, macOS and Linux next
-
-### Old source code
-
-The previous `cmd/`, `internal/`, `web/`, `db/`, `deploy/` and Docker files on this branch are **legacy Enterprise-era source**. They are deliberately not compiled or referenced by the desktop preview. They remain temporarily to preserve reviewability during the migration; they will be deleted from the new product once the standalone baseline is validated. Git history is preserved.
-
-See [docs/DESKTOP_REBUILD.md](docs/DESKTOP_REBUILD.md) for the migration gates.
+## Removed from the previous application
+Enterprise integration, CRM/ERP SDK, roles/workspaces, guest care, booking, café POS/catalog, PostgreSQL,
+Docker runtime, remote registration and the legacy web UI. Git history is preserved.
