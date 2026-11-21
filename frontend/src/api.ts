@@ -1,6 +1,6 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
-  BootInfo, CameraStatus, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
+  BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
   Session, Settings, ShootSnapshot, TemplatesResult, VDevices, VideoState,
 } from "./types";
 
@@ -30,6 +30,11 @@ async function wrap<T>(p: Promise<T>): Promise<T> {
 export const api = {
   bootstrap: () => wrap(call<BootInfo>("Bootstrap")),
   listCameras: () => wrap(call<DeviceInfo[]>("ListCameras")),
+  listCameraSources: () => wrap(call<CameraSources>("ListCameraSources")),
+  setPreferredCamera: (mode: CameraMode, id: string) => wrap(call<void>("SetPreferredCamera", mode, id)),
+  clearPreferredCamera: (mode: CameraMode) => wrap(call<void>("ClearPreferredCamera", mode)),
+  setCameraMode: (id: string, m: SavedMode) => wrap(call<void>("SetCameraMode", id, m)),
+  prepareMode: (mode: CameraMode, acceptId = "") => wrap(call<ModeReadiness>("PrepareMode", mode, acceptId)),
   cameraStatus: () => wrap(call<CameraStatus>("CameraStatus")),
   connectCamera: (id: string) => wrap(call<void>("ConnectCamera", id)),
   disconnectCamera: () => wrap(call<void>("DisconnectCamera")),

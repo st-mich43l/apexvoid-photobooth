@@ -40,13 +40,21 @@ type Camera struct {
 	FrameInterval time.Duration
 	// CaptureTimeout bounds the wait for the photo to arrive after the shutter.
 	CaptureTimeout time.Duration
+	// KeepAliveInterval is how often the camera's auto power-off timer is
+	// extended while connected (default 30 s). The camera also announces
+	// "will soon shut down", which triggers an immediate extension.
+	KeepAliveInterval time.Duration
+
+	kick     chan struct{}
+	stopKeep context.CancelFunc
+	keepDone chan struct{}
 }
 
 func newCamera(w *worker, a api, info camera.DeviceInfo, find conflictFinder, d *Driver) *Camera {
 	return &Camera{
 		w: w, a: a, info: info, find: find, drv: d,
 		frames: camera.NewFrameBuffer(), events: make(chan camera.Event, 4), items: make(chan ref, 16),
-		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second,
+		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second, KeepAliveInterval: 30 * time.Second, kick: make(chan struct{}, 1),
 		caps: camera.Capabilities{
 			LiveView: camera.Unverified, StillCapture: camera.Unverified, OriginalTransfer: camera.Unverified,
 			MovieRecord: camera.Unverified, MovieTransfer: camera.Unverified, StreamedVideo: camera.Unsupported,
@@ -152,8 +160,37 @@ func (c *Camera) Connect(ctx context.Context) error {
 	}
 	c.mu.Lock()
 	c.cam, c.opened, c.state, c.notified = found.Ref, true, camera.StateConnected, false
+	kctx, cancel := context.WithCancel(context.Background())
+	c.stopKeep, c.keepDone = cancel, make(chan struct{})
+	done := c.keepDone
 	c.mu.Unlock()
+	go c.keepAlive(kctx, found.Ref, done)
 	return nil
+}
+
+// keepAlive stops the body from powering itself off during an event: the
+// auto power-off timer is extended periodically and whenever the camera warns
+// that it will shut down soon. Failures are ignored here; a vanished camera is
+// detected by the state event and by the live-view/capture calls.
+func (c *Camera) keepAlive(ctx context.Context, r ref, done chan struct{}) {
+	defer close(done)
+	iv := c.KeepAliveInterval
+	if iv <= 0 {
+		iv = 30 * time.Second
+	}
+	t := time.NewTicker(iv)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		case <-c.kick:
+		}
+		cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		_ = c.w.do(cctx, func() error { return c.a.SendCommand(r, cmdExtendShutdownTimer, 0) })
+		cancel()
+	}
 }
 
 // onObject runs on the SDK thread during PumpEvents.
@@ -168,8 +205,14 @@ func (c *Camera) onObject(event uint32, item ref) {
 }
 
 func (c *Camera) onState(event, data uint32) {
-	if event == evStateShutdown {
+	switch event {
+	case evStateShutdown:
 		c.emitLost(errors.New("camera reported shutdown / USB disconnect"))
+	case evStateWillSoonShutDown:
+		select { // never block the SDK thread
+		case c.kick <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -399,6 +442,14 @@ func isJPEG(name string) bool {
 // Disconnect stops live view, closes the SDK session and releases the handle.
 // Safe to call repeatedly and when the camera is already gone.
 func (c *Camera) Disconnect() error {
+	c.mu.Lock()
+	stopKeep, keepDone := c.stopKeep, c.keepDone
+	c.stopKeep, c.keepDone = nil, nil
+	c.mu.Unlock()
+	if stopKeep != nil {
+		stopKeep()
+		<-keepDone
+	}
 	_ = c.StopLiveView()
 	c.mu.Lock()
 	if c.closed {

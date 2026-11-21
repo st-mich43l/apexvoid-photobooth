@@ -44,31 +44,9 @@ func (s *Service) ListCameras() ([]camera.DeviceInfo, error) {
 // CameraStatus returns the camera subsystem state.
 func (s *Service) CameraStatus() camera.Status { return s.mgr.Status() }
 
-// ConnectCamera connects the discovered device with the given id.
-func (s *Service) ConnectCamera(id string) error {
-	ctx, cancel := s.ctx()
-	defer cancel()
-	// the shooting engine must be idle: a connect swaps the camera under it
-	if st := s.eng.Snapshot().State; st != capture.Idle && st != capture.Preview && st != capture.Completed && st != capture.Cancelled && st != capture.Error {
-		return newUserErr("A photo session is running.", "Finish or cancel it before changing the camera.")
-	}
-	_ = s.eng.Reset()
-	devs, err := s.mgr.Discover(ctx)
-	if err != nil {
-		return userErr(err)
-	}
-	for _, d := range devs {
-		if d.ID == id {
-			if err := s.mgr.Connect(ctx, d); err != nil {
-				s.log.Warn("connect failed", "device", d.Name, "err", err)
-				return userErr(err)
-			}
-			s.log.Info("camera connected", "device", d.Name, "driver", d.Driver)
-			return nil
-		}
-	}
-	return newUserErr("That camera is no longer available.", "Press Refresh and choose it again.")
-}
+// ConnectCamera connects the discovered source with the given id, using the
+// safe switching sequence (see switchTo).
+func (s *Service) ConnectCamera(id string) error { return s.switchTo(id, false) }
 
 // DisconnectCamera releases the camera.
 func (s *Service) DisconnectCamera() error {

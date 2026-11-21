@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -28,11 +27,14 @@ type Prefs struct {
 type Driver struct {
 	// FFmpegPath returns the configured ffmpeg path ("" = auto-locate).
 	FFmpegPath func() string
-	// Prefs returns the requested resolution/frame rate.
-	Prefs func() Prefs
+	// Prefs returns the requested resolution/frame rate for a device id.
+	Prefs func(deviceID string) Prefs
 
 	mu      sync.Mutex
 	devices map[string]video.Device
+	infos   map[string]camera.DeviceInfo
+
+	native Enumerator // operating-system enumeration without FFmpeg (nil = none)
 
 	// test hooks
 	listFn   func(ctx context.Context, ffmpeg string, modes bool) (video.Devices, error)
@@ -40,8 +42,8 @@ type Driver struct {
 }
 
 // NewDriver creates the driver. Both funcs may be nil.
-func NewDriver(ffmpegPath func() string, prefs func() Prefs) *Driver {
-	return &Driver{FFmpegPath: ffmpegPath, Prefs: prefs, devices: map[string]video.Device{}}
+func NewDriver(ffmpegPath func() string, prefs func(deviceID string) Prefs) *Driver {
+	return &Driver{FFmpegPath: ffmpegPath, Prefs: prefs, devices: map[string]video.Device{}, infos: map[string]camera.DeviceInfo{}, native: nativeEnumerator}
 }
 
 func (d *Driver) Name() string { return DriverName }
@@ -60,41 +62,67 @@ func (d *Driver) ffmpeg() (string, error) {
 	return p, nil
 }
 
-// Available reports whether FFmpeg can be found.
-func (d *Driver) Available() error { _, err := d.ffmpeg(); return err }
+// Available reports whether devices can be listed: natively (Windows) or via FFmpeg.
+func (d *Driver) Available() error {
+	if d.native != nil {
+		return nil
+	}
+	_, err := d.ffmpeg()
+	return err
+}
 
-// Discover lists video capture devices.
+// Discover lists video sources. On Windows the operating system is asked first
+// (no FFmpeg needed to *see* a webcam); when FFmpeg is present it adds the
+// supported resolutions and the exact device names it needs.
 func (d *Driver) Discover(ctx context.Context) ([]camera.DeviceInfo, error) {
-	ff, err := d.ffmpeg()
-	if err != nil {
-		return nil, err
+	var native []NativeDevice
+	var nerr error
+	if d.native != nil {
+		native, nerr = d.native(ctx)
 	}
-	list := video.ListDevices
-	if d.listFn != nil {
-		list = d.listFn
+	var ff []video.Device
+	ffNote := ""
+	if path, err := d.ffmpeg(); err == nil {
+		list := video.ListDevices
+		if d.listFn != nil {
+			list = d.listFn
+		}
+		devs, lerr := list(ctx, path, true)
+		if lerr != nil && len(native) == 0 {
+			return nil, camera.Errf(camera.CodeNoDevice, "Check that the camera is connected.", lerr, "could not list video devices")
+		}
+		ff = devs.Video
+	} else {
+		ffNote = "FFmpeg is not installed: this source is listed, but preview, photos and recording need FFmpeg (see docs/CAMERAS.md)."
+		if d.native == nil {
+			return nil, err
+		}
 	}
-	devs, err := list(ctx, ff, true)
-	if err != nil {
-		return nil, camera.Errf(camera.CodeNoDevice, "Check that the camera is connected.", err, "could not list video devices")
+	if nerr != nil && len(ff) == 0 && len(native) == 0 {
+		return nil, camera.Errf(camera.CodeNoDevice, "Check that the camera is connected.", nerr, "could not list video devices")
 	}
+	merged := mergeDevices(native, ff)
+	ids := stableIDs(merged)
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.devices = map[string]video.Device{}
-	var out []camera.DeviceInfo
-	for _, v := range devs.Video {
-		id := DriverName + ":" + v.ID
-		d.devices[id] = v
-		out = append(out, camera.DeviceInfo{ID: id, Name: v.Name, Driver: DriverName, Port: v.ID})
+	d.devices, d.infos = map[string]video.Device{}, map[string]camera.DeviceInfo{}
+	out := make([]camera.DeviceInfo, 0, len(merged))
+	for i, v := range merged {
+		kind, vendor := Classify(v.Name, v.USBID, v.USBID == "" && d.native != nil && v.Key == "")
+		info := camera.DeviceInfo{ID: ids[i], Name: v.Name, Driver: DriverName, Port: v.ID, Kind: kind, Vendor: vendor, USBID: v.USBID, Modes: v.Modes}
+		if ffNote != "" {
+			info.Note = ffNote
+		}
+		d.devices[ids[i]] = v
+		d.infos[ids[i]] = info
+		out = append(out, info)
 	}
 	return out, nil
 }
 
 // Open creates a Camera for a discovered device.
 func (d *Driver) Open(info camera.DeviceInfo) (camera.Camera, error) {
-	ff, err := d.ffmpeg()
-	if err != nil {
-		return nil, err
-	}
+	ff, _ := d.ffmpeg() // may be empty: the device is still listed; preview then reports "FFmpeg missing"
 	d.mu.Lock()
 	dev, ok := d.devices[info.ID]
 	d.mu.Unlock()
@@ -103,7 +131,7 @@ func (d *Driver) Open(info camera.DeviceInfo) (camera.Camera, error) {
 	}
 	var p Prefs
 	if d.Prefs != nil {
-		p = d.Prefs()
+		p = d.Prefs(info.ID)
 	}
 	return &Camera{info: info, dev: dev, ffmpeg: ff, prefs: p, override: d.override,
 		frames: camera.NewFrameBuffer(), events: make(chan camera.Event, 4), state: camera.StateDisconnected}, nil
@@ -167,16 +195,37 @@ func (c *Camera) Info() camera.DeviceInfo { return c.info }
 
 func (c *Camera) Capabilities() camera.Capabilities {
 	notes := []string{
-		"Still photos are frames grabbed from the video stream at the stream resolution, not camera originals.",
+		"Still photos are frame grabs from the video stream at the stream resolution — not full-resolution camera originals.",
 		"Video is encoded on the PC by FFmpeg from the streamed frames.",
 	}
-	if strings.Contains(strings.ToLower(c.dev.Name), "canon") || strings.Contains(strings.ToLower(c.dev.Name), "eos") {
-		notes = append(notes, "Canon body in USB streaming (UVC) mode: use the Canon EDSDK adapter instead for full-resolution originals.")
+	if c.info.Kind == camera.KindCanonUVC || c.info.Vendor == "Canon" {
+		notes = append(notes, "Canon body in USB streaming (UVC) mode: use the Canon EDSDK source (photo mode) for full-resolution originals.")
+	}
+	if c.info.Kind == camera.KindVirtual {
+		notes = append(notes, "Software (virtual) camera: it only works while its own program is running and may hold the real camera exclusively.")
+	}
+	if c.ffmpeg == "" && c.override == nil {
+		notes = append(notes, "FFmpeg was not found: preview, photos and recording are unavailable until ffmpeg.exe is placed next to the app or set in Settings.")
+		return camera.Capabilities{LiveView: camera.Unsupported, StillCapture: camera.Unsupported, OriginalTransfer: camera.Unsupported,
+			MovieRecord: camera.Unsupported, MovieTransfer: camera.Unsupported, StreamedVideo: camera.Unsupported, Notes: notes}
 	}
 	return camera.Capabilities{
 		LiveView: camera.Supported, StillCapture: camera.Supported, OriginalTransfer: camera.Unsupported,
 		MovieRecord: camera.Unsupported, MovieTransfer: camera.Unsupported, StreamedVideo: camera.Supported, Notes: notes,
 	}
+}
+
+// ActiveMode reports the mode the device is streaming (or will stream) in.
+func (c *Camera) ActiveMode() (camera.Mode, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.mode.Width > 0 {
+		return c.mode, true
+	}
+	if c.prefs.Width > 0 {
+		return camera.Mode{Width: c.prefs.Width, Height: c.prefs.Height, FPSMax: float64(c.prefs.FPS)}, true
+	}
+	return camera.Mode{}, false
 }
 
 func (c *Camera) State() camera.State         { c.mu.Lock(); defer c.mu.Unlock(); return c.state }
@@ -209,6 +258,7 @@ func (c *Camera) source() video.Source {
 		if m.FPSMax > 0 && float64(src.FPS) > m.FPSMax {
 			src.FPS = int(m.FPSMax)
 		}
+		m.FPSMax = float64(src.FPS)
 		c.mode = m
 	}
 	return src
@@ -223,6 +273,10 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 	if c.stream != nil {
 		c.mu.Unlock()
 		return nil
+	}
+	if c.ffmpeg == "" && c.override == nil {
+		c.mu.Unlock()
+		return camera.Errf(camera.CodeSDKMissing, "Place ffmpeg.exe next to the application (or set its path in Settings), then connect again. See docs/CAMERAS.md.", nil, "FFmpeg is required for the camera preview")
 	}
 	src := c.source()
 	c.mu.Unlock()
@@ -318,7 +372,11 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		}
 		return camera.Photo{}, camera.Errf(camera.CodeTimeout, "Check the camera connection and try again.", err, "no frame arrived from the camera")
 	}
-	return camera.Photo{Data: f.JPEG, Source: "UVC frame grab"}, nil
+	src := "UVC frame grab (not a camera original)"
+	if m, ok := c.ActiveMode(); ok {
+		src = fmt.Sprintf("UVC frame grab %d×%d (not a camera original)", m.Width, m.Height)
+	}
+	return camera.Photo{Data: f.JPEG, Source: src}, nil
 }
 
 func (c *Camera) isClosed() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.closed }
@@ -390,3 +448,10 @@ func (c *Camera) SetOnRecordEnd(f func(video.RecordResult)) {
 }
 
 var _ = errors.New
+
+// streamForTest exposes the running stream to tests (to simulate an unplug).
+func (c *Camera) streamForTest() *video.Stream {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stream
+}

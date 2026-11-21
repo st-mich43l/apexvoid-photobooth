@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +41,35 @@ func TestParseDShowDevices(t *testing.T) {
 	d = parseDShowDevices(dshowOld)
 	if len(d.Video) != 1 || d.Video[0].Name != "USB2.0 HD UVC WebCam" || len(d.Audio) != 1 || d.Audio[0].Name != "Microphone (USB2.0 MIC)" {
 		t.Fatalf("old format: %+v", d)
+	}
+}
+
+func TestDeviceKeys(t *testing.T) {
+	usb, key := DeviceKeys(`@device_pnp_\\?\usb#vid_04A9&pid_32EA#6&2a&0&2#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\global`)
+	if usb != "04a9:32ea" || key != "usb#vid_04a9&pid_32ea#6&2a&0&2" {
+		t.Fatalf("%q %q", usb, key)
+	}
+	// composite devices add &mi_00 for the video interface; the key must not change
+	usb2, key2 := DeviceKeys(`@device_pnp_\\?\usb#vid_04a9&pid_32ea&mi_00#6&2a&0&2#{x}\global`)
+	if usb2 != usb || key2 == "" {
+		t.Fatalf("%q %q", usb2, key2)
+	}
+	if u, k := DeviceKeys(`@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\{A3FCE0F5}`); u != "" || k != "" {
+		t.Fatal("software filters have no USB key")
+	}
+	d := parseDShowDevices(dshowModern)
+	if d.Video[1].USBID != "04a9:32ea" || d.Video[1].Key == "" {
+		t.Fatalf("%+v", d.Video[1])
+	}
+}
+
+func TestAlternativeNameIsUsedToOpenDuplicateNamedCameras(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("DirectShow arguments are Windows-only")
+	}
+	o := PipelineOptions{FFmpeg: "ffmpeg", Source: Source{Video: Device{Name: "USB Camera", ID: `@device_pnp_\\?\usb#vid_1&pid_2#a#{g}\global`}, Width: 640, Height: 480, FPS: 30}}
+	if j := strings.Join(BuildArgs(o), " "); !strings.Contains(j, `video=@device_pnp_`) {
+		t.Fatalf("%s", j)
 	}
 }
 
