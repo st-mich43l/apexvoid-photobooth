@@ -67,6 +67,9 @@ func (s *Service) GetMedia(id string) (sessions.Media, error) {
 // SaveEdits stores a non-destructive edit recipe (rotate/crop/brightness/
 // contrast/saturation). The original file is never modified.
 func (s *Service) SaveEdits(mediaID string, e media.Edits) (sessions.Media, error) {
+	if err := s.guardWrite(); err != nil {
+		return sessions.Media{}, err
+	}
 	m, err := s.store.SaveEdits(mediaID, e)
 	return m, userErr(err)
 }
@@ -84,16 +87,34 @@ func (s *Service) ExportMedia(mediaID, destDir string, edited bool) (string, err
 
 // TrashMedia moves a media item to the recoverable trash. The UI must have
 // asked the operator for confirmation.
-func (s *Service) TrashMedia(id string) error { return userErr(s.store.Trash(id)) }
+func (s *Service) TrashMedia(id string) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
+	return userErr(s.store.Trash(id))
+}
 
 // RestoreMedia brings a trashed item back.
-func (s *Service) RestoreMedia(id string) error { return userErr(s.store.Restore(id)) }
+func (s *Service) RestoreMedia(id string) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
+	return userErr(s.store.Restore(id))
+}
 
 // TrashSession trashes every item of a session.
-func (s *Service) TrashSession(id string) error { return userErr(s.store.TrashSession(id)) }
+func (s *Service) TrashSession(id string) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
+	return userErr(s.store.TrashSession(id))
+}
 
 // EmptyTrash permanently deletes trashed items and returns how many.
 func (s *Service) EmptyTrash() (int, error) {
+	if err := s.guardWrite(); err != nil {
+		return 0, err
+	}
 	n, err := s.store.EmptyTrash()
 	return n, userErr(err)
 }

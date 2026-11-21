@@ -50,6 +50,9 @@ func (s *Service) PreviewTemplate(id string) (string, error) {
 // ComposeSession renders a session's photos into a layout and stores the
 // result as a "strip" media item.
 func (s *Service) ComposeSession(sessionID, templateID string) (sessions.Media, error) {
+	if err := s.guardWrite(); err != nil {
+		return sessions.Media{}, err
+	}
 	s.mu.Lock()
 	prev := s.tplID
 	s.tplID = templateID

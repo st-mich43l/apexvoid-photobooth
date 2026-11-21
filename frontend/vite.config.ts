@@ -6,5 +6,5 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   build: { outDir: "../cmd/photobooth/frontend_dist", emptyOutDir: true, target: "es2022" },
-  test: { environment: "node" },
+  test: { environment: "jsdom", clearMocks: true },
 });

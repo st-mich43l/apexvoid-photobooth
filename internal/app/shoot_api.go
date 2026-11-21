@@ -24,6 +24,9 @@ func (s *Service) StartPreview() error {
 
 // StartShooting: PREVIEW -> COUNTDOWN. shots is 1, 2, 4 or 6.
 func (s *Service) StartShooting(shots int) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
 	cfg := s.settings.Get()
 	switch shots {
 	case 1, 2, 4, 6:
