@@ -40,6 +40,9 @@ func RunContract(t *testing.T, drv camera.Driver, o Options) {
 		if d.Driver != drv.Name() || d.ID == "" || d.Name == "" {
 			t.Fatalf("malformed DeviceInfo %+v", d)
 		}
+		if d.Kind == "" {
+			t.Fatalf("device %q has no Kind: the Camera Sources screen cannot label it", d.Name)
+		}
 		if d.Simulated != o.WantSimulated {
 			t.Fatalf("Simulated=%v, want %v", d.Simulated, o.WantSimulated)
 		}

@@ -71,7 +71,12 @@ func (s Source) inputArgs() (args []string, audioMap string) {
 		default:
 			args = append(args, "-pixel_format", s.Format)
 		}
-		in := "video=" + s.Video.Name
+		// the alternative name (@device_pnp_...) is unambiguous when two cameras share a name
+		devName := s.Video.Name
+		if strings.HasPrefix(s.Video.ID, "@device") {
+			devName = s.Video.ID
+		}
+		in := "video=" + devName
 		if s.Audio != "" {
 			in += ":audio=" + s.Audio
 			audioMap = "0:a"

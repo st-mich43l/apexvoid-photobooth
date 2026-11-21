@@ -32,6 +32,21 @@ EOS Utility closed. Download the portable artifact from the CI run and unzip it.
 | B4 | Record, unplug USB mid-recording. | Recording saved as **partial**, playable. |
 | B5 | Kill the app process during recording; restart. | Recording recovered as partial. |
 
+## B2. Windows webcam (first real-device test — no Canon needed)
+Run `ApexVoidPhotobooth.exe --probe-cameras report.json` from PowerShell first (`Start-Process -Wait`), then the UI steps.
+| # | Step | Expected |
+|---|---|---|
+| W1 | Camera → Refresh with the integrated and an external webcam. | Both listed with backend, kind, USB id; resolutions listed when FFmpeg is present; listed (with an FFmpeg note) when it is not. |
+| W2 | Connect each in turn; Start preview; change resolution/fps. | Preview runs; switching releases the previous camera (the camera LED of the old one turns off); mode applies. |
+| W3 | Photo → 1 shot. | JPEG in `<Documents>\apexvoid-studio\sessions\<id>\originals`; gallery says "UVC frame grab W×H"; never "original". |
+| W4 | Video → choose a microphone, record 20 s, clap once. | MP4 with sound; A/V in sync; plays in the gallery. |
+| W5 | Pull the USB cable during preview, replug after 5 s. | Banner "reconnecting"; preview resumes on the same source. |
+| W6 | Same during a recording. | Partial recording saved and playable. |
+| W7 | Set a different Photo and Video camera; restart the app. | Preferences restored; a missing one produces a note and a confirmation, never a silent switch. |
+| W8 | Plug a Canon R50 in streaming mode while the SDK source exists. | UVC entry marked duplicate, not connectable. |
+| W9 | Close the app during preview/recording. | LEDs off; no `ffmpeg.exe` left in Task Manager. |
+| W10 | `--probe-cameras` report. | `liveView`, `still`, `video` steps `ok:true`, `releasedCleanly:true`; any `attempted:false` stays unverified. |
+
 ## C. Booth Mode (must be run in the real Wails/WebView2 window — CI only tests the logic with jsdom)
 | # | Step | Expected |
 |---|---|---|

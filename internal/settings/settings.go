@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/storage"
 )
 
@@ -26,6 +27,14 @@ type Video struct {
 	MaxSeconds int    `json:"maxSeconds"`
 }
 
+// CameraMode is a remembered capture mode for one camera source.
+type CameraMode struct {
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+	FPS    int    `json:"fps"`
+	Format string `json:"format"`
+}
+
 // Settings is the persisted configuration.
 type Settings struct {
 	MediaDir         string `json:"mediaDir"` // empty = default data directory
@@ -37,6 +46,12 @@ type Settings struct {
 	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
 	CanonSDKDir      string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
 	PrinterName      string `json:"printerName"`
+	// Preferred sources, separate for Photo and Video mode. Restored at start-up;
+	// when one is missing the operator is asked before another source is used.
+	PhotoCamera camera.Preferred `json:"photoCamera"`
+	VideoCamera camera.Preferred `json:"videoCamera"`
+	// CameraModes remembers the chosen resolution/fps per camera source id.
+	CameraModes map[string]CameraMode `json:"cameraModes"`
 	// KioskPin is "pbkdf2$iterations$salt$hash" ("" = kiosk protection off). It is never sent to the UI.
 	KioskPin    string `json:"kioskPin"`
 	KioskPinSet bool   `json:"kioskPinSet"` // computed for the UI; ignored when saving
@@ -66,6 +81,11 @@ func (s *Settings) Validate() error {
 	}
 	if s.Video.MaxSeconds < 1 || s.Video.MaxSeconds > 3600 {
 		return errors.New("recording duration must be 1-3600 seconds")
+	}
+	for id, m := range s.CameraModes {
+		if m.Width < 160 || m.Height < 120 || m.FPS < 1 || m.FPS > 120 {
+			return fmt.Errorf("invalid capture mode for camera %q", id)
+		}
 	}
 	if s.MediaDir != "" && !filepath.IsAbs(s.MediaDir) {
 		return errors.New("media folder must be an absolute path")

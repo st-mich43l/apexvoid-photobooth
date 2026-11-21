@@ -24,6 +24,9 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--selftest" {
 		os.Exit(app.SelfTest(version, os.Args[2:]))
 	}
+	if len(os.Args) >= 2 && os.Args[1] == "--probe-cameras" {
+		os.Exit(app.ProbeCameras(version, os.Args[2:]))
+	}
 	var wapp *application.App
 
 	svc, err := app.New(app.Options{
