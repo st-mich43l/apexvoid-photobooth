@@ -294,3 +294,30 @@ func TestMigrationRejectsPoisonedDatabasePaths(t *testing.T) {
 		t.Fatal("source emptied")
 	}
 }
+
+// The running app keeps appending to its log while the library is copied.
+func TestMigrationToleratesLogGrowingDuringCopy(t *testing.T) {
+	base := t.TempDir()
+	src, dst := filepath.Join(base, "old"), filepath.Join(base, "new")
+	sdb, _ := buildLegacy(t, src)
+	defer sdb.Close()
+	logf := filepath.Join(src, "logs", "app-20261101.log")
+	grown := false
+	res, err := storage.MigrateLibrary(context.Background(), storage.Layout{Root: src}, storage.Layout{Root: dst}, storage.MigrateOptions{SrcDB: sdb,
+		Progress: func(int64, int64) {
+			if !grown { // grow the log after it was inventoried
+				grown = true
+				f, _ := os.OpenFile(logf, os.O_APPEND|os.O_WRONLY, 0o644)
+				_, _ = f.WriteString(strings.Repeat("more log lines\n", 50))
+				f.Close()
+			}
+		}})
+	if err != nil || !res.Verified {
+		t.Fatalf("a growing log must not fail the migration: %v", err)
+	}
+	// and a resumed run must not call the (now different) log a conflict
+	_ = os.Remove(filepath.Join(dst, "database", "photobooth.db"))
+	if _, err := storage.MigrateLibrary(context.Background(), storage.Layout{Root: src}, storage.Layout{Root: dst}, storage.MigrateOptions{SrcDB: sdb}); err != nil {
+		t.Fatalf("resume after the log changed: %v", err)
+	}
+}

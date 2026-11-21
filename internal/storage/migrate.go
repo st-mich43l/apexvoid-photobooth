@@ -51,6 +51,11 @@ var ErrDestHasLibrary = errors.New("the destination already contains a media lib
 
 const inProgressMarker = ".migration-in-progress"
 
+// volatile files are written by the running application while it is being
+// migrated (the daily log). They are copied best-effort and excluded from the
+// strict size verification and from conflict detection.
+func volatile(rel string) bool { return strings.HasPrefix(filepath.ToSlash(rel), "logs/") }
+
 type srcFile struct {
 	rel  string
 	size int64
@@ -171,6 +176,12 @@ func MigrateLibrary(ctx context.Context, src, dst Layout, o MigrateOptions) (Mig
 		if !within(dstAbs, target) {
 			return res, fmt.Errorf("unsafe path in the old library: %s", f.rel)
 		}
+		if volatile(f.rel) {
+			if _, err := os.Lstat(target); err == nil {
+				res.Skipped++
+				continue
+			}
+		}
 		skipped, err := copyNoOverwrite(filepath.Join(src.Root, f.rel), target)
 		if err != nil {
 			return res, err
@@ -274,6 +285,12 @@ func fileSum(p string) ([32]byte, error) {
 // reference (that exists in the source) exists in the copy.
 func verifyMigration(src, dst Layout, files []srcFile, sdb *DB, res *MigrateResult) error {
 	for _, f := range files {
+		if volatile(f.rel) {
+			if _, err := os.Stat(filepath.Join(dst.Root, f.rel)); err != nil {
+				return fmt.Errorf("missing in the copy: %s", filepath.ToSlash(f.rel))
+			}
+			continue
+		}
 		st, err := os.Stat(filepath.Join(dst.Root, f.rel))
 		if err != nil {
 			return fmt.Errorf("missing in the copy: %s", filepath.ToSlash(f.rel))
