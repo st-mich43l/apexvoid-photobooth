@@ -31,14 +31,23 @@ export interface VideoSettings { device: string; audioInput: string; width: numb
 export interface Settings {
   mediaDir: string; countdownSeconds: number; shots: number; templateId: string; autoReconnect: boolean;
   enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; video: VideoSettings;
+  kioskPinSet: boolean; // the PIN record itself never reaches the UI
 }
 
 export interface LibrarySummary {
   sessions: number; photos: number; videos: number; interrupted: string[]; recovered: number; missing: number; freeBytes: number;
 }
+export interface LibraryStatus {
+  path: string; source: "documents" | "legacy" | "custom" | "fallback" | "default"; defaultPath: string; legacyPath: string;
+  migrationPending: boolean; restartRequired: boolean; warning: string; configPath: string; freeBytes: number;
+}
+export interface MigrationReport {
+  dest: string; source: string; files: number; skipped: number; symlinks: string[]; bytes: number; sessions: number;
+  mediaRows: number; verified: boolean; sourceKept: boolean; restartRequired: boolean;
+}
 export interface BootInfo {
   version: string; dataDir: string; mediaBase: string; mediaToken: string; settings: Settings; camera: CameraStatus;
-  capture: ShootSnapshot; video: VideoState; library: LibrarySummary; os: string;
+  capture: ShootSnapshot; video: VideoState; library: LibrarySummary; location: LibraryStatus; os: string;
 }
 
 export interface Session {

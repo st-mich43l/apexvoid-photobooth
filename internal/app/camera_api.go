@@ -17,6 +17,7 @@ type BootInfo struct {
 	Capture    capture.Snapshot  `json:"capture"`
 	Video      VideoState        `json:"video"`
 	Library    LibrarySummary    `json:"library"`
+	Location   LibraryStatus     `json:"location"`
 	OS         string            `json:"os"`
 }
 
@@ -24,8 +25,8 @@ type BootInfo struct {
 func (s *Service) Bootstrap() BootInfo {
 	return BootInfo{
 		Version: s.opts.Version, DataDir: s.db.Layout.Root, MediaBase: s.httpd.base, MediaToken: s.httpd.token,
-		Settings: s.settings.Get(), Camera: s.mgr.Status(), Capture: s.eng.Snapshot(), Video: s.VideoState(),
-		Library: s.librarySummary(), OS: osName(),
+		Settings: s.publicSettings(), Camera: s.mgr.Status(), Capture: s.eng.Snapshot(), Video: s.VideoState(),
+		Library: s.librarySummary(), Location: s.LibraryStatus(), OS: osName(),
 	}
 }
 

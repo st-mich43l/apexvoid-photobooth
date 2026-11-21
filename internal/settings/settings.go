@@ -37,7 +37,10 @@ type Settings struct {
 	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
 	CanonSDKDir      string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
 	PrinterName      string `json:"printerName"`
-	Video            Video  `json:"video"`
+	// KioskPin is "pbkdf2$iterations$salt$hash" ("" = kiosk protection off). It is never sent to the UI.
+	KioskPin    string `json:"kioskPin"`
+	KioskPinSet bool   `json:"kioskPinSet"` // computed for the UI; ignored when saving
+	Video       Video  `json:"video"`
 }
 
 // Default returns factory settings.
@@ -70,13 +73,10 @@ func (s *Settings) Validate() error {
 	return nil
 }
 
-// DefaultDataDir is where the media library lives unless configured.
-func DefaultDataDir() string {
+// defaultDataDirOther is the library location on macOS/Linux (Windows uses
+// <Documents>\apexvoid-studio, see library.go).
+func defaultDataDirOther() string {
 	switch runtime.GOOS {
-	case "windows":
-		if d := os.Getenv("LOCALAPPDATA"); d != "" {
-			return filepath.Join(d, AppDirName)
-		}
 	case "darwin":
 		if h, err := os.UserHomeDir(); err == nil {
 			return filepath.Join(h, "Library", "Application Support", AppDirName)
@@ -152,12 +152,4 @@ func (m *Manager) Save(s Settings) error {
 	m.cur = s
 	m.mu.Unlock()
 	return nil
-}
-
-// DataDir returns the effective media library root.
-func (m *Manager) DataDir() string {
-	if d := m.Get().MediaDir; d != "" {
-		return d
-	}
-	return DefaultDataDir()
 }
