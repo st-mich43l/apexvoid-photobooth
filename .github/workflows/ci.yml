@@ -147,30 +147,82 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Optional convenience: a copy of the portable package with an LGPL FFmpeg
-  # build next to it. Non-blocking; the release artifact above never contains
-  # third-party binaries.
-  windows-with-ffmpeg:
-    name: Optional bundle with LGPL FFmpeg (non-blocking)
+  # Single-file variant: ONE executable with an LGPL FFmpeg built in (unpacked at first use and run as a
+  # separate process). Pinned by release tag and SHA-256; the binary is never committed.
+  windows-single-exe:
+    name: Single-file exe with built-in LGPL FFmpeg
     runs-on: windows-latest
-    needs: [windows]
-    continue-on-error: true
+    needs: [go, frontend]
+    env:
+      FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-21-12-37/ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1.zip
+      FFMPEG_SHA256: 47d2e37e5ab9dc775cf5e5e595a817a11534c2fd6533a16db476f45dd8a7ce83
+      FFMPEG_DIR: ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          name: ApexVoidPhotobooth-windows-x64-portable
-          path: pkg
-      - name: Fetch FFmpeg LGPL build (BtbN)
+          go-version: '1.26'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Fetch the pinned FFmpeg and verify its SHA-256
         shell: pwsh
         run: |
-          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip -OutFile ffmpeg.zip
-          Expand-Archive ffmpeg.zip ff
-          Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName pkg\ffmpeg.exe
-          Copy-Item (Get-ChildItem ff -Recurse -Filter LICENSE.txt | Select-Object -First 1).FullName pkg\FFMPEG-LICENSE.txt
-          Set-Content pkg\FFMPEG-NOTICE.txt "ffmpeg.exe is an unmodified LGPL build from https://github.com/BtbN/FFmpeg-Builds. It is a separate program run as a subprocess. See FFMPEG-LICENSE.txt."
-          pkg\ffmpeg.exe -hide_banner -encoders | Select-String h264_mf
+          Invoke-WebRequest $env:FFMPEG_URL -OutFile ffmpeg.zip
+          $h = (Get-FileHash ffmpeg.zip -Algorithm SHA256).Hash.ToLower()
+          if ($h -ne $env:FFMPEG_SHA256) { throw "FFmpeg download hash mismatch: $h" }
+          Expand-Archive ffmpeg.zip ffx
+          $src = Join-Path "ffx\$env:FFMPEG_DIR" 'bin\ffmpeg.exe'
+          New-Item internal\video\embedded -ItemType Directory | Out-Null
+          # gzip -9 of ffmpeg.exe (~134 MB -> ~55 MB)
+          $in = [System.IO.File]::OpenRead($src)
+          $out = [System.IO.File]::Create("internal\video\embedded\ffmpeg.exe.gz")
+          $gz = New-Object System.IO.Compression.GZipStream($out, [System.IO.Compression.CompressionLevel]::SmallestSize)
+          $in.CopyTo($gz); $gz.Close(); $out.Close(); $in.Close()
+          Copy-Item "ffx\$env:FFMPEG_DIR\LICENSE.txt" internal\video\embedded\FFMPEG-LICENSE.txt
+          Get-Item internal\video\embedded\* | Select-Object Name, Length
+      - name: Windows resources
+        shell: bash
+        working-directory: cmd/photobooth
+        run: go run github.com/tc-hib/go-winres@v0.3.3 make --in ../../build/winres/winres.json --arch amd64
+      - name: Build the single executable
+        shell: bash
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -tags embedffmpeg \
+            -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}-single" \
+            -o dist/ApexVoidPhotobooth.exe ./cmd/photobooth
+          ls -l dist
+      - name: Self-test with NO ffmpeg beside the app (the built-in copy must unpack and run)
+        shell: pwsh
+        run: |
+          Remove-Item "$env:LOCALAPPDATA\ApexVoidPhotobooth\bin" -Recurse -ErrorAction SilentlyContinue
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--selftest', "$PWD\selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "self-test failed" }
+          $r = Get-Content selftest.json | ConvertFrom-Json
+          $ff = $r.checks | Where-Object { $_.name -eq 'FFmpeg' }
+          $enc = $r.checks | Where-Object { $_.name -eq 'H.264 encoder' }
+          if (-not $ff.ok -or $ff.detail -notlike '*built into this application*') { throw "built-in FFmpeg was not found/unpacked: $($ff.detail)" }
+          if (-not $enc.ok) { throw "the built-in FFmpeg has no usable H.264 encoder: $($enc.detail)" }
+          Write-Host "FFmpeg: $($ff.detail); encoder: $($enc.detail)"
+          Get-ChildItem "$env:LOCALAPPDATA\ApexVoidPhotobooth\bin" | Select-Object Name, Length
+      - name: Notices
+        shell: pwsh
+        run: |
+          Copy-Item docs\THIRD-PARTY.md dist\THIRD-PARTY-NOTICES.md
+          Copy-Item internal\video\embedded\FFMPEG-LICENSE.txt dist\FFMPEG-LICENSE.txt
+          Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256 | Format-List
       - uses: actions/upload-artifact@v4
         with:
-          name: ApexVoidPhotobooth-windows-x64-portable-with-ffmpeg
-          path: pkg/
+          name: ApexVoidPhotobooth-windows-x64-single-exe
+          path: dist/
+          if-no-files-found: error
           retention-days: 30
