@@ -21,7 +21,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | Photo state machine (IDLE→PREVIEW→COUNTDOWN→CAPTURING→REVIEW→SAVING→COMPLETED, ERROR, CANCELLED) | working | CI incl. race detector, cancel, retake, disconnect, repeat sessions |
 | Media library: sessions, originals never overwritten, thumbnails, gallery, edit (rotate/crop/brightness/contrast/saturation), export, trash/restore, crash recovery | working | CI |
 | Layouts (2×6 strips, 4×6 sheets, single, custom JSON/overlay) at exact size and DPI | working | CI |
-| Printing | printer **discovery** only; submission implemented for CUPS, **not for Windows**; no printer validated | CI (fake driver) |
+| Printing (Windows spooler + GDI): enumeration, capabilities, real page geometry, preview, submission, spooler job tracking, history, reprint | **implemented**; physical paper output **NOT verified** on any printer (see docs/PRINTING.md for what CI proves) | unit tests, Windows struct tests, CI file-port printer step |
 | Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
 | Windows x64 portable exe | built by CI; start-up self-test runs on the Windows runner | CI |
 

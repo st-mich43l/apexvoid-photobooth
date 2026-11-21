@@ -45,7 +45,7 @@ export interface VideoState {
 export interface VideoSettings { device: string; audioInput: string; width: number; height: number; fps: number; maxSeconds: number }
 export interface Settings {
   mediaDir: string; countdownSeconds: number; shots: number; templateId: string; autoReconnect: boolean;
-  enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; video: VideoSettings;
+  enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; printPaper: string; video: VideoSettings;
   kioskPinSet: boolean; // the PIN record itself never reaches the UI
   photoCamera: Preferred; videoCamera: Preferred; cameraModes: Record<string, SavedMode> | null;
 }
@@ -71,7 +71,7 @@ export interface Session {
   templateId: string; simulated: boolean; note: string; mediaCount: number;
 }
 export interface Media {
-  id: string; sessionId: string; kind: "photo" | "video" | "strip"; slot: number; relPath: string; thumbRel: string;
+  id: string; sessionId: string; kind: "photo" | "video" | "strip" | "print"; slot: number; relPath: string; thumbRel: string;
   previewRel: string; editedRel: string; edits: string; width: number; height: number; sizeBytes: number; sha256: string;
   durationMs: number; simulated: boolean; source: string; status: string; capturedAt: string;
 }
@@ -89,10 +89,21 @@ export interface Template {
 }
 export interface TemplatesResult { templates: Template[]; errors: string[]; dir: string }
 
-export interface Printer { name: string; default: boolean; status: string }
-export interface Paper { name: string; widthIn: number; heightIn: number }
-export interface PrintersResult { printers: Printer[]; driver: string; papers: Paper[]; note: string }
-export interface PrintJob { id: string; file: string; mediaId: string; printer: string; paper: string; copies: number; status: string; detail: string; prints: number }
+export interface Printer { name: string; default: boolean; status: "ready" | "offline" | "error" | "unknown"; detail?: string; port?: string; driver?: string }
+export interface Paper { id: number; name: string; widthIn: number; heightIn: number }
+export interface PrinterCaps { papers: Paper[]; orientations: string[]; maxCopies: number; color: boolean; resolutions: Array<[number, number]> | null; customPaper: boolean; note?: string }
+export interface PrintersResult { printers: Printer[]; driver: string; default: string; note: string }
+export type JobStatus = "submitting" | "queued" | "printing" | "completed" | "removed" | "failed" | "unknown";
+export interface PrintJob {
+  id: string; requestId: string; parentId: string; kind: "print" | "test"; mediaId: string; renderedMediaId: string; sessionId: string; templateId: string;
+  file: string; printer: string; paperName: string; paperId: number; orientation: string; fit: string; copies: number; status: JobStatus; detail: string;
+  nativeId: string; attempt: number; createdAt: string; updatedAt: string;
+}
+export interface PrintOptions { requestId: string; mediaId: string; templateId: string; printer: string; paper: string; orientation: string; fit: string; copies: number }
+export interface PrintPreview {
+  image: string; paperMm: [number, number]; printableMm: [number, number]; marginMm: [number, number, number, number]; scalePct: number; croppedPct: number;
+  rotated: boolean; orientation: string; warning: string; assumedGeometry: boolean; imageInches: [number, number]; templateId: string;
+}
 
 export interface Check { name: string; ok: boolean; detail: string; action?: string }
 export interface Diagnostics {

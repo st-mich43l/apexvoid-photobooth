@@ -60,6 +60,14 @@ export function SettingsPage() {
         </tbody></table>
       </section>
 
+      <section className="card"><h3>Printing defaults</h3>
+        <table className="table"><tbody>
+          <tr><td>Default printer</td><td>{settings.printerName || <span className="muted">Windows default printer</span>}</td></tr>
+          <tr><td>Default paper size</td><td>{settings.printPaper || <span className="muted">not set</span>}</td></tr>
+        </tbody></table>
+        <p className="muted small">Change them on the Printer page, where the printer's real paper sizes are listed.</p>
+      </section>
+
       <section className="card"><h3>Kiosk exit PIN</h3>
         <p className="muted small">When set, leaving Booth Mode requires this PIN (4–8 digits). Five wrong attempts lock the PIN prompt for 30 seconds. Leave empty to protect nothing.</p>
         <ErrorNote error={pin.error} onClose={pin.clear} />

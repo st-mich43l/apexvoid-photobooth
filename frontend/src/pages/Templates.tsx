@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
-import type { PrintersResult, TemplatesResult } from "../types";
+import type { TemplatesResult } from "../types";
 
 export function Templates() {
   const { settings, setSettings, toast } = useApp();
   const [data, setData] = useState<TemplatesResult | null>(null);
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [pr, setPr] = useState<PrintersResult | null>(null);
   const { error, run } = useAction();
 
   useEffect(() => {
@@ -16,7 +15,6 @@ export function Templates() {
       setData(t);
       for (const x of t.templates) api.previewTemplate(x.id).then((u) => setPreviews((p) => ({ ...p, [x.id]: u }))).catch(() => {});
     }).catch(() => {});
-    api.listPrinters().then(setPr).catch(() => {});
   }, []);
 
   const save = (patch: Partial<typeof settings>) => run(async () => {
@@ -25,9 +23,9 @@ export function Templates() {
 
   return (
     <div className="page">
-      <h1>Layouts &amp; printing</h1>
+      <h1>Layouts</h1>
       <ErrorNote error={error} />
-      <p className="muted">Layouts are rendered at their exact print size and DPI. Previews below use colour blocks, not photographs. Custom layouts: put a <code>.json</code> file (and an optional overlay <code>.png</code>) in <code>{data?.dir}</code>.</p>
+      <p className="muted">Layouts are rendered at their exact print size and DPI; printers and print jobs are on the Printer page. Previews below use colour blocks, not photographs. Custom layouts: put a <code>.json</code> file (and an optional overlay <code>.png</code>) in <code>{data?.dir}</code>.</p>
       {data?.errors.map((e, i) => <div key={i} className="note warn">{e}</div>)}
       <div className="grid templates">
         {data?.templates.map((t) => (
@@ -41,19 +39,6 @@ export function Templates() {
           </section>
         ))}
       </div>
-      <section className="card">
-        <h3>Printer</h3>
-        <div className="note warn"><div>{pr?.note ?? "Printer discovery is implemented; submitting jobs is not validated on any physical printer."}</div></div>
-        {pr && pr.printers.length === 0 && <p className="muted">No printers found by <code>{pr.driver}</code>.</p>}
-        <div className="form">
-          <label>Default printer
-            <select value={settings.printerName} onChange={(e) => save({ printerName: e.target.value })}>
-              <option value="">None</option>
-              {pr?.printers.map((p) => <option key={p.name} value={p.name}>{p.name} ({p.status}){p.default ? " — system default" : ""}</option>)}
-            </select>
-          </label>
-        </div>
-      </section>
     </div>
   );
 }

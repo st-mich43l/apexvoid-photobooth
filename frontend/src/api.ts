@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, TemplatesResult, VDevices, VideoState,
+  Session, Settings, ShootSnapshot, TemplatesResult, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -79,10 +79,12 @@ export const api = {
   composeSession: (sessionId: string, templateId: string) => wrap(call<Media>("ComposeSession", sessionId, templateId)),
 
   listPrinters: () => wrap(call<PrintersResult>("ListPrinters")),
-  printMedia: (mediaId: string, printer: string, paper: string, copies: number, templateId: string) =>
-    wrap(call<PrintJob>("PrintMedia", mediaId, printer, paper, copies, templateId)),
+  printerCapabilities: (printer: string) => wrap(call<PrinterCaps>("PrinterCapabilities", printer)),
+  printPreview: (o: PrintOptions) => wrap(call<PrintPreview>("PrintPreview", o)),
+  printMedia: (o: PrintOptions) => wrap(call<PrintJob>("PrintMedia", o)),
+  testPrint: (printer: string, paper: string, orientation: string) => wrap(call<PrintJob>("TestPrint", printer, paper, orientation)),
   printJobs: () => wrap(call<PrintJob[]>("PrintJobs")),
-  reprint: (id: string) => wrap(call<PrintJob>("Reprint", id)),
+  reprint: (id: string, confirmed: boolean) => wrap(call<PrintJob>("Reprint", id, confirmed)),
 
   getSettings: () => wrap(call<Settings>("GetSettings")),
   saveSettings: (s: Settings) => wrap(call<{ restartRequired: boolean }>("SaveSettings", s)),

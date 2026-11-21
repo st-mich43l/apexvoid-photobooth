@@ -70,8 +70,19 @@ Run `ApexVoidPhotobooth.exe --probe-cameras report.json` from PowerShell first (
 | L5 | Kill the app mid-copy; restart and accept again. | Resumes; no duplicates; verified. |
 | L6 | User name with non-ASCII characters; Documents on OneDrive; read-only Documents. | Works / clear warning + fallback. |
 
-## D. Printing (not part of Phase 1 acceptance)
-Discovery lists installed printers. Submission on Windows is not implemented.
+## D. Printing (Windows; physical output must be judged by a person)
+Prepare: install the printer driver, set the paper in the printer, Printer page → Refresh.
+| # | Step | Expected |
+|---|---|---|
+| D1 | Printer page. | Installed printers listed with ready/offline/error, the Windows default marked; paper sizes of the selected printer listed. |
+| D2 | Switch the printer off / unplug it / set "Use printer offline". | Shown as offline with an explanation; Print disabled. |
+| D3 | Test print on 4×6. Measure the grid with a ruler. | Grid squares are 10 mm ±0.5; the 25 mm corner squares are complete unless the printer has an unprintable border (then the cut matches the border shown in the preview). |
+| D4 | Print a 4-photo strip as **2×6 on 4×6** (fit) and as **two strips on 4×6**. | Correct size (2×6 in = 50.8×152.4 mm), centred, nothing cut off; the 2-up sheet cuts into two identical strips. |
+| D5 | Print a single edited photo (rotate/brightness) on 4×6 and 5×7, fit and fill. | The **edited** picture is printed (not the original); orientation correct; "fill" crops as the preview showed. |
+| D6 | Click Print twice quickly; click Print, wait 5 s, click again. | One job; the second says "identical print was just submitted"; Reprint needs confirmation. |
+| D7 | Watch the queue while printing; pull the paper tray / unplug mid-job. | queued → printing → "Left the queue" (or **failed** with the reason, e.g. out of paper). |
+| D8 | Close the app while a job is printing, reopen. | The job is tracked again (or "unknown" with instructions); history is still there. |
+Record the printer model, driver, paper and result in the table below; any step not run stays **unverified**.
 
 ## Results
 | Step | Date | Tester | Camera/firmware/SDK | Pass/Fail | Notes |

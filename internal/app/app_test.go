@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/capture"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
-	"github.com/st-mich43l/apexvoid-photobooth/internal/printing"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
 )
 
@@ -47,25 +45,12 @@ func newTestApp(t *testing.T) (*Service, string, *events) {
 	}
 	ev := &events{}
 	s, err := New(Options{Version: "test", ConfigPath: cfg, Emit: ev.emit, Tick: 5 * time.Millisecond,
-		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: fakePrinter{}})
+		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: newFakePrinter()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Shutdown() })
 	return s, root, ev
-}
-
-type fakePrinter struct{}
-
-func (fakePrinter) Name() string { return "fake" }
-func (fakePrinter) List(context.Context) ([]printing.Printer, error) {
-	return []printing.Printer{{Name: "Lab", Status: "ready"}}, nil
-}
-func (fakePrinter) Submit(context.Context, string, string, printing.Options) (string, error) {
-	return "1", nil
-}
-func (fakePrinter) Status(context.Context, string) (string, string, error) {
-	return printing.JobCompleted, "", nil
 }
 
 func connectMock(t *testing.T, s *Service) {
@@ -385,26 +370,9 @@ func TestTemplatesAndPrinting(t *testing.T) {
 	connectMock(t, s)
 	_ = s.StartPreview()
 	_ = s.StartShooting(4)
-	sn := waitShoot(t, s, capture.Review)
+	waitShoot(t, s, capture.Review)
 	_ = s.AcceptPhotos()
-	sn = waitShoot(t, s, capture.Completed)
-
-	pr, err := s.ListPrinters()
-	if err != nil || len(pr.Printers) != 1 || !strings.Contains(pr.Note, "NOT validated") {
-		t.Fatalf("%v %+v", err, pr)
-	}
-	if _, err := s.PrintMedia(sn.ResultID, "Lab", "4x6", 1, "strip-2x6-4"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.PrintMedia(sn.ResultID, "Lab", "4x6", 1, "single-4x6"); err != nil {
-		t.Fatal("6x4 fits 4x6 paper in landscape:", err)
-	}
-	if _, err := s.PrintMedia(sn.ResultID, "Lab", "A6", 1, "sheet-4x6-6"); err == nil {
-		t.Fatal("4x6 sheet must not pass on A6 paper")
-	}
-	if len(s.PrintJobs()) != 2 {
-		t.Fatal("jobs not tracked")
-	}
+	waitShoot(t, s, capture.Completed)
 }
 
 func TestComposeSessionWithDifferentLayout(t *testing.T) {

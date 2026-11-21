@@ -3,8 +3,9 @@ import { api } from "../api";
 import { bytes, clock, when } from "../format";
 import { useApp } from "../state";
 import { Badge, Confirm, ErrorNote, Modal, useAction } from "../ui";
-import type { Media, PrintersResult, Session, TemplatesResult } from "../types";
+import type { Media, Session } from "../types";
 import { Editor } from "./Editor";
+import { PrintPanel } from "../PrintPanel";
 
 type Filter = "all" | "photo" | "video" | "strip";
 
@@ -25,7 +26,7 @@ export function Gallery() {
     });
   }, [libraryVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = items.filter((m) => filter === "all" || m.kind === filter);
+  const shown = items.filter((m) => filter === "all" || m.kind === filter || (filter === "strip" && m.kind === "print"));
   const groups = useMemo(() => {
     const g = new Map<string, Media[]>();
     for (const m of shown) g.set(m.sessionId, [...(g.get(m.sessionId) ?? []), m]);
@@ -42,7 +43,7 @@ export function Gallery() {
     <div className="page">
       <header className="row"><h1>Gallery</h1>
         <div className="seg">
-          {(["all", "photo", "strip", "video"] as Filter[]).map((f) => <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "photo" ? "Photos" : f === "strip" ? "Strips" : "Videos"}</button>)}
+          {(["all", "photo", "strip", "video"] as Filter[]).map((f) => <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "photo" ? "Photos" : f === "strip" ? "Strips & prints" : "Videos"}</button>)}
         </div>
       </header>
       <ErrorNote error={error} onClose={clear} />
@@ -105,7 +106,7 @@ function Viewer({ media, onClose, onDelete, onChanged }: { media: Media; onClose
         <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", false); toast(`Original exported to ${p}`); })}>Export original</button>
         {media.editedRel && <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", true); toast(`Edited copy exported to ${p}`); })}>Export edited</button>}
         {media.editedRel && <button onClick={() => setShowOriginal((v) => !v)}>{showOriginal ? "Show edited" : "Show original"}</button>}
-        {media.kind === "strip" && <button onClick={() => setPrinting(true)}>Print…</button>}
+        {!isVideo && <button onClick={() => setPrinting(true)}>Print…</button>}
         {media.kind === "photo" && <button className="primary" onClick={() => setEditing(true)}>Edit</button>}
       </footer>
       {editing && <Editor media={media} onClose={() => setEditing(false)} onSaved={onChanged} />}
@@ -115,29 +116,12 @@ function Viewer({ media, onClose, onDelete, onChanged }: { media: Media; onClose
 }
 
 function PrintDialog({ media, onClose }: { media: Media; onClose: () => void }) {
-  const { settings, toast } = useApp();
-  const [pr, setPr] = useState<PrintersResult | null>(null);
-  const [tpls, setTpls] = useState<TemplatesResult | null>(null);
-  const [printer, setPrinter] = useState(settings.printerName);
-  const [paper, setPaper] = useState("4x6");
-  const [copies, setCopies] = useState(1);
-  const [tpl, setTpl] = useState(settings.templateId);
-  const { busy, error, run } = useAction();
-  useEffect(() => { api.listPrinters().then(setPr).catch(() => {}); api.listTemplates().then((t) => { setTpls(t); }).catch(() => {}); }, []);
   return (
-    <Modal title="Print" onClose={onClose}>
+    <Modal title="Print" onClose={onClose} wide>
       <div className="modal-body">
-        <div className="note warn"><div>Printing is not validated on any physical printer yet. {pr?.note}</div></div>
-        <ErrorNote error={error} />
-        <div className="form">
-          <label>Printer<select value={printer} onChange={(e) => setPrinter(e.target.value)}><option value="">Choose…</option>{pr?.printers.map((p) => <option key={p.name}>{p.name}</option>)}</select></label>
-          <label>Layout of this image<select value={tpl} onChange={(e) => setTpl(e.target.value)}>{tpls?.templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <label>Paper<select value={paper} onChange={(e) => setPaper(e.target.value)}>{pr?.papers.map((p) => <option key={p.name}>{p.name}</option>)}</select></label>
-          <label>Copies<input type="number" min={1} max={10} value={copies} onChange={(e) => setCopies(Number(e.target.value))} /></label>
-        </div>
+        {media.kind === "photo" && <p className="muted small">A single photo is printed through a one-photo layout (its edited version if you edited it) — never as the raw original.</p>}
+        <PrintPanel mediaId={media.id} onPrinted={onClose} />
       </div>
-      <footer><button onClick={onClose}>Close</button>
-        <button className="primary" disabled={busy || !printer} onClick={() => run(async () => { const j = await api.printMedia(media.id, printer, paper, copies, tpl); toast(`Print job ${j.id} submitted`); onClose(); })}>Print</button></footer>
     </Modal>
   );
 }

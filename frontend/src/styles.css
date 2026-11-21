@@ -209,3 +209,11 @@ button.big { min-height: 64px; padding: 14px 36px; font-size: 20px; border-radiu
 .source-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .row.tight { justify-content: flex-start; gap: 6px; margin-top: 4px; }
 .form-line { display: grid; gap: 6px; color: var(--muted); font-size: 13px; margin-top: 12px; }
+
+.print-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(260px, 1.1fr); gap: 18px; margin: 12px 0; }
+.print-preview img { width: 100%; max-height: 52vh; object-fit: contain; border-radius: 6px; background: #0b0814; border: 1px solid var(--line); }
+.thumb-btn.picked { outline: 2px solid var(--rose); outline-offset: 2px; }
+.thumb-btn.strip img, .thumb-btn.print img { object-fit: contain; background: #0b0814; }
+.table.jobs td { vertical-align: top; }
+.spinner.tiny { display: inline-block; width: 14px; height: 14px; border-width: 2px; margin-left: 8px; vertical-align: middle; }
+@media (max-width: 900px) { .print-grid { grid-template-columns: 1fr; } }
