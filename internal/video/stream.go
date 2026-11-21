@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,7 +47,12 @@ type Stream struct {
 	recStart  time.Time
 	stopping  bool
 	timer     *time.Timer
+	good      int    // index of the open attempt that worked last time
+	used      Source // the attempt in use
 }
+
+// Used returns the source variant that is open (zero before Start).
+func (s *Stream) Used() Source { s.mu.Lock(); defer s.mu.Unlock(); return s.used }
 
 // NewStream creates an idle stream.
 func NewStream(o StreamOptions) *Stream { return &Stream{o: o} }
@@ -66,19 +73,56 @@ func (s *Stream) startLocked(ctx context.Context, rec *RecordOptions) error {
 	if rec != nil {
 		src.Audio = rec.Audio
 	}
-	p, err := StartPipeline(ctx, PipelineOptions{FFmpeg: s.o.FFmpeg, Source: src, Record: rec}, s.o.OnFrame)
-	if err != nil {
-		return err
+	attempts := src.Attempts()
+	// the variant that worked last time goes first
+	order := make([]int, 0, len(attempts))
+	if s.good < len(attempts) {
+		order = append(order, s.good)
 	}
-	s.proc, s.recording = p, rec
-	if rec != nil {
-		s.recStart = time.Now()
-		if rec.MaxDuration > 0 {
-			s.timer = time.AfterFunc(rec.MaxDuration, s.autoStop)
+	for i := range attempts {
+		if i != s.good {
+			order = append(order, i)
 		}
 	}
-	go s.watch(p)
-	return nil
+	var failures []string
+	for n, i := range order {
+		po := PipelineOptions{FFmpeg: s.o.FFmpeg, Source: attempts[i], Record: rec}
+		if n > 0 || len(attempts) > 1 {
+			po.FirstFrameTimeout = 10 * time.Second // do not spend 20 s on every rung
+		}
+		p, err := StartPipeline(ctx, po, s.o.OnFrame)
+		if err != nil {
+			desc := attempts[i].Describe()
+			var oe *OpenError
+			if errors.As(err, &oe) {
+				slog.Warn("camera open attempt failed", "attempt", n+1, "how", desc, "cmd", strings.Join(oe.Args, " "), "ffmpeg", oe.Stderr)
+			} else {
+				slog.Warn("camera open attempt failed", "attempt", n+1, "how", desc, "err", err)
+			}
+			failures = append(failures, fmt.Sprintf("[%d] %s → %v", n+1, desc, err))
+			if ctx.Err() != nil || (rec != nil && n >= 1) { // a recording must not hunt through many modes
+				break
+			}
+			continue
+		}
+		if n > 0 {
+			slog.Info("camera opened with a fallback", "how", attempts[i].Describe())
+		}
+		s.good, s.used = i, attempts[i]
+		s.proc, s.recording = p, rec
+		if rec != nil {
+			s.recStart = time.Now()
+			if rec.MaxDuration > 0 {
+				s.timer = time.AfterFunc(rec.MaxDuration, s.autoStop)
+			}
+		}
+		go s.watch(p)
+		return nil
+	}
+	if len(failures) == 1 {
+		return errors.New(strings.TrimPrefix(failures[0], "[1] "))
+	}
+	return fmt.Errorf("the camera could not be opened in any of %d ways: %s", len(failures), strings.Join(failures, "; "))
 }
 
 // watch reacts to an ffmpeg process ending that was not stopped by us.
