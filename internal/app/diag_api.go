@@ -54,7 +54,11 @@ func (s *Service) RunDiagnostics() Diagnostics {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		enc, eerr := video.PickEncoder(ctx, ff)
 		cancel()
-		ok("FFmpeg", true, ff, "")
+		detail := ff
+		if video.IsBuiltIn(ff) {
+			detail = "built into this application (LGPL build, unpacked to " + ff + ")"
+		}
+		ok("FFmpeg", true, detail, "")
 		ok("H.264 encoder", eerr == nil, orDash(enc, "none found"), "Use an FFmpeg build with libx264 or h264_mf.")
 	}
 	if runtime.GOOS == "windows" {

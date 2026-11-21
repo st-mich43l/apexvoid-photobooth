@@ -29,8 +29,10 @@ func exeName() string {
 
 // Locate finds ffmpeg: the configured path, then next to the application
 // executable (portable install: ffmpeg.exe beside the app, or in ./ffmpeg/),
-// then PATH.
+// then the copy built into this executable (single-file build, see
+// embedded.go), then PATH.
 func Locate(configured string) (string, error) {
+	var unpackErr error
 	var cands []string
 	if configured != "" {
 		cands = append(cands, configured)
@@ -44,8 +46,16 @@ func Locate(configured string) (string, error) {
 			return c, nil
 		}
 	}
+	if p, err := builtInFFmpeg(); err != nil {
+		unpackErr = err
+	} else if p != "" {
+		return p, nil
+	}
 	if p, err := exec.LookPath("ffmpeg"); err == nil {
 		return p, nil
+	}
+	if unpackErr != nil {
+		return "", fmt.Errorf("%w (the copy built into the app could not be unpacked: %v)", ErrFFmpegMissing, unpackErr)
 	}
 	return "", ErrFFmpegMissing
 }
