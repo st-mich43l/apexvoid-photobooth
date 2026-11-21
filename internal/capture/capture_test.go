@@ -284,7 +284,11 @@ func TestDisconnectMidSessionGoesToErrorAndRecovers(t *testing.T) {
 	// plug back in; the manager reconnects by itself
 	e.drv.SetPresent(true)
 	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) && e.mgr.Status().State == camera.StateDisconnected {
+	// wait for the NEW camera: the old one is in StateError until the manager has processed the unplug
+	for time.Now().Before(deadline) {
+		if st := e.mgr.Status(); st.State == camera.StateConnected && !st.Reconnecting {
+			break
+		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	e.preview()
