@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that can be tested without a camera: Go unit/contract/recovery
+  # tests (mock camera, fake Canon SDK, synthetic FFmpeg source), vet, format.
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install FFmpeg (synthetic-source video tests)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: vet (portable packages)
+        run: go vet $(go list ./... | grep -v /cmd/)
+      - name: vet (Windows build of the whole app, incl. Canon EDSDK DLL binding)
+        run: |
+          mkdir -p cmd/photobooth/frontend_dist && echo placeholder > cmd/photobooth/frontend_dist/index.html
+          GOOS=windows GOARCH=amd64 go vet ./...
+      - name: test
+        run: go test -count=1 $(go list ./... | grep -v /cmd/)
+      - name: test with race detector (concurrency-critical packages)
+        run: go test -race -count=1 ./internal/camera/... ./internal/capture/... ./internal/sessions/... ./internal/video/... ./internal/storage/...
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  windows:
+    name: Windows x64 build, self-test and portable artifact
+    runs-on: windows-latest
+    needs: [go, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Go tests on Windows (portable packages)
+        shell: bash
+        run: go test -count=1 $(go list ./... | grep -v /cmd/)
+      - name: Windows resources (icon, manifest, version info)
+        shell: bash
+        working-directory: cmd/photobooth
+        run: go run github.com/tc-hib/go-winres@v0.3.3 make --in ../../build/winres/winres.json --arch amd64
+      - name: Build portable executable
+        shell: bash
+        run: |
+          mkdir -p dist
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath \
+            -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
+            -o dist/ApexVoidPhotobooth.exe ./cmd/photobooth
+      - name: Self-test (start-up, SQLite, loopback server, simulated session — no window, no network)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--selftest', "$PWD\selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+      - name: Assemble portable package
+        shell: pwsh
+        run: |
+          Copy-Item README.md, docs\CAMERAS.md, docs\HARDWARE_TESTS.md, docs\INSTALL.md dist\
+          New-Item dist\sdk\canon -ItemType Directory | Out-Null
+          Set-Content dist\sdk\canon\PUT-CANON-EDSDK-DLLS-HERE.txt "Copy the x64 EDSDK.dll, EdsImage.dll and the Dll folder contents from the Canon EDSDK you downloaded from Canon. They are not redistributable by this project."
+          Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ApexVoidPhotobooth-windows-x64-portable
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  # Optional convenience: a copy of the portable package with an LGPL FFmpeg
+  # build next to it. Non-blocking; the release artifact above never contains
+  # third-party binaries.
+  windows-with-ffmpeg:
+    name: Optional bundle with LGPL FFmpeg (non-blocking)
+    runs-on: windows-latest
+    needs: [windows]
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ApexVoidPhotobooth-windows-x64-portable
+          path: pkg
+      - name: Fetch FFmpeg LGPL build (BtbN)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip ff
+          Copy-Item (Get-ChildItem ff -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName pkg\ffmpeg.exe
+          Copy-Item (Get-ChildItem ff -Recurse -Filter LICENSE.txt | Select-Object -First 1).FullName pkg\FFMPEG-LICENSE.txt
+          Set-Content pkg\FFMPEG-NOTICE.txt "ffmpeg.exe is an unmodified LGPL build from https://github.com/BtbN/FFmpeg-Builds. It is a separate program run as a subprocess. See FFMPEG-LICENSE.txt."
+          pkg\ffmpeg.exe -hide_banner -encoders | Select-String h264_mf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ApexVoidPhotobooth-windows-x64-portable-with-ffmpeg
+          path: pkg/
+          retention-days: 30
