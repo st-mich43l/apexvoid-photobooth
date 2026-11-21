@@ -1,11 +1,11 @@
 # Install, run, test
 
 ## Run (Windows 10/11 x64)
-1. Download the CI artifact `ApexVoidPhotobooth-windows-x64-portable` and unzip anywhere.
+1. Download the CI artifact `ApexVoidPhotobooth-windows-x64` (the only artifact CI produces) and unzip anywhere. `ApexVoidPhotobooth.exe` is a single file with a pinned LGPL FFmpeg built in.
 2. Requires the **WebView2 runtime** (already present on Windows 11 and updated Windows 10; otherwise install the
    Evergreen runtime from Microsoft).
 3. Double-click `ApexVoidPhotobooth.exe`. No server, Docker, database or network is needed.
-4. For webcams/video: use the **`ApexVoidPhotobooth-windows-x64-single-exe`** artifact (one ~75 MB file with a pinned LGPL FFmpeg built in, unpacked on first use — see docs/THIRD-PARTY.md), or put `ffmpeg.exe` next to the normal build (or set its path in Settings). A copy beside the app or in Settings always wins over the built-in one.
+4. Webcams and video work out of the box: FFmpeg is unpacked from the exe on first use (see docs/THIRD-PARTY.md). To use your own FFmpeg, put `ffmpeg.exe` next to the app or set its path in Settings; that copy always wins over the built-in one.
 5. For the Canon R50: follow docs/CAMERAS.md (SDK DLLs are not included).
 
 Data: the media library is `<your Documents folder>\apexvoid-studio` (resolved with the Windows Known Folder API, so
