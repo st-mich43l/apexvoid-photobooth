@@ -22,18 +22,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: go mod tidy is clean
         run: |
+          mkdir -p cmd/photobooth/frontend_dist && echo placeholder > cmd/photobooth/frontend_dist/index.html
           go mod tidy
           git diff --exit-code go.mod go.sum
       - name: gofmt
         run: test -z "$(gofmt -l cmd internal)"
       - name: vet (portable packages)
-        run: go vet $(go list ./... | grep -v /cmd/)
+        run: go vet ./internal/...
       - name: vet (Windows build of the whole app, incl. Canon EDSDK DLL binding)
         run: |
-          mkdir -p cmd/photobooth/frontend_dist && echo placeholder > cmd/photobooth/frontend_dist/index.html
+          mkdir -p cmd/photobooth/frontend_dist && echo placeholder > cmd/photobooth/frontend_dist/index.html # go:embed needs the folder
           GOOS=windows GOARCH=amd64 go vet ./...
       - name: test
-        run: go test -count=1 $(go list ./... | grep -v /cmd/)
+        run: go test -count=1 ./internal/...
       - name: test with race detector (concurrency-critical packages)
         run: go test -race -count=1 ./internal/camera/... ./internal/capture/... ./internal/sessions/... ./internal/video/... ./internal/storage/...
 
@@ -75,7 +76,7 @@ jobs:
           npm run build
       - name: Go tests on Windows (portable packages)
         shell: bash
-        run: go test -count=1 $(go list ./... | grep -v /cmd/)
+        run: go test -count=1 ./internal/...
       - name: Windows resources (icon, manifest, version info)
         shell: bash
         working-directory: cmd/photobooth

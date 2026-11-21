@@ -17,7 +17,7 @@ Without a camera: Settings → enable **Simulated camera** to try the workflow (
 ## Build
 ```
 cd frontend && npm ci && npm run build          # writes cmd/photobooth/frontend_dist
-go test ./...                                    # (the cmd package needs WebKit on Linux; use $(go list ./... | grep -v /cmd/))
+go test ./internal/...                           # the cmd package needs WebKit to build on Linux
 GOOS=windows GOARCH=amd64 go build -ldflags "-H windowsgui -s -w" -o ApexVoidPhotobooth.exe ./cmd/photobooth
 ```
 The CI additionally embeds icon/manifest/version resources with go-winres.
