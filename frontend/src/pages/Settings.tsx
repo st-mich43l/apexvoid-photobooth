@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useApp } from "../state";
-import { Confirm, ErrorNote, useAction } from "../ui";
+import { Badge, Confirm, ErrorNote, useAction } from "../ui";
+import { bytes } from "../format";
+import { MigrationDialog } from "../MigrationDialog";
 import type { Report, Settings as S } from "../types";
 
 export function SettingsPage() {
-  const { settings, setSettings, toast, bumpLibrary } = useApp();
+  const { settings, setSettings, toast, bumpLibrary, location } = useApp();
+  const [migrate, setMigrate] = useState(false);
+  const [pinCur, setPinCur] = useState("");
+  const [pinNew, setPinNew] = useState("");
+  const pin = useAction();
   const [draft, setDraft] = useState<S>(settings);
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
@@ -28,9 +34,38 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <section className="card"><h3>Media library</h3>
+        <p className="big-line path">{location.path}</p>
+        <p className="muted small">
+          {location.source === "documents" && <Badge kind="ok">Documents\apexvoid-studio</Badge>}
+          {location.source === "custom" && <Badge kind="info">custom folder</Badge>}
+          {location.source === "legacy" && <Badge kind="warn">old folder — not migrated yet</Badge>}
+          {location.source === "fallback" && <Badge kind="err">fallback folder</Badge>}
+          {" "}{bytes(location.freeBytes)} free. Photos, videos, thumbnails, edits, strips, exports, templates, trash and logs all live here; settings are kept in <code>{location.configPath}</code>.
+        </p>
+        {location.warning && <div className="note warn"><div>{location.warning}</div></div>}
+        <div className="row">
+          <button onClick={() => other.run(() => api.openLibraryFolder())}>Open Library Folder</button>
+          {location.migrationPending && <button className="primary" onClick={() => setMigrate(true)}>Move library to Documents…</button>}
+        </div>
+      </section>
+
+      <section className="card"><h3>Kiosk exit PIN</h3>
+        <p className="muted small">When set, leaving Booth Mode requires this PIN (4–8 digits). Five wrong attempts lock the PIN prompt for 30 seconds. Leave empty to protect nothing.</p>
+        <ErrorNote error={pin.error} onClose={pin.clear} />
+        <div className="form">
+          {settings.kioskPinSet && <label>Current PIN<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinCur} onChange={(e) => setPinCur(e.target.value.replace(/\D/g, ""))} /></label>}
+          <label>{settings.kioskPinSet ? "New PIN" : "PIN"}<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinNew} onChange={(e) => setPinNew(e.target.value.replace(/\D/g, ""))} /></label>
+        </div>
+        <div className="row">
+          <button className="primary" disabled={pin.busy || pinNew.length < 4} onClick={() => pin.run(async () => { await api.setKioskPin(pinCur, pinNew); setPinCur(""); setPinNew(""); toast(settings.kioskPinSet ? "PIN changed" : "PIN set"); })}>{settings.kioskPinSet ? "Change PIN" : "Set PIN"}</button>
+          {settings.kioskPinSet && <button className="danger" disabled={pin.busy || pinCur.length < 4} onClick={() => pin.run(async () => { await api.setKioskPin(pinCur, ""); setPinCur(""); toast("PIN removed"); })}>Remove PIN</button>}
+        </div>
+      </section>
+
       <section className="card"><h3>Storage</h3>
         <div className="form">
-          <label>Media folder (empty = default)
+          <label>Custom media folder (empty = default: Documents\apexvoid-studio)
             <div className="row">
               <input value={draft.mediaDir} placeholder="Default application data folder" onChange={(e) => set("mediaDir", e.target.value)} />
               <button onClick={() => other.run(async () => { const p = await api.pickFolder(); if (p) set("mediaDir", p); })}>Browse…</button>
@@ -63,6 +98,7 @@ export function SettingsPage() {
           const r = await api.saveSettings(draft); setSettings(draft); toast(r.restartRequired ? "Saved — restart the app to use the new media folder" : "Settings saved");
         })}>Save settings</button>
       </div>
+      {migrate && <MigrationDialog onClose={() => setMigrate(false)} />}
       {confirmTrash && <Confirm title="Empty trash?" danger confirmLabel="Delete permanently" onNo={() => setConfirmTrash(false)}
         body={<p>All items in the trash are erased from disk. This cannot be undone.</p>}
         onYes={() => other.run(async () => { const n = await api.emptyTrash(); setConfirmTrash(false); toast(`${n} item(s) deleted permanently`); })} />}

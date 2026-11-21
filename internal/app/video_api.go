@@ -120,6 +120,9 @@ func (s *Service) recordable() (video.Recordable, error) {
 
 // StartRecording begins an MP4 recording on the connected UVC camera.
 func (s *Service) StartRecording() error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
 	st := s.VideoState()
 	if st.State == "recording" || st.State == "saving" {
 		return newUserErr("A recording is already running.", "")

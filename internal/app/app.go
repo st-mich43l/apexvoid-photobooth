@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
@@ -39,6 +40,8 @@ type Options struct {
 	PrintDriver   printing.Driver
 	DisableDriver map[string]bool // drop built-in drivers by name
 	Tick          time.Duration   // countdown second length
+	// ResolveLibrary overrides the library location logic (tests simulate Windows folders).
+	ResolveLibrary func(*settings.Manager) settings.Resolution
 }
 
 // Service is the bound application object. Its exported methods are the UI API.
@@ -62,6 +65,13 @@ type Service struct {
 	encoder  string
 	library  sessions.Report
 	shutdown bool
+
+	libRes          settings.Resolution // where the library came from (documents/legacy/custom/fallback)
+	migrating       atomic.Bool         // a library migration is copying files
+	restartRequired atomic.Bool         // the library was migrated; writes stop until the app restarts
+	pinMu           sync.Mutex
+	pinFails        int
+	pinLockedUntil  time.Time
 }
 
 // New builds the service: opens (or creates) the media library, recovers
@@ -77,9 +87,14 @@ func New(o Options) (*Service, error) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
 	s := &Service{opts: o, settings: sm}
-	layout := storage.Layout{Root: sm.DataDir()}
+	res := sm.ResolveLibrary()
+	if o.ResolveLibrary != nil {
+		res = o.ResolveLibrary(sm)
+	}
+	s.libRes = res
+	layout := storage.Layout{Root: res.Path}
 	if err := layout.Ensure(); err != nil {
-		return nil, fmt.Errorf("media library unavailable: %w", err)
+		return nil, fmt.Errorf("the media library folder %s is not usable: %w (choose another folder in %s)", res.Path, err, sm.Path)
 	}
 	s.initLogger(layout)
 	db, err := storage.Open(layout)
@@ -137,7 +152,7 @@ func New(o Options) (*Service, error) {
 	if s.httpd, err = startMediaServer(s); err != nil {
 		return nil, fmt.Errorf("start local preview server: %w", err)
 	}
-	s.log.Info("started", "version", o.Version, "dataDir", layout.Root, "os", runtime.GOOS+"/"+runtime.GOARCH)
+	s.log.Info("started", "version", o.Version, "dataDir", layout.Root, "librarySource", res.Source, "migrationPending", res.MigrationPending, "os", runtime.GOOS+"/"+runtime.GOARCH)
 	return s, nil
 }
 
