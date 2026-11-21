@@ -42,8 +42,8 @@ export function Dashboard({ go }: { go: (p: string) => void }) {
           <h3>Printer</h3>
           {printer ? <p><span className="big-line">{printer.name}</span> <Badge kind={printer.status === "ready" ? "ok" : "warn"}>{printer.status}</Badge></p>
             : <p className="muted">{settings.printerName ? `${settings.printerName} not found` : "No printer selected"}</p>}
-          <p className="muted small">Discovery only — print submission is not validated on real printers yet.</p>
-          <button onClick={() => go("templates")}>Layouts &amp; printing</button>
+          <p className="muted small">Jobs go through the Windows spooler; physical output is only as verified as the hardware checklist says.</p>
+          <button onClick={() => go("printer")}>Printer</button>
         </section>
 
         <section className="card">

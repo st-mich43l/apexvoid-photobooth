@@ -148,6 +148,8 @@ func Builtin() []Template {
 		{ID: "strip-2x6-2", Name: "Strip 2×6 — 2 photos", Kind: "strip", WidthIn: 2, HeightIn: 6, DPI: 300, Background: "#fdf2f6", Slots: stripSlots(2, 2, 0.15, 0.12, 2.4)},
 		{ID: "strip-4x6-2up", Name: "4×6 sheet — two 2×6 strips (cut apart)", Kind: "sheet", WidthIn: 4, HeightIn: 6, DPI: 300, Background: "#14101f", BorderIn: 0.02, BorderCol: "#f4a6c0", Slots: two(s4)},
 		{ID: "sheet-4x6-6", Name: "4×6 sheet — 6 photos", Kind: "sheet", WidthIn: 4, HeightIn: 6, DPI: 300, Background: "#ffffff", Slots: grid(2, 3, 4, 6, 0.15, 0.1, 0.3)},
+		{ID: "single-5x7", Name: "Single photo 7×5 landscape", Kind: "single", WidthIn: 7, HeightIn: 5, DPI: 300, Background: "#ffffff", Slots: []Slot{{X: 0.2, Y: 0.2, W: 6.6, H: 4.6}}},
+		{ID: "single-5x7-portrait", Name: "Single photo 5×7 portrait", Kind: "single", WidthIn: 5, HeightIn: 7, DPI: 300, Background: "#ffffff", Slots: []Slot{{X: 0.2, Y: 0.2, W: 4.6, H: 6.6}}},
 		{ID: "single-4x6", Name: "Single photo 6×4 landscape", Kind: "single", WidthIn: 6, HeightIn: 4, DPI: 300, Background: "#ffffff", Slots: []Slot{{X: 0.15, Y: 0.15, W: 5.7, H: 3.7}}},
 		{ID: "single-4x6-portrait", Name: "Single photo 4×6 portrait", Kind: "single", WidthIn: 4, HeightIn: 6, DPI: 300, Background: "#ffffff", Slots: []Slot{{X: 0.15, Y: 0.15, W: 3.7, H: 5.7}}},
 	}

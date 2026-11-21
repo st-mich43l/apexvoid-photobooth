@@ -104,6 +104,35 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "mock probe failed with exit code $($p.ExitCode)" }
           $r = Get-Content probe-mock.json | ConvertFrom-Json
           if (-not $r.devices[0].still.ok) { throw "simulated still capture failed on Windows" }
+      - name: Windows printing through the real spooler and GDI (file-port printer)
+        shell: pwsh
+        run: |
+          # 1. enumeration never needs a printer
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--print-selftest', "$PWD\print-enum.json" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "printer enumeration failed" }
+          Get-Content print-enum.json
+          # 2. a software printer that writes to a file port (no dialog) lets us exercise StartDoc/StretchDIBits/EndDoc for real
+          $drv = Get-PrinterDriver | Where-Object { $_.Name -in 'Microsoft Print To PDF', 'Microsoft XPS Document Writer', 'Microsoft XPS Document Writer v4' } | Select-Object -First 1
+          Get-PrinterDriver | Select-Object Name | Format-Table | Out-String | Write-Host
+          if (-not $drv) { Write-Host "::warning::No Microsoft Print To PDF / XPS driver on this runner: native printing could NOT be exercised (unverified)"; exit 0 }
+          $ext = if ($drv.Name -like '*PDF*') { 'pdf' } else { 'xps' }
+          $out = Join-Path $env:RUNNER_TEMP "ci-print.$ext"
+          Remove-Item $out -ErrorAction SilentlyContinue
+          Add-PrinterPort -Name $out
+          Add-Printer -Name 'CI-FILE' -DriverName $drv.Name -PortName $out
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--print-selftest', "$PWD\print-real.json", 'CI-FILE' -Wait -PassThru
+          Get-Content print-real.json
+          if ($p.ExitCode -ne 0) { throw "native print self-test failed (exit $($p.ExitCode))" }
+          if (-not (Test-Path $out)) { throw "the printer produced no output file at $out" }
+          $len = (Get-Item $out).Length
+          $bytes = [System.IO.File]::ReadAllBytes($out)
+          $head = [System.Text.Encoding]::ASCII.GetString($bytes, 0, [Math]::Min(5, $bytes.Length))
+          Write-Host "output: $out ($len bytes), header '$head'"
+          if ($len -lt 1000) { throw "output file is implausibly small" }
+          if ($ext -eq 'pdf' -and -not $head.StartsWith('%PDF')) { throw "the output is not a PDF (header '$head')" }
+          if ($ext -eq 'xps' -and -not $head.StartsWith('PK')) { throw "the output is not an XPS/zip package (header '$head')" }
+          Copy-Item $out dist\ci-print-output.$ext
+          Copy-Item print-real.json dist\print-selftest-report.json
       - name: Assemble portable package
         shell: pwsh
         run: |

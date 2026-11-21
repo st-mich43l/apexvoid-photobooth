@@ -46,6 +46,7 @@ type Settings struct {
 	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
 	CanonSDKDir      string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
 	PrinterName      string `json:"printerName"`
+	PrintPaper       string `json:"printPaper"` // default paper size name (as reported by the printer)
 	// Preferred sources, separate for Photo and Video mode. Restored at start-up;
 	// when one is missing the operator is asked before another source is used.
 	PhotoCamera camera.Preferred `json:"photoCamera"`

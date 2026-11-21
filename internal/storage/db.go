@@ -49,6 +49,34 @@ var migrations = []string{
 	);
 	CREATE INDEX media_session ON media(session_id, slot);
 	CREATE INDEX media_status ON media(status, captured_at);`,
+
+	// v2: persistent print job history
+	`CREATE TABLE print_jobs (
+		id TEXT PRIMARY KEY,
+		request_id TEXT NOT NULL DEFAULT '',
+		parent_id TEXT NOT NULL DEFAULT '',
+		kind TEXT NOT NULL DEFAULT 'print',          -- print | test
+		media_id TEXT NOT NULL DEFAULT '',
+		rendered_media_id TEXT NOT NULL DEFAULT '',
+		session_id TEXT NOT NULL DEFAULT '',
+		template_id TEXT NOT NULL DEFAULT '',
+		file TEXT NOT NULL DEFAULT '',
+		printer TEXT NOT NULL,
+		paper_name TEXT NOT NULL DEFAULT '',
+		paper_id INTEGER NOT NULL DEFAULT 0,
+		orientation TEXT NOT NULL DEFAULT '',
+		fit TEXT NOT NULL DEFAULT '',
+		copies INTEGER NOT NULL DEFAULT 1,
+		status TEXT NOT NULL,                       -- submitting | queued | printing | completed | removed | failed | unknown
+		detail TEXT NOT NULL DEFAULT '',
+		native_id TEXT NOT NULL DEFAULT '',
+		attempt INTEGER NOT NULL DEFAULT 1,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE INDEX print_jobs_status ON print_jobs(status);
+	CREATE INDEX print_jobs_request ON print_jobs(request_id);
+	CREATE INDEX print_jobs_created ON print_jobs(created_at);`,
 }
 
 // Open opens (creating if needed) the library database and migrates it.
