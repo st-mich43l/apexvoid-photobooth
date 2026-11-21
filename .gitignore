@@ -5,3 +5,6 @@ web/tsconfig.tsbuildinfo
 /photobooth
 *.log
 .DS_Store
+
+# Phase-0 generated desktop project: canonical overlay is in desktop-bootstrap/
+desktop/
