@@ -94,7 +94,7 @@ jobs:
           $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--selftest', "$PWD\selftest.json" -Wait -PassThru
           Get-Content selftest.json
           if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
-      - name: Camera probe on the runner (no camera attached: native enumeration must work and report everything as unverified)
+      - name: "Camera probe on the runner (no camera attached; native enumeration must work and report everything as unverified)"
         shell: pwsh
         run: |
           $p = Start-Process -FilePath dist\ApexVoidPhotobooth.exe -ArgumentList '--probe-cameras', "$PWD\probe-real.json" -Wait -PassThru
