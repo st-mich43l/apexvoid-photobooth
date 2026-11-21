@@ -1,0 +1,22 @@
+{
+  "RT_GROUP_ICON": { "APP": { "0000": "icon.png" } },
+  "RT_MANIFEST": { "#1": { "0409": "app.manifest" } },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": { "file_version": "0.2.0.0", "product_version": "0.2.0.0" },
+        "info": {
+          "0409": {
+            "CompanyName": "ApexVoid",
+            "FileDescription": "ApexVoid Photobooth",
+            "FileVersion": "0.2.0",
+            "InternalName": "photobooth",
+            "OriginalFilename": "ApexVoidPhotobooth.exe",
+            "ProductName": "ApexVoid Photobooth",
+            "ProductVersion": "0.2.0"
+          }
+        }
+      }
+    }
+  }
+}
