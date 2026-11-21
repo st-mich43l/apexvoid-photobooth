@@ -23,7 +23,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | Layouts (2×6 strips, 4×6 sheets, single, custom JSON/overlay) at exact size and DPI | working | CI |
 | Printing (Windows spooler + GDI): enumeration, capabilities, real page geometry, preview, submission, spooler job tracking, history, reprint | **implemented**; physical paper output **NOT verified** on any printer (see docs/PRINTING.md for what CI proves) | unit tests, Windows struct tests, CI file-port printer step |
 | Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
-| Windows x64 portable exe | built by CI; start-up self-test runs on the Windows runner | CI |
+| Windows x64 single-file exe (FFmpeg built in) | built by CI as the only artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
 
 Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
 [docs/CAMERAS.md](docs/CAMERAS.md). Market review and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

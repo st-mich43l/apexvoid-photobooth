@@ -4,7 +4,7 @@ CI cannot run these. Record the result of each step in the table at the bottom. 
 person with the hardware, treat it as **unverified**.
 
 Prerequisites: Windows 10/11 x64, Canon EOS R50 + USB cable, Canon EDSDK x64 DLLs in place (docs/CAMERAS.md),
-EOS Utility closed. Download the portable artifact from the CI run and unzip it.
+EOS Utility closed. Download the `ApexVoidPhotobooth-windows-x64` artifact from the CI run and unzip it.
 
 ## A. Canon EOS R50 via EDSDK
 | # | Step | Expected |
