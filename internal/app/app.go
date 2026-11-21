@@ -56,7 +56,9 @@ type Service struct {
 	tpl      *templates.Library
 	mgr      *camera.Manager
 	eng      *capture.Engine
-	spool    *printing.Spooler
+	prn      *printing.Manager
+	prnStore printing.Store
+	prnStop  chan struct{}
 	edsdk    *edsdk.Driver
 	httpd    *mediaServer
 
@@ -149,7 +151,13 @@ func New(o Options) (*Service, error) {
 	if pd == nil {
 		pd = printing.NewOSDriver()
 	}
-	s.spool = printing.NewSpooler(pd)
+	s.prnStore = printing.NewSQLStore(s.db)
+	s.prn = printing.NewManager(pd, s.prnStore)
+	s.prnStop = make(chan struct{})
+	if js := s.prn.Recover(context.Background()); len(js) > 0 {
+		s.log.Warn("print jobs recovered after restart", "count", len(js))
+	}
+	go s.pollPrints(s.prnStop)
 
 	if s.httpd, err = startMediaServer(s); err != nil {
 		return nil, fmt.Errorf("start local preview server: %w", err)
@@ -197,6 +205,7 @@ func (s *Service) Shutdown() error {
 	s.shutdown = true
 	s.mu.Unlock()
 	var errs []error
+	close(s.prnStop)
 	s.eng.Shutdown()
 	s.stopRecordingForShutdown()
 	if err := s.mgr.Shutdown(); err != nil {
