@@ -49,10 +49,11 @@ func TestDeviceKeys(t *testing.T) {
 	if usb != "04a9:32ea" || key != "usb#vid_04a9&pid_32ea#6&2a&0&2" {
 		t.Fatalf("%q %q", usb, key)
 	}
-	// composite devices add &mi_00 for the video interface; the key must not change
-	usb2, key2 := DeviceKeys(`@device_pnp_\\?\usb#vid_04a9&pid_32ea&mi_00#6&2a&0&2#{x}\global`)
-	if usb2 != usb || key2 == "" {
-		t.Fatalf("%q %q", usb2, key2)
+	// composite devices carry the interface: the key keeps it so RGB (mi_00) and IR (mi_02) differ
+	usb2, key2 := DeviceKeys(`@device_pnp_\\?\usb#vid_13d3&pid_56cb&mi_00#6&2a&0&0000#{x}\global`)
+	usb3, key3 := DeviceKeys(`@device_pnp_\\?\usb#vid_13d3&pid_56cb&mi_02#6&2a&0&0002#{x}\global`)
+	if usb2 != "13d3:56cb" || usb2 != usb3 || key2 == key3 || !strings.Contains(key2, "&mi_00#") {
+		t.Fatalf("%q %q | %q %q", usb2, key2, usb3, key3)
 	}
 	if u, k := DeviceKeys(`@device_sw_{860BB310-5D01-11D0-BD3B-00A0C911CE86}\{A3FCE0F5}`); u != "" || k != "" {
 		t.Fatal("software filters have no USB key")
@@ -342,5 +343,105 @@ func TestKilledRecordingIsStillPlayable(t *testing.T) {
 	p, err := ProbeFile(ctx, ff, out)
 	if err != nil || !p.HasVideo {
 		t.Fatalf("partial recording not playable: %v %+v", err, p)
+	}
+}
+
+// A driver that rejects the strict arguments (size, frame rate, format) must
+// not make the camera unusable: opening walks down the attempt ladder.
+func TestOpenFallsBackToSimplerArgumentsAndRemembersWhatWorked(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a fake ffmpeg")
+	}
+	dir := t.TempDir()
+	img := image.NewNRGBA(image.Rect(0, 0, 64, 48))
+	var jb bytes.Buffer
+	_ = jpeg.Encode(&jb, img, nil)
+	fixture := filepath.Join(dir, "frame.jpg")
+	_ = os.WriteFile(fixture, jb.Bytes(), 0o644)
+	logf := filepath.Join(dir, "calls.log")
+	script := filepath.Join(dir, "ffmpeg")
+	_ = os.WriteFile(script, []byte(`#!/bin/bash
+echo "$*" >> `+logf+`
+case "$*" in
+  *-video_size*|*-framerate*|*-input_format*) echo "Error opening input files: Invalid argument" >&2; exit 1;;
+esac
+while true; do
+  cat `+fixture+`
+  if read -r -n1 -t 0.05 _; then exit 0; fi
+done
+`), 0o755)
+
+	frames := make(chan []byte, 16)
+	s := NewStream(StreamOptions{FFmpeg: script, OnFrame: func(b []byte) {
+		select {
+		case frames <- b:
+		default:
+		}
+	},
+		Source: Source{Video: Device{Name: "USB2.0 HD IR UVC WebCam", ID: "/dev/video0"}, Width: 1280, Height: 720, FPS: 30, Format: "mjpeg"}})
+	if err := s.Start(context.Background()); err != nil {
+		t.Fatalf("must fall back to the device default mode: %v", err)
+	}
+	select {
+	case <-frames:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no frames after the fallback")
+	}
+	if u := s.Used(); u.Width != 0 || u.Format != "" {
+		t.Fatalf("the default-mode attempt should be in use: %+v", u)
+	}
+	calls, _ := os.ReadFile(logf)
+	if n := strings.Count(string(calls), "\n"); n != 3 { // full, no-format, default
+		t.Fatalf("expected 3 attempts, got %d:\n%s", n, calls)
+	}
+	s.Stop()
+
+	// the next open starts with the variant that worked (one call, not three)
+	_ = os.WriteFile(logf, nil, 0o644)
+	if err := s.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Stop()
+	calls, _ = os.ReadFile(logf)
+	if n := strings.Count(string(calls), "\n"); n != 1 {
+		t.Fatalf("the working variant must be tried first, got %d calls:\n%s", n, calls)
+	}
+}
+
+func TestOpenFailureReportsEveryAttempt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a fake ffmpeg")
+	}
+	dir := t.TempDir()
+	script := filepath.Join(dir, "ffmpeg")
+	_ = os.WriteFile(script, []byte("#!/bin/sh\necho 'Could not run graph (sorry!)' >&2\nexit 1\n"), 0o755)
+	s := NewStream(StreamOptions{FFmpeg: script, OnFrame: func([]byte) {},
+		Source: Source{Video: Device{Name: "Cam", ID: "/dev/video0"}, Width: 640, Height: 480, FPS: 30, Format: "mjpeg"}})
+	err := s.Start(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "in any of") || !strings.Contains(err.Error(), "another program") {
+		t.Fatalf("the error must list the attempts and the likely cause: %v", err)
+	}
+}
+
+func TestAttemptsAreDistinctAndStrictestFirst(t *testing.T) {
+	a := Source{Video: Device{Name: "Cam", ID: "/dev/video0"}, Width: 1280, Height: 720, FPS: 30, Format: "mjpeg"}.Attempts()
+	if len(a) < 3 || a[0].Format != "mjpeg" || a[0].Width != 1280 {
+		t.Fatalf("%+v", a)
+	}
+	seen := map[string]bool{}
+	for _, x := range a {
+		args, _ := x.inputArgs()
+		k := strings.Join(args, " ")
+		if seen[k] {
+			t.Fatalf("duplicate attempt %s", k)
+		}
+		seen[k] = true
+	}
+	if last := a[len(a)-1]; last.Width != 0 {
+		t.Fatalf("the ladder must end on the device default: %+v", last)
+	}
+	// an input override (tests) is never expanded
+	if n := len((Source{InputOverride: []string{"-f", "lavfi", "-i", "x"}}).Attempts()); n != 1 {
+		t.Fatal(n)
 	}
 }

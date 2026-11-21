@@ -108,19 +108,22 @@ func (m *Manager) Discover(ctx context.Context) ([]DeviceInfo, error) {
 
 // MarkDuplicates flags entries that are the same physical camera reached
 // through more than one backend, so the UI and Connect never open it twice:
-//  1. identical USB ids across entries → later ones duplicate the first;
+//  1. the same USB id reached through two different backends → the later one duplicates the first
+//     (the same id twice inside ONE backend is not a duplicate: a Windows Hello module exposes an RGB
+//     and an infrared stream, and a capture card may expose several inputs);
 //  2. exactly one Canon body via EDSDK and exactly one Canon-vendor UVC device
 //     → the UVC entry duplicates the EDSDK one (a body is in one USB mode at a time).
 func MarkDuplicates(devs []DeviceInfo) {
-	first := map[string]string{}
+	type seen struct{ id, driver string }
+	first := map[string]seen{}
 	for i := range devs {
 		devs[i].DuplicateOf = ""
 		if id := devs[i].USBID; id != "" {
-			if f, ok := first[id]; ok {
-				devs[i].DuplicateOf = f
+			if f, ok := first[id]; ok && f.driver != devs[i].Driver {
+				devs[i].DuplicateOf = f.id
 				devs[i].Note = "Same physical device as another listed source; open only one."
-			} else {
-				first[id] = devs[i].ID
+			} else if !ok {
+				first[id] = seen{devs[i].ID, devs[i].Driver}
 			}
 		}
 	}

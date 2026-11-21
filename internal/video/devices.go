@@ -29,7 +29,7 @@ type Device struct {
 	Key   string `json:"key,omitempty"`
 }
 
-var reUSBPath = regexp.MustCompile(`(?i)usb#vid_([0-9a-f]{4})&pid_([0-9a-f]{4})(?:&mi_[0-9a-f]{2})?#([^#]+)#`)
+var reUSBPath = regexp.MustCompile(`(?i)usb#vid_([0-9a-f]{4})&pid_([0-9a-f]{4})(&mi_[0-9a-f]{2})?#([^#]+)#`)
 
 // DeviceKeys derives the USB id ("04a9:32ea") and a stable key
 // ("usb#vid_04a9&pid_32ea#<instance>") from a DirectShow alternative name /
@@ -41,8 +41,10 @@ func DeviceKeys(path string) (usbID, key string) {
 	if m == nil {
 		return "", ""
 	}
-	vid, pid := strings.ToLower(m[1]), strings.ToLower(m[2])
-	return vid + ":" + pid, "usb#vid_" + vid + "&pid_" + pid + "#" + strings.ToLower(m[3])
+	vid, pid, mi := strings.ToLower(m[1]), strings.ToLower(m[2]), strings.ToLower(m[3])
+	// the interface (&mi_xx) stays in the key: a Windows Hello module is ONE usb
+	// device with an RGB and an infrared video interface, which are two sources
+	return vid + ":" + pid, "usb#vid_" + vid + "&pid_" + pid + mi + "#" + strings.ToLower(m[4])
 }
 
 // Devices is the result of a discovery.

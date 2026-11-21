@@ -152,14 +152,31 @@ func TestCameraSourcesListsEveryDeviceWithDetails(t *testing.T) {
 	if err != nil || len(src.Devices) != 3 {
 		t.Fatalf("%v %+v", err, src)
 	}
-	if src.Devices[1].DuplicateOf != "uvc:a" {
-		t.Fatalf("the same USB device listed twice must be flagged: %+v", src.Devices[1])
+	if src.Devices[1].DuplicateOf != "" {
+		t.Fatalf("two streams of one USB device through one backend are two sources: %+v", src.Devices[1])
 	}
 	if len(src.Devices[0].Modes) != 2 || src.Devices[0].Driver != "uvc" || src.Devices[0].Kind != camera.KindWebcam {
 		t.Fatalf("backend, kind and supported resolutions must be listed: %+v", src.Devices[0])
 	}
-	// the duplicate cannot be opened
-	if err := e.s.ConnectCamera("uvc:b"); err == nil {
+	// a genuine duplicate (same device through another backend) cannot be opened
+	other := &fakeSources{name: "other", devs: []camera.DeviceInfo{{ID: "other:x", Name: "Integrated Webcam", Driver: "other", USBID: "0bda:5830", Kind: camera.KindWebcam}}}
+	s2, err := New(Options{ConfigPath: filepath.Join(t.TempDir(), "s.json"), ExtraDrivers: []camera.Driver{e.drv, other}, SkipRestore: true,
+		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true, "mock": true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s2.Shutdown()
+	src2, _ := s2.ListCameraSources()
+	var dupID string
+	for _, d := range src2.Devices {
+		if d.DuplicateOf != "" {
+			dupID = d.ID
+		}
+	}
+	if dupID == "" {
+		t.Fatalf("cross-backend duplicate not flagged: %+v", src2.Devices)
+	}
+	if err := s2.ConnectCamera(dupID); err == nil {
 		t.Fatal("a duplicate entry was connected")
 	}
 }

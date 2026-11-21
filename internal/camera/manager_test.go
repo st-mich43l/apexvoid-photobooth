@@ -125,7 +125,7 @@ func TestMarkDuplicatesAcrossBackends(t *testing.T) {
 		{ID: "canon-edsdk:usb1#0", Name: "Canon EOS R50", Driver: "canon-edsdk", Vendor: "Canon", Kind: camera.KindDSLR},
 		{ID: "uvc:key-r50", Name: "Canon EOS R50", Driver: "uvc", Vendor: "Canon", USBID: "04a9:32ea", Kind: camera.KindCanonUVC},
 		{ID: "uvc:key-web", Name: "Integrated Webcam", Driver: "uvc", USBID: "0bda:5830", Kind: camera.KindWebcam},
-		{ID: "uvc:key-web2", Name: "Integrated Webcam", Driver: "uvc", USBID: "0bda:5830", Kind: camera.KindWebcam},
+		{ID: "other:web", Name: "Integrated Webcam", Driver: "other-backend", USBID: "0bda:5830", Kind: camera.KindWebcam},
 		{ID: "uvc:eos-webcam", Name: "EOS Webcam Utility", Driver: "uvc", Vendor: "Canon", Kind: camera.KindVirtual},
 	}
 	camera.MarkDuplicates(devs)
@@ -133,7 +133,16 @@ func TestMarkDuplicatesAcrossBackends(t *testing.T) {
 		t.Fatalf("Canon via EDSDK and the same body as UVC must not both be openable: %+v", devs[1])
 	}
 	if devs[2].DuplicateOf != "" || devs[3].DuplicateOf != "uvc:key-web" {
-		t.Fatalf("same USB id reached twice must be flagged once: %q %q", devs[2].DuplicateOf, devs[3].DuplicateOf)
+		t.Fatalf("the same USB id reached through two backends must be flagged once: %q %q", devs[2].DuplicateOf, devs[3].DuplicateOf)
+	}
+	// a Windows Hello module: RGB and infrared streams share name and USB id inside one backend → two sources
+	hello := []camera.DeviceInfo{
+		{ID: "uvc:rgb", Name: "USB2.0 HD IR UVC WebCam", Driver: "uvc", USBID: "13d3:56cb", Kind: camera.KindWebcam},
+		{ID: "uvc:ir", Name: "USB2.0 HD IR UVC WebCam", Driver: "uvc", USBID: "13d3:56cb", Kind: camera.KindWebcam},
+	}
+	camera.MarkDuplicates(hello)
+	if hello[0].DuplicateOf != "" || hello[1].DuplicateOf != "" {
+		t.Fatalf("RGB and IR streams of one USB device must both stay selectable: %+v", hello)
 	}
 	if devs[4].DuplicateOf != "" {
 		t.Fatal("a virtual camera is a different source, not a duplicate")
