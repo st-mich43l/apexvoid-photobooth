@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "./state";
 import { Badge } from "./ui";
+import { MigrationDialog } from "./MigrationDialog";
 import { CameraPage } from "./pages/CameraPage";
 import { Dashboard } from "./pages/Dashboard";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
@@ -17,9 +18,10 @@ const NAV: Array<[string, string, string]> = [
 
 /** Studio Mode — the operator interface. */
 export function Studio({ onBooth }: { onBooth: () => void }) {
-  const { camera, boot } = useApp();
+  const { camera, boot, location } = useApp();
+  const [migrateOpen, setMigrateOpen] = useState(true);
   // #camera, #gallery … deep-link straight to a page (handy for support and screenshots)
-  const [page, setPage] = useState(() => (NAV.some(([id]) => id === location.hash.slice(1)) ? location.hash.slice(1) : "dashboard"));
+  const [page, setPage] = useState(() => (NAV.some(([id]) => id === window.location.hash.slice(1)) ? window.location.hash.slice(1) : "dashboard"));
   const ok = camera.device && camera.state !== "error" && !camera.reconnecting;
 
   return (
@@ -40,6 +42,9 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
           <span>{ok ? <Badge kind={camera.device!.simulated ? "sim" : "ok"}>{camera.device!.simulated ? "SIMULATED camera" : camera.device!.name}</Badge>
             : camera.reconnecting ? <Badge kind="warn">Camera reconnecting…</Badge> : <Badge kind="err">No camera</Badge>}</span>
         </header>
+        {location.warning && <div className="note warn banner" role="alert"><div>{location.warning}</div></div>}
+        {location.restartRequired && <div className="note warn banner" role="alert"><div><strong>Restart required.</strong> The library was copied to {location.defaultPath}. Close and reopen the app; capturing is paused until then.</div></div>}
+        {location.migrationPending && !migrateOpen && <div className="note warn banner"><div>Your library is still in the old folder.</div><button onClick={() => setMigrateOpen(true)}>Move to Documents…</button></div>}
         {page === "dashboard" && <Dashboard go={setPage} />}
         {page === "camera" && <CameraPage />}
         {page === "photo" && <PhotoPage />}
@@ -49,6 +54,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
         {page === "settings" && <SettingsPage />}
         {page === "diagnostics" && <DiagnosticsPage />}
       </main>
+    {location.migrationPending && migrateOpen && <MigrationDialog onClose={() => setMigrateOpen(false)} />}
     </div>
   );
 }

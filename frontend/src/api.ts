@@ -1,6 +1,6 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
-  BootInfo, CameraStatus, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
+  BootInfo, CameraStatus, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
   Session, Settings, ShootSnapshot, TemplatesResult, VDevices, VideoState,
 } from "./types";
 
@@ -61,6 +61,12 @@ export const api = {
   verifyLibrary: (deep: boolean) => wrap(call<Report>("VerifyLibrary", deep)),
   revealMedia: (id: string) => wrap(call<void>("RevealMedia", id)),
   pickFolder: () => wrap(call<string>("PickFolder")),
+  libraryStatus: () => wrap(call<LibraryStatus>("LibraryStatus")),
+  migrateLibrary: () => wrap(call<MigrationReport>("MigrateLibrary")),
+  keepLegacyLibrary: () => wrap(call<void>("KeepLegacyLibrary")),
+  openLibraryFolder: () => wrap(call<void>("OpenLibraryFolder")),
+  setKioskPin: (current: string, next: string) => wrap(call<void>("SetKioskPin", current, next)),
+  verifyKioskPin: (pin: string) => wrap(call<void>("VerifyKioskPin", pin)),
   librarySummary: () => wrap(call<LibrarySummary>("LibrarySummary")),
 
   listTemplates: () => wrap(call<TemplatesResult>("ListTemplates")),

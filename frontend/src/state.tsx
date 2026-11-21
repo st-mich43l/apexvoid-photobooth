@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, on, toAppError, AppError } from "./api";
-import type { BootInfo, CameraStatus, Settings, ShootSnapshot, VideoState } from "./types";
+import type { BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
 
 export interface Ctx {
   boot: BootInfo;
@@ -8,6 +8,7 @@ export interface Ctx {
   shoot: ShootSnapshot;
   video: VideoState;
   settings: Settings;
+  location: LibraryStatus;
   /** bumped whenever the library changes (new capture/recording/edit/delete) */
   libraryVersion: number;
   bumpLibrary: () => void;
@@ -33,6 +34,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [shoot, setShoot] = useState<ShootSnapshot | null>(null);
   const [video, setVideo] = useState<VideoState | null>(null);
   const [settings, setSettingsState] = useState<Settings | null>(null);
+  const [location, setLocation] = useState<LibraryStatus | null>(null);
   const [libraryVersion, setLib] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
@@ -43,7 +45,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const load = (attempt: number) =>
       api.bootstrap().then((b) => {
         if (!alive) return;
-        setBoot(b); setCamera(b.camera); setShoot(b.capture); setVideo(b.video); setSettingsState(b.settings);
+        setBoot(b); setCamera(b.camera); setShoot(b.capture); setVideo(b.video); setSettingsState(b.settings); setLocation(b.location);
       }).catch((e) => {
         // the Wails bridge can need a moment at start-up
         if (attempt < 20 && alive) setTimeout(() => load(attempt + 1), 250); else setFatal(toAppError(e));
@@ -57,6 +59,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }),
       on<VideoState>("video:state", (s) => { setVideo(s); if (s.state === "idle") setLib((v) => v + 1); }),
       on<Settings>("settings:changed", (s) => setSettingsState(s)),
+      on<LibraryStatus>("library:changed", (l) => setLocation(l)),
     ];
     return () => { alive = false; offs.forEach((f) => f()); };
   }, []);
@@ -72,17 +75,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Ctx | null>(() => {
-    if (!boot || !camera || !shoot || !video || !settings) return null;
+    if (!boot || !camera || !shoot || !video || !settings || !location) return null;
     const base = boot.mediaBase, tok = boot.mediaToken;
     return {
-      boot, camera, shoot, video, settings, libraryVersion,
+      boot, camera, shoot, video, settings, location, libraryVersion,
       bumpLibrary: () => setLib((v) => v + 1),
       mediaUrl: (id, kind, v) => `${base}/media/${id}/${kind}?t=${tok}${v ? `&v=${encodeURIComponent(v)}` : ""}`,
       previewUrl: `${base}/preview.mjpg?t=${tok}&n=${previewNonce}`,
       setSettings: setSettingsState,
       toast,
     };
-  }, [boot, camera, shoot, video, settings, libraryVersion, previewNonce, toast]);
+  }, [boot, camera, shoot, video, settings, location, libraryVersion, previewNonce, toast]);
 
   if (fatal) {
     return (

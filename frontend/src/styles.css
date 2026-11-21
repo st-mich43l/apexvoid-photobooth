@@ -31,7 +31,7 @@ button.primary.alt { background: linear-gradient(135deg, var(--rose-d), var(--ro
 button.danger { border-color: #6b2c3b; color: var(--err); }
 button.danger:hover:not(:disabled) { background: #3a1523; border-color: var(--err); }
 button.ghost { background: transparent; border-color: transparent; min-height: 32px; padding: 4px 10px; }
-select, input[type=text], input[type=number], input:not([type]) {
+select, input[type=text], input[type=number], input[type=password], input:not([type]) {
   background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-height: 42px; width: 100%;
 }
 input[type=range] { width: 100%; accent-color: var(--purple); }
@@ -169,7 +169,14 @@ button.big { min-height: 64px; padding: 14px 36px; font-size: 20px; border-radiu
 .choice span { font-size: clamp(52px, 12vmin, 130px); } .choice small { font-size: clamp(16px, 2.6vmin, 26px); color: var(--muted); font-weight: 500; }
 .choice.photo { background: linear-gradient(160deg, #3a2a78, #241a40); } .choice.video { background: linear-gradient(160deg, #6b2c52, #2a1730); }
 .choice:hover:not(:disabled) { border-color: var(--rose); }
-.back-btn { position: absolute; top: max(14px, 2vh); right: max(14px, 2vw); z-index: 10; border-radius: 999px; min-height: 56px; padding: 0 24px; font-size: 18px; }
+.home-btn { position: absolute; bottom: max(14px, 2vh); left: max(14px, 2vw); z-index: 10; border-radius: 999px; min-height: 56px; padding: 0 24px; font-size: 18px; }
+.exit-btn { position: absolute; top: max(10px, 1.5vh); right: max(10px, 1.5vw); z-index: 30; min-height: 48px; min-width: 48px; padding: 0 18px; border-radius: 999px; font-size: 15px; font-weight: 600; background: #0008; backdrop-filter: blur(6px); color: var(--muted); border-color: var(--line); }
+.exit-btn:hover:not(:disabled), .exit-btn:focus-visible { color: var(--text); border-color: var(--rose); }
+.fs-note { margin: 56px 0 8px; }
+.exit-dialog .form-line { display: grid; gap: 6px; color: var(--muted); font-size: 14px; margin: 8px 0; }
+.exit-dialog input { font-size: 28px; letter-spacing: .4em; text-align: center; min-height: 60px; }
+.booth-root .modal { width: min(560px, 100%); }
+.booth-root .modal > footer button { min-height: 56px; font-size: 18px; padding: 0 22px; }
 .booth .stage-preview { max-height: 66vh; }
 .booth .controls button { min-height: 64px; font-size: 20px; }
 .booth .shutter { min-height: 96px; min-width: min(420px, 90%); font-size: 30px; }
@@ -185,4 +192,9 @@ button.big { min-height: 64px; padding: 14px 36px; font-size: 20px; border-radiu
 @media (max-width: 900px) { .two-col, .editor { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition: none !important; } }
 
-.booth-root > .ribbon { margin-right: 150px; }
+.booth-root > .ribbon { margin-right: 170px; }
+
+.banner { margin: 8px 28px 0; }
+.path { word-break: break-all; font-weight: 500; font-size: 15px; }
+.progress { height: 10px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); overflow: hidden; margin: 10px 0 4px; }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--purple-d), var(--rose)); transition: width .2s; }
