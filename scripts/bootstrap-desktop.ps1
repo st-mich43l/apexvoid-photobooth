@@ -32,8 +32,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Wails project generation failed' }
     }
 
-    Copy-Item (Join-Path $overlay 'main.go') (Join-Path $desktop 'main.go') -Force
-    Copy-Item (Join-Path $overlay 'desktopservice.go') (Join-Path $desktop 'desktopservice.go') -Force
+    Copy-Item (Join-Path $overlay 'main.go.tmpl') (Join-Path $desktop 'main.go') -Force
+    Copy-Item (Join-Path $overlay 'desktopservice.go.tmpl') (Join-Path $desktop 'desktopservice.go') -Force
     Copy-Item (Join-Path $overlay 'App.tsx') (Join-Path $desktop 'frontend/src/App.tsx') -Force
     Copy-Item (Join-Path $overlay 'style.css') (Join-Path $desktop 'frontend/public/style.css') -Force
     Copy-Item (Join-Path $overlay 'index.html') (Join-Path $desktop 'frontend/index.html') -Force
