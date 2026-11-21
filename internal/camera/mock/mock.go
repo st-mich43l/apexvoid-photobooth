@@ -61,7 +61,7 @@ func (d *Driver) Last() *Camera {
 }
 
 func info() camera.DeviceInfo {
-	return camera.DeviceInfo{ID: "mock-0", Name: "SIMULATED camera (mock)", Driver: DriverName, Simulated: true}
+	return camera.DeviceInfo{ID: "mock-0", Name: "SIMULATED camera (mock)", Driver: DriverName, Simulated: true, Kind: camera.KindSimulated}
 }
 
 func (d *Driver) Discover(context.Context) ([]camera.DeviceInfo, error) {

@@ -3,12 +3,16 @@ import { api } from "../api";
 import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
 import { VideoFlow } from "../VideoFlow";
+import { usePrepareMode } from "../usePrepareMode";
 import type { VDevices } from "../types";
 
 export function VideoPage() {
   const { camera, settings, setSettings, toast } = useApp();
   const [dev, setDev] = useState<VDevices | null>(null);
   const q = useAction();
+  const { prepare, dialog, error: modeError } = usePrepareMode();
+  const [ready, setReady] = useState(false);
+  useEffect(() => { prepare("video").then(setReady); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const save = useAction();
 
   const scan = () => q.run(async () => setDev(await api.videoDevices()));
@@ -64,7 +68,9 @@ export function VideoPage() {
           {" "}<Badge kind="info">preview pauses ~1 s when recording starts and stops</Badge></p>
         <button onClick={scan} disabled={q.busy}>Rescan devices</button>
       </section>
-      <VideoFlow variant="studio" />
+      {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
+      {ready ? <VideoFlow variant="studio" /> : !modeError && <p className="muted">Preparing the video camera…</p>}
+      {dialog}
     </div>
   );
 }

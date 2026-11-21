@@ -10,16 +10,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 )
 
-// Mode is one capture format of a video device.
-type Mode struct {
-	Width  int     `json:"width"`
-	Height int     `json:"height"`
-	FPSMin float64 `json:"fpsMin"`
-	FPSMax float64 `json:"fpsMax"` // 0 = unknown
-	Format string  `json:"format"` // pixel format or vcodec (mjpeg, yuyv422, nv12 ...)
-}
+// Mode is one capture format of a video device (shared with the camera package).
+type Mode = camera.Mode
 
 // Device is a capture device (camera or microphone).
 type Device struct {
@@ -27,6 +23,26 @@ type Device struct {
 	ID    string `json:"id"` // stable identifier (dshow alternative name, /dev/videoN, avfoundation index)
 	Kind  string `json:"kind"`
 	Modes []Mode `json:"modes,omitempty"`
+	// USBID ("vid:pid") and Key (USB instance path) are derived from the
+	// DirectShow alternative name when it carries one.
+	USBID string `json:"usbId,omitempty"`
+	Key   string `json:"key,omitempty"`
+}
+
+var reUSBPath = regexp.MustCompile(`(?i)usb#vid_([0-9a-f]{4})&pid_([0-9a-f]{4})(?:&mi_[0-9a-f]{2})?#([^#]+)#`)
+
+// DeviceKeys derives the USB id ("04a9:32ea") and a stable key
+// ("usb#vid_04a9&pid_32ea#<instance>") from a DirectShow alternative name /
+// Windows device path such as
+// `@device_pnp_\\?\usb#vid_04a9&pid_32ea#6&2a&0&2#{65e8773d-...}\global`.
+// Both are empty when the path is not a USB path.
+func DeviceKeys(path string) (usbID, key string) {
+	m := reUSBPath.FindStringSubmatch(path)
+	if m == nil {
+		return "", ""
+	}
+	vid, pid := strings.ToLower(m[1]), strings.ToLower(m[2])
+	return vid + ":" + pid, "usb#vid_" + vid + "&pid_" + pid + "#" + strings.ToLower(m[3])
 }
 
 // Devices is the result of a discovery.
@@ -61,6 +77,7 @@ func parseDShowDevices(out string) Devices {
 		if m := reAlt.FindStringSubmatch(line); m != nil {
 			if last != nil {
 				last.ID = m[1]
+				last.USBID, last.Key = DeviceKeys(m[1])
 			}
 			continue
 		}

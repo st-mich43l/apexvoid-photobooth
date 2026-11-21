@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { api } from "./api";
 import { clock } from "./format";
 import { useApp } from "./state";
+import { SourceChip } from "./SourceChip";
 import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
 
 /** Video recording workflow shared by Studio and Booth. */
@@ -20,6 +21,7 @@ export function VideoFlow({ variant, onDone }: { variant: "studio" | "booth"; on
   return (
     <div className={`shoot ${booth ? "booth" : ""}`}>
       {!booth && <SimulatedRibbon />}
+      <SourceChip />
       <ErrorNote error={error} onClose={clear} />
       {video.state === "error" && (
         <div className="note err"><div><strong>{video.error}</strong></div></div>

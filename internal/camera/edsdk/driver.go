@@ -100,7 +100,7 @@ func (d *Driver) list(ctx context.Context, keepID string) ([]camera.DeviceInfo, 
 		}
 		for i, c := range cams {
 			id := deviceID(c, i)
-			infos = append(infos, camera.DeviceInfo{ID: id, Name: c.Name, Driver: DriverName, Port: c.Port})
+			infos = append(infos, camera.DeviceInfo{ID: id, Name: c.Name, Driver: DriverName, Port: c.Port, Kind: camera.KindDSLR, Vendor: "Canon"})
 			if keepID != "" && id == keepID {
 				kept = c
 			} else {

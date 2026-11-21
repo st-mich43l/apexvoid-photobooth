@@ -20,6 +20,7 @@ type Status struct {
 	State        State          `json:"state"`
 	Capabilities *Capabilities  `json:"capabilities,omitempty"`
 	LiveView     bool           `json:"liveView"`
+	Mode         *Mode          `json:"mode,omitempty"` // active stream mode (resolution/fps/format), when known
 	Reconnecting bool           `json:"reconnecting"`
 	LastError    string         `json:"lastError,omitempty"`
 	LastAction   string         `json:"lastAction,omitempty"`
@@ -101,7 +102,80 @@ func (m *Manager) Discover(ctx context.Context) ([]DeviceInfo, error) {
 	if len(all) == 0 && firstErr != nil {
 		return nil, firstErr
 	}
+	MarkDuplicates(all)
 	return all, nil
+}
+
+// MarkDuplicates flags entries that are the same physical camera reached
+// through more than one backend, so the UI and Connect never open it twice:
+//  1. identical USB ids across entries → later ones duplicate the first;
+//  2. exactly one Canon body via EDSDK and exactly one Canon-vendor UVC device
+//     → the UVC entry duplicates the EDSDK one (a body is in one USB mode at a time).
+func MarkDuplicates(devs []DeviceInfo) {
+	first := map[string]string{}
+	for i := range devs {
+		devs[i].DuplicateOf = ""
+		if id := devs[i].USBID; id != "" {
+			if f, ok := first[id]; ok {
+				devs[i].DuplicateOf = f
+				devs[i].Note = "Same physical device as another listed source; open only one."
+			} else {
+				first[id] = devs[i].ID
+			}
+		}
+	}
+	var eds, canonUVC []int
+	for i, d := range devs {
+		switch {
+		case d.Driver == "canon-edsdk":
+			eds = append(eds, i)
+		case d.Vendor == "Canon" && d.Driver != "mock" && d.Kind != KindVirtual:
+			canonUVC = append(canonUVC, i)
+		}
+	}
+	if len(eds) == 1 && len(canonUVC) == 1 && devs[canonUVC[0]].DuplicateOf == "" {
+		devs[canonUVC[0]].DuplicateOf = devs[eds[0]].ID
+		devs[canonUVC[0]].Note = "This Canon body is already listed through the Canon SDK (photo mode). Use that entry for full-resolution photos, or switch the body to USB streaming mode to use it as a video source."
+	}
+}
+
+// Preferred identifies a remembered camera.
+type Preferred struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Driver string `json:"driver"`
+	USBID  string `json:"usbId"`
+}
+
+// Match finds the remembered camera among devs: exact ID first, then the same
+// backend + USB id, then the same backend + name when that is unique. Duplicate
+// entries never match.
+func (p Preferred) Match(devs []DeviceInfo) (DeviceInfo, bool) {
+	if p.ID == "" && p.Name == "" {
+		return DeviceInfo{}, false
+	}
+	for _, d := range devs {
+		if d.ID == p.ID && d.DuplicateOf == "" {
+			return d, true
+		}
+	}
+	if p.USBID != "" {
+		for _, d := range devs {
+			if d.Driver == p.Driver && d.USBID == p.USBID && d.DuplicateOf == "" {
+				return d, true
+			}
+		}
+	}
+	var hit []DeviceInfo
+	for _, d := range devs {
+		if d.Driver == p.Driver && d.Name == p.Name && d.DuplicateOf == "" {
+			hit = append(hit, d)
+		}
+	}
+	if len(hit) == 1 {
+		return hit[0], true
+	}
+	return DeviceInfo{}, false
 }
 
 func (m *Manager) driverFor(name string) Driver {
@@ -115,6 +189,14 @@ func (m *Manager) driverFor(name string) Driver {
 
 // Connect opens and connects the given device, disconnecting any current one.
 func (m *Manager) Connect(ctx context.Context, info DeviceInfo) error {
+	if info.DuplicateOf != "" {
+		return Errf(CodeDuplicate, "Use the other entry for this camera ("+info.DuplicateOf+").", nil, "%s is the same physical camera as another listed source", info.Name)
+	}
+	// never swap the device under a capture in flight
+	if !m.shooting.TryLock() {
+		return Errf(CodeBusyOperation, "Wait for the current capture to finish, then switch cameras.", nil, "a capture is in progress")
+	}
+	defer m.shooting.Unlock()
 	m.stopReconnect()
 	if err := m.disconnectLocked(false); err != nil {
 		_ = err // best effort: the old camera may already be gone
@@ -385,6 +467,11 @@ func (m *Manager) Status() Status {
 		c := cam.Capabilities()
 		i := cam.Info()
 		st.Device, st.Capabilities, st.State, st.LiveView = &i, &c, cam.State(), live
+		if mr, ok := cam.(ModeReporter); ok {
+			if md, ok := mr.ActiveMode(); ok {
+				st.Mode = &md
+			}
+		}
 	} else if rec {
 		i := info
 		st.Device = &i

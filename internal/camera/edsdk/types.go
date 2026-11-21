@@ -16,6 +16,7 @@ const (
 	evObjectDirItemCreated         = 0x00000204
 	evObjectDirItemRequestTransfer = 0x00000208
 	evStateShutdown                = 0x00000301
+	evStateWillSoonShutDown        = 0x00000303
 )
 
 // Property ids.
@@ -32,6 +33,7 @@ const (
 	saveToHost             = 2
 	evfOutputPC            = 2
 	cmdTakePicture         = 0x00000000
+	cmdExtendShutdownTimer = 0x00000001
 	cmdPressShutter        = 0x00000004
 	shutterOff             = 0x00000000
 	shutterCompletelyNonAF = 0x00010003

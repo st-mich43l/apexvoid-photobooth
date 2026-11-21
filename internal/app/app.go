@@ -40,6 +40,7 @@ type Options struct {
 	PrintDriver   printing.Driver
 	DisableDriver map[string]bool // drop built-in drivers by name
 	Tick          time.Duration   // countdown second length
+	SkipRestore   bool            // tests: do not auto-connect the preferred camera
 	// ResolveLibrary overrides the library location logic (tests simulate Windows folders).
 	ResolveLibrary func(*settings.Manager) settings.Resolution
 }
@@ -69,6 +70,7 @@ type Service struct {
 	libRes          settings.Resolution // where the library came from (documents/legacy/custom/fallback)
 	migrating       atomic.Bool         // a library migration is copying files
 	restartRequired atomic.Bool         // the library was migrated; writes stop until the app restarts
+	restoreMsg      string              // why the preferred camera was not connected at start-up
 	pinMu           sync.Mutex
 	pinFails        int
 	pinLockedUntil  time.Time
@@ -118,9 +120,9 @@ func New(o Options) (*Service, error) {
 	s.edsdk = edsdk.NewDriver(func() string { return s.settings.Get().CanonSDKDir })
 	uv := uvc.NewDriver(
 		func() string { return s.settings.Get().FFmpegPath },
-		func() uvc.Prefs {
-			v := s.settings.Get().Video
-			return uvc.Prefs{Width: v.Width, Height: v.Height, FPS: v.FPS}
+		func(id string) uvc.Prefs {
+			w, h, fps := s.cameraPrefs(id)
+			return uvc.Prefs{Width: w, Height: h, FPS: fps}
 		})
 	var drivers []camera.Driver
 	add := func(d camera.Driver) {
@@ -151,6 +153,9 @@ func New(o Options) (*Service, error) {
 
 	if s.httpd, err = startMediaServer(s); err != nil {
 		return nil, fmt.Errorf("start local preview server: %w", err)
+	}
+	if !o.SkipRestore {
+		go s.RestorePreferred()
 	}
 	s.log.Info("started", "version", o.Version, "dataDir", layout.Root, "librarySource", res.Source, "migrationPending", res.MigrationPending, "os", runtime.GOOS+"/"+runtime.GOARCH)
 	return s, nil

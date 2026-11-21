@@ -50,6 +50,16 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <section className="card"><h3>Preferred cameras</h3>
+        <p className="muted small">Restored when the app starts. If a preferred camera is missing the app asks before using another one. Choose them on the Camera page.</p>
+        <table className="table"><tbody>
+          <tr><td>Photo camera</td><td>{settings.photoCamera.name || <span className="muted">not set</span>}</td>
+            <td>{settings.photoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("photo"); toast("Photo camera cleared"); })}>Clear</button>}</td></tr>
+          <tr><td>Video camera</td><td>{settings.videoCamera.name || <span className="muted">not set</span>}</td>
+            <td>{settings.videoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("video"); toast("Video camera cleared"); })}>Clear</button>}</td></tr>
+        </tbody></table>
+      </section>
+
       <section className="card"><h3>Kiosk exit PIN</h3>
         <p className="muted small">When set, leaving Booth Mode requires this PIN (4–8 digits). Five wrong attempts lock the PIN prompt for 30 seconds. Leave empty to protect nothing.</p>
         <ErrorNote error={pin.error} onClose={pin.clear} />

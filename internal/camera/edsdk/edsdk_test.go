@@ -48,7 +48,10 @@ type fakeAPI struct {
 	closed      bool
 	unplugged   bool
 	violations  []string
+	extends     int
 }
+
+func (f *fakeAPI) extendCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.extends }
 
 type fileItem struct {
 	name string
@@ -132,6 +135,8 @@ func (f *fakeAPI) SendCommand(c ref, cmd, param uint32) error {
 			}
 		}
 		f.shoot()
+	case cmdExtendShutdownTimer:
+		f.extends++
 	case cmdPressShutter:
 		if param == shutterCompletelyNonAF {
 			f.shutterUsed++
@@ -479,3 +484,52 @@ func TestLocateSDK(t *testing.T) {
 }
 
 var _ = strconv.Itoa
+
+func TestKeepAliveExtendsThePowerOffTimerAndStopsOnDisconnect(t *testing.T) {
+	f := newFake()
+	_, c := connect(t, f)
+	_ = c
+	f.mu.Lock()
+	f.extends = 0
+	f.mu.Unlock()
+	// the camera warns that it will shut down soon → immediate extension
+	f.mu.Lock()
+	f.pending = append(f.pending, func() { f.onState(evStateWillSoonShutDown, 0) })
+	f.mu.Unlock()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && f.extendCount() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if f.extendCount() == 0 {
+		t.Fatal("a 'will soon shut down' warning must extend the timer")
+	}
+	if err := c.Disconnect(); err != nil {
+		t.Fatal(err)
+	}
+	n := f.extendCount()
+	time.Sleep(100 * time.Millisecond)
+	if f.extendCount() != n {
+		t.Fatal("keep-alive kept running after Disconnect")
+	}
+}
+
+func TestPeriodicKeepAlive(t *testing.T) {
+	f := newFake()
+	d := driverWith(f, nil)
+	defer d.Close()
+	devs, _ := d.Discover(context.Background())
+	cam, _ := d.Open(devs[0])
+	c := cam.(*Camera)
+	c.KeepAliveInterval = 20 * time.Millisecond
+	if err := c.Connect(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer c.Disconnect()
+	time.Sleep(200 * time.Millisecond)
+	if f.extendCount() < 3 {
+		t.Fatalf("only %d keep-alive commands in 200 ms at a 20 ms interval", f.extendCount())
+	}
+	if len(f.violations) > 0 {
+		t.Fatal(f.violations)
+	}
+}

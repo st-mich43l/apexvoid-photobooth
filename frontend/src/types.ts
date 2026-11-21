@@ -4,7 +4,22 @@
 export type Support = "supported" | "unsupported" | "unverified";
 export type CamState = "disconnected" | "connected" | "liveview" | "busy" | "error";
 
-export interface DeviceInfo { id: string; name: string; driver: string; port?: string; simulated: boolean }
+export interface Mode { width: number; height: number; fpsMin: number; fpsMax: number; format: string }
+export type SourceKind = "dslr" | "dslr-uvc" | "webcam" | "capture-card" | "virtual" | "simulated";
+export interface DeviceInfo {
+  id: string; name: string; driver: string; port?: string; simulated: boolean; kind: SourceKind; vendor?: string; usbId?: string;
+  modes?: Mode[]; duplicateOf?: string; note?: string;
+}
+export interface Preferred { id: string; name: string; driver: string; usbId: string }
+export interface CameraSources {
+  devices: DeviceInfo[]; activeId: string; photoPreferred: Preferred; videoPreferred: Preferred;
+  photoMatchId: string; videoMatchId: string; restoreNote: string; ffmpegFound: boolean;
+}
+export type CameraMode = "photo" | "video";
+export interface ModeReadiness {
+  mode: CameraMode; ready: boolean; switched: boolean; needsFallback: boolean; candidate?: DeviceInfo; preferred: Preferred; message: string;
+}
+export interface SavedMode { width: number; height: number; fps: number; format: string }
 export interface Capabilities {
   liveView: Support; stillCapture: Support; originalTransfer: Support;
   movieRecord: Support; movieTransfer: Support; streamedVideo: Support; notes?: string[];
@@ -12,7 +27,7 @@ export interface Capabilities {
 export interface DriverStatus { name: string; available: boolean; problem?: string }
 export interface CameraStatus {
   device?: DeviceInfo; state: CamState; capabilities?: Capabilities; liveView: boolean;
-  reconnecting: boolean; lastError?: string; lastAction?: string; drivers: DriverStatus[];
+  mode?: Mode; reconnecting: boolean; lastError?: string; lastAction?: string; drivers: DriverStatus[];
 }
 
 export type ShootStateName = "IDLE" | "PREVIEW" | "COUNTDOWN" | "CAPTURING" | "REVIEW" | "SAVING" | "COMPLETED" | "ERROR" | "CANCELLED";
@@ -32,6 +47,7 @@ export interface Settings {
   mediaDir: string; countdownSeconds: number; shots: number; templateId: string; autoReconnect: boolean;
   enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; video: VideoSettings;
   kioskPinSet: boolean; // the PIN record itself never reaches the UI
+  photoCamera: Preferred; videoCamera: Preferred; cameraModes: Record<string, SavedMode> | null;
 }
 
 export interface LibrarySummary {
@@ -63,7 +79,6 @@ export interface Media {
 export interface Rect { x: number; y: number; w: number; h: number }
 export interface Edits { rotate: number; crop: Rect | null; brightness: number; contrast: number; saturation: number }
 
-export interface Mode { width: number; height: number; fpsMin: number; fpsMax: number; format: string }
 export interface VDevice { name: string; id: string; kind: string; modes?: Mode[] }
 export interface VDevices { video: VDevice[]; audio: VDevice[] }
 
