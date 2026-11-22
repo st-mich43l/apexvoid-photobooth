@@ -9,12 +9,13 @@ import { Gallery } from "./pages/Gallery";
 import { PhotoPage } from "./pages/PhotoPage";
 import { SettingsPage } from "./pages/Settings";
 import { Frames } from "./pages/Frames";
+import { Icon } from "./icons";
 import { PrinterPage } from "./pages/PrinterPage";
 import { VideoPage } from "./pages/VideoPage";
 
-const NAV: Array<[string, string, string]> = [
-  ["dashboard", "Dashboard", "◧"], ["camera", "Camera", "◉"], ["photo", "Photo", "▣"], ["video", "Video", "▶"],
-  ["gallery", "Gallery", "▦"], ["frames", "Frames", "▤"], ["printer", "Printer", "⎙"], ["settings", "Settings", "⚙"], ["diagnostics", "Diagnostics", "✚"],
+const NAV: Array<[string, string]> = [
+  ["dashboard", "Dashboard"], ["camera", "Camera"], ["photo", "Photo"], ["video", "Video"],
+  ["gallery", "Gallery"], ["frames", "Frames"], ["printer", "Printer"], ["settings", "Settings"], ["diagnostics", "Diagnostics"],
 ];
 
 /** Studio Mode — the operator interface. */
@@ -28,14 +29,14 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
   return (
     <div className="studio">
       <nav aria-label="Studio navigation">
-        <div className="brand"><span className="logo">◉</span><div><b>ApexVoid</b><small>Photobooth Studio</small></div></div>
-        {NAV.map(([id, label, icon]) => (
+        <div className="brand"><span className="logo"><Icon name="camera" size={22} /></span><div><b>ApexVoid</b><small>Photobooth Studio</small></div></div>
+        {NAV.map(([id, label]) => (
           <button key={id} className={page === id ? "active" : ""} onClick={() => setPage(id)} aria-current={page === id ? "page" : undefined}>
-            <span aria-hidden>{icon}</span>{label}
+            <Icon name={id} />{label}
           </button>
         ))}
         <div className="spacer" />
-        <button className="booth-btn" onClick={onBooth}>▶ Open Booth Mode</button>
+        <button className="booth-btn" onClick={onBooth}><Icon name="play" size={16} /> Open Booth Mode</button>
         <small className="ver">v{boot.version}</small>
       </nav>
       <main>
