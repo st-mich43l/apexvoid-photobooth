@@ -8,13 +8,13 @@ import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { Gallery } from "./pages/Gallery";
 import { PhotoPage } from "./pages/PhotoPage";
 import { SettingsPage } from "./pages/Settings";
-import { Templates } from "./pages/Templates";
+import { Frames } from "./pages/Frames";
 import { PrinterPage } from "./pages/PrinterPage";
 import { VideoPage } from "./pages/VideoPage";
 
 const NAV: Array<[string, string, string]> = [
   ["dashboard", "Dashboard", "◧"], ["camera", "Camera", "◉"], ["photo", "Photo", "▣"], ["video", "Video", "▶"],
-  ["gallery", "Gallery", "▦"], ["templates", "Layouts", "▤"], ["printer", "Printer", "⎙"], ["settings", "Settings", "⚙"], ["diagnostics", "Diagnostics", "✚"],
+  ["gallery", "Gallery", "▦"], ["frames", "Frames", "▤"], ["printer", "Printer", "⎙"], ["settings", "Settings", "⚙"], ["diagnostics", "Diagnostics", "✚"],
 ];
 
 /** Studio Mode — the operator interface. */
@@ -51,7 +51,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
         {page === "photo" && <PhotoPage />}
         {page === "video" && <VideoPage />}
         {page === "gallery" && <Gallery />}
-        {page === "templates" && <Templates />}
+        {page === "frames" && <Frames />}
         {page === "printer" && <PrinterPage />}
         {page === "settings" && <SettingsPage />}
         {page === "diagnostics" && <DiagnosticsPage />}

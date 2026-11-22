@@ -4,25 +4,33 @@ import type { Settings, ShootSnapshot, VideoState } from "./types";
 
 // ---- mocks: state, api, window helpers and the heavy flows ----------------
 const h = vi.hoisted(() => ({
-  S: {} as { video: VideoState; shoot: ShootSnapshot; settings: Settings; camera: object; toast?: unknown },
-  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn(), prepareMode: vi.fn() },
+  S: {} as { video: VideoState; shoot: ShootSnapshot; settings: Settings; camera: object; toast?: unknown; frameUrl?: unknown },
+  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn(), prepareMode: vi.fn(), listFrames: vi.fn() },
   enter: vi.fn(), leave: vi.fn(),
 }));
 const { S, api, enter, leave } = h;
 vi.mock("./state", () => ({ useApp: () => h.S }));
 vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
 vi.mock("./fullscreen", () => ({ enterFullscreen: (...a: unknown[]) => h.enter(...a), leaveFullscreen: (...a: unknown[]) => h.leave(...a) }));
-vi.mock("./ShootFlow", () => ({ ShootFlow: () => <div data-testid="photo-flow" /> }));
+vi.mock("./ShootFlow", () => ({
+  ShootFlow: (p: { frame: { id: string; variantId: string }; onChangeFrame?: () => void }) => (
+    <div data-testid="photo-flow" data-frame={`${p.frame.id}|${p.frame.variantId}`}><button onClick={p.onChangeFrame}>Change frame</button></div>
+  ),
+}));
 vi.mock("./VideoFlow", () => ({ VideoFlow: () => <div data-testid="video-flow" /> }));
 
 import { Booth } from "./Booth";
 
+const frame = (id: string, photos: number) => ({ id, name: id === "rose.strip4" ? "Rose Pink" : "Mono", category: "Korean Pastel", photos, format: "2×6 strip", enabled: true, pixelW: 600, pixelH: 1800,
+  variants: [{ id: "a", name: "A" }, { id: "b", name: "B", background: "#fff" }], widthIn: 2, heightIn: 6, dpi: 300, slots: [], background: "#fcc", kind: "strip", order: 1, revision: 1 });
 const video = (o: Partial<VideoState> = {}): VideoState => ({ state: "idle", sessionId: "", elapsedMs: 0, maxSeconds: 30, lastMediaId: "", ...o });
 const shoot = (state: ShootSnapshot["state"]): ShootSnapshot => ({ state, version: 1, sessionId: "S", shots: 4, slot: 0, remaining: 0, taken: [], simulated: false });
 
 beforeEach(() => {
   S.video = video(); S.shoot = shoot("IDLE");
-  S.settings = { shots: 4, video: { maxSeconds: 30 }, kioskPinSet: false } as unknown as Settings;
+  S.settings = { shots: 4, templateId: "rose.strip4", video: { maxSeconds: 30 }, kioskPinSet: false } as unknown as Settings;
+  S.frameUrl = (id: string) => `/frame/${id}`;
+  api.listFrames.mockResolvedValue({ frames: [frame("rose.strip4", 4), frame("mono.strip3", 3)], categories: ["Korean Pastel"], errors: [], dir: "", default: "rose.strip4" });
   S.toast = vi.fn();
   S.camera = { device: { id: "c", name: "Cam", driver: "uvc", simulated: false }, state: "connected", reconnecting: false, liveView: true };
   enter.mockResolvedValue(undefined); leave.mockResolvedValue(undefined);
@@ -32,6 +40,13 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); enter.mockReset(); leave.mockReset(); });
 
+/** Photo → frame selection → Continue (the camera is only prepared by Continue). */
+const choosePhoto = async () => {
+  fireEvent.click(screen.getByRole("button", { name: /Photo/ }));
+  await waitFor(() => expect(screen.getByTestId("frame-selection")).toBeTruthy());
+  await waitFor(() => expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+};
 const exitButton = () => screen.getByRole("button", { name: "Exit Booth Mode" });
 const dialog = () => screen.queryByRole("dialog", { name: "Exit Booth Mode and return to Studio?" });
 
@@ -40,6 +55,9 @@ describe("Booth exit", () => {
     render(<Booth onExited={() => {}} />);
     expect(exitButton()).toBeTruthy();                                  // welcome
     fireEvent.click(screen.getByRole("button", { name: /Photo/ }));
+    await waitFor(() => expect(screen.getByTestId("frame-selection")).toBeTruthy());
+    expect(exitButton()).toBeTruthy();                                  // frame selection
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
     expect(exitButton()).toBeTruthy();                                  // photo
     fireEvent.click(screen.getByRole("button", { name: /Home/ }));
@@ -49,7 +67,7 @@ describe("Booth exit", () => {
   });
 
   it("keeps Home and Exit as different controls", () => {
-    window.location.hash = "#booth/photo";
+    window.location.hash = "#booth/video";
     render(<Booth onExited={() => {}} />);
     const home = screen.getByRole("button", { name: /Home/ });
     fireEvent.click(home);
@@ -218,11 +236,10 @@ describe("Booth exit with kiosk PIN", () => {
 
 
 describe("Booth Photo/Video buttons prepare the right camera", () => {
-  const photoBtn = () => screen.getByRole("button", { name: /Photo/ });
 
   it("opens the flow when the preferred camera is ready", async () => {
     render(<Booth onExited={() => {}} />);
-    fireEvent.click(photoBtn());
+    await choosePhoto();
     await waitFor(() => expect(screen.getByTestId("photo-flow")).toBeTruthy());
     expect(api.prepareMode).toHaveBeenCalledWith("photo", "");
   });
@@ -231,7 +248,7 @@ describe("Booth Photo/Video buttons prepare the right camera", () => {
     const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
     api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: { name: "Logitech C920" }, message: "Your preferred photo camera “Logitech C920” is not available." });
     render(<Booth onExited={() => {}} />);
-    fireEvent.click(photoBtn());
+    await choosePhoto();
     await waitFor(() => screen.getByText("Use a different camera?"));
     expect(screen.getByText(/Logitech C920/)).toBeTruthy();
     expect(screen.queryByTestId("photo-flow")).toBeNull();
@@ -242,15 +259,16 @@ describe("Booth Photo/Video buttons prepare the right camera", () => {
     expect(api.prepareMode).toHaveBeenLastCalledWith("photo", "uvc:a");
   });
 
-  it("stays on the welcome screen when the operator declines the substitute", async () => {
+  it("stays on frame selection (no flow, no switch) when the operator declines the substitute", async () => {
     const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
     api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: {}, message: "No photo camera has been chosen." });
     render(<Booth onExited={() => {}} />);
-    fireEvent.click(photoBtn());
+    await choosePhoto();
     await waitFor(() => screen.getByText("Use a different camera?"));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByText("Use a different camera?")).toBeNull());
-    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    expect(screen.getByTestId("frame-selection")).toBeTruthy();
+    expect(screen.queryByTestId("photo-flow")).toBeNull();
     expect(api.prepareMode).toHaveBeenCalledTimes(1);
   });
 
@@ -259,7 +277,7 @@ describe("Booth Photo/Video buttons prepare the right camera", () => {
     const cand = { id: "uvc:a", name: "Integrated Webcam", driver: "uvc", kind: "webcam", simulated: false };
     api.prepareMode.mockResolvedValueOnce({ mode: "photo", ready: false, switched: false, needsFallback: true, candidate: cand, preferred: {}, message: "m" });
     render(<Booth onExited={() => {}} />);
-    fireEvent.click(photoBtn());
+    await choosePhoto();
     await waitFor(() => screen.getByText("Use a different camera?"));
     const use = screen.getByRole("button", { name: "Use Integrated Webcam" }) as HTMLButtonElement;
     expect(use.disabled).toBe(true);
@@ -276,5 +294,95 @@ describe("Booth Photo/Video buttons prepare the right camera", () => {
     fireEvent.click(screen.getByRole("button", { name: /Video/ }));
     await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /No camera available for Video mode/.test(a.textContent ?? ""))).toBe(true));
     expect(screen.queryByTestId("video-flow")).toBeNull();
+  });
+});
+
+describe("Booth frame selection comes before the camera", () => {
+  const photo = () => fireEvent.click(screen.getByRole("button", { name: /Photo/ }));
+
+  it("Photo opens frame selection and does NOT touch the camera until a frame is confirmed", async () => {
+    render(<Booth onExited={() => {}} />);
+    photo();
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Rose Pink/ })).toBeTruthy());
+    expect(api.prepareMode).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("photo-flow")).toBeNull();
+  });
+
+  it("shows name, format and photo count on every card, and the preselected frame is highlighted", async () => {
+    render(<Booth onExited={() => {}} />);
+    photo();
+    const card = await screen.findByRole("radio", { name: /Rose Pink/ });
+    expect(card.textContent).toMatch(/2×6 strip · 4 photos/);
+    expect(card.getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: /Mono/ }).textContent).toMatch(/3 photos/);
+  });
+
+  it("starts the flow with the chosen frame and colour variant", async () => {
+    render(<Booth onExited={() => {}} />);
+    photo();
+    fireEvent.click(await screen.findByRole("radio", { name: /Mono/ }));
+    fireEvent.click(screen.getByRole("radio", { name: "B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(screen.getByTestId("photo-flow").getAttribute("data-frame")).toBe("mono.strip3|b"));
+    expect(api.prepareMode).toHaveBeenCalledWith("photo", "");
+  });
+
+  it("filters by category and by photo count", async () => {
+    render(<Booth onExited={() => {}} />);
+    photo();
+    await screen.findByRole("radio", { name: /Rose Pink/ });
+    fireEvent.click(screen.getByRole("button", { name: "3 photos" }));
+    expect(screen.queryByRole("radio", { name: /Rose Pink/ })).toBeNull();
+    expect(screen.getByRole("radio", { name: /Mono/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Any photos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Korean Pastel" }));
+    expect(screen.getAllByRole("radio", { name: /Rose Pink|Mono/ }).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("Back returns to the welcome screen without preparing the camera or creating a session", async () => {
+    render(<Booth onExited={() => {}} />);
+    photo();
+    await screen.findByRole("radio", { name: /Rose Pink/ });
+    fireEvent.click(screen.getByRole("button", { name: /Home/ }));
+    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    expect(api.prepareMode).not.toHaveBeenCalled();
+  });
+
+  it("goes back to welcome after 90 s without touches on the frame screen, with no camera work", async () => {
+    vi.useFakeTimers();
+    render(<Booth onExited={() => {}} />);
+    photo();
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    expect(screen.getByTestId("frame-selection")).toBeTruthy();
+    await act(async () => { await vi.advanceTimersByTimeAsync(91_000); });
+    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    expect(api.prepareMode).not.toHaveBeenCalled();
+  });
+
+  it("'Change frame' from the camera returns to frame selection with the same frame selected", async () => {
+    render(<Booth onExited={() => {}} />);
+    await choosePhoto();
+    await waitFor(() => screen.getByTestId("photo-flow"));
+    fireEvent.click(screen.getByRole("button", { name: "Change frame" }));
+    const card = await screen.findByRole("radio", { name: /Rose Pink/ });
+    expect(card.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("explains a loading failure and lets the guest try again; shows an empty state", async () => {
+    api.listFrames.mockRejectedValueOnce(Object.assign(new Error("disk unreadable"), {}));
+    render(<Booth onExited={() => {}} />);
+    photo();
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/could not be loaded/));
+    api.listFrames.mockResolvedValueOnce({ frames: [], categories: [], errors: [], dir: "", default: "" });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByText(/No frames are available/)).toBeTruthy());
+  });
+
+  it("the video flow is unchanged: no frame selection, camera prepared for video", async () => {
+    render(<Booth onExited={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Video/ }));
+    await waitFor(() => expect(screen.getByTestId("video-flow")).toBeTruthy());
+    expect(api.prepareMode).toHaveBeenCalledWith("video", "");
+    expect(api.listFrames).not.toHaveBeenCalled();
   });
 });

@@ -56,6 +56,8 @@ type Config struct {
 	Shots      int
 	Countdown  int // seconds
 	TemplateID string
+	// Frame selection, carried to Options.BeginSession untouched (the engine does not interpret it).
+	FrameID, VariantID, Caption string
 }
 
 // Shot is one accepted-or-reviewable photo.
@@ -91,6 +93,10 @@ type Options struct {
 	IsSimulated func() bool
 	// Finalize runs in SAVING (compose strip, ...). It may return a result media id.
 	Finalize func(sessionID string) (resultID string, err error)
+	// BeginSession runs once the session exists, before the first countdown. It
+	// freezes the chosen frame for the session. An error aborts the session
+	// (nothing is shot) and is shown to the operator.
+	BeginSession func(sessionID string, cfg Config) error
 	// OnChange receives every new snapshot, in order.
 	OnChange func(Snapshot)
 	// CaptureRetries is how many times a failed capture is retried (not for disconnects).
@@ -190,6 +196,12 @@ func (e *Engine) Start(cfg Config) error {
 	if err != nil {
 		e.fail(fmt.Errorf("could not create session: %w", err), "Check that the media folder is writable and has free space.")
 		return err
+	}
+	if e.o.BeginSession != nil {
+		if err := e.o.BeginSession(sess.ID, cfg); err != nil {
+			_ = e.o.Store.SetStatus(sess.ID, sessions.StatusFailed, "frame: "+err.Error())
+			return err
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e.mu.Lock()

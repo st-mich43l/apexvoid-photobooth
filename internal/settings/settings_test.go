@@ -30,7 +30,7 @@ func TestValidation(t *testing.T) {
 	m, _ := Load(filepath.Join(t.TempDir(), "s.json"))
 	bad := []func(*Settings){
 		func(s *Settings) { s.CountdownSeconds = 0 },
-		func(s *Settings) { s.Shots = 3 },
+		func(s *Settings) { s.Shots = 5 },
 		func(s *Settings) { s.MediaDir = "relative/dir" },
 		func(s *Settings) { s.Video.FPS = 0 },
 	}

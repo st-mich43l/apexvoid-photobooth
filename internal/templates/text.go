@@ -1,0 +1,122 @@
+package templates
+
+import (
+	"image"
+	"image/color"
+	"strings"
+	"sync"
+
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goitalic"
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/fixed"
+)
+
+// Text uses the Go fonts (BSD-licensed, embedded). They cover Latin scripts;
+// characters outside that range render as the font's "missing glyph" box.
+var (
+	fontOnce sync.Once
+	fontSet  map[string]*opentype.Font
+)
+
+func loadFonts() {
+	fontSet = map[string]*opentype.Font{}
+	for name, ttf := range map[string][]byte{"sans": goregular.TTF, "bold": gobold.TTF, "italic": goitalic.TTF, "mono": gomono.TTF} {
+		if f, err := opentype.Parse(ttf); err == nil {
+			fontSet[name] = f
+		}
+	}
+}
+
+func face(name string, px float64) font.Face {
+	fontOnce.Do(loadFonts)
+	f := fontSet[name]
+	if f == nil {
+		f = fontSet["sans"]
+	}
+	if f == nil {
+		return nil
+	}
+	fc, err := opentype.NewFace(f, &opentype.FaceOptions{Size: px, DPI: 72, Hinting: font.HintingNone})
+	if err != nil {
+		return nil
+	}
+	return fc
+}
+
+// ExpandText substitutes {caption}, {date} and {a|b|literal} (first non-empty).
+func ExpandText(s string, rc RenderContext) string {
+	var out strings.Builder
+	for {
+		i := strings.IndexByte(s, '{')
+		j := strings.IndexByte(s, '}')
+		if i < 0 || j < i {
+			out.WriteString(s)
+			break
+		}
+		out.WriteString(s[:i])
+		for _, part := range strings.Split(s[i+1:j], "|") {
+			v := part
+			switch strings.TrimSpace(part) {
+			case "caption":
+				v = strings.TrimSpace(rc.Caption)
+			case "date":
+				v = ""
+				if !rc.Date.IsZero() {
+					v = rc.Date.Format("2006.01.02")
+				}
+			case "time":
+				v = ""
+				if !rc.Date.IsZero() {
+					v = rc.Date.Format("15:04")
+				}
+			}
+			if v != "" {
+				out.WriteString(v)
+				break
+			}
+		}
+		s = s[j+1:]
+	}
+	return out.String()
+}
+
+func drawText(canvas *image.NRGBA, t Template, l Layer, rect image.Rectangle, px func(float64) int, col color.NRGBA, rc RenderContext) {
+	txt := ExpandText(l.Text, rc)
+	if strings.TrimSpace(txt) == "" || rect.Dx() <= 0 {
+		return
+	}
+	size := l.SizeIn * float64(t.DPI) // em height in pixels
+	var fc font.Face
+	// shrink the text until it fits the layer width (never below 40 %)
+	var width fixed.Int26_6
+	for k := 0; k < 12; k++ {
+		if fc != nil {
+			_ = fc.Close()
+		}
+		if fc = face(l.Font, size); fc == nil {
+			return
+		}
+		width = font.MeasureString(fc, txt)
+		if width.Ceil() <= rect.Dx() || size <= l.SizeIn*float64(t.DPI)*0.4 {
+			break
+		}
+		size *= 0.92
+	}
+	defer fc.Close()
+	m := fc.Metrics()
+	x := rect.Min.X
+	switch l.Align {
+	case "center", "":
+		x = rect.Min.X + (rect.Dx()-width.Ceil())/2
+	case "right":
+		x = rect.Max.X - width.Ceil()
+	}
+	h := m.Ascent + m.Descent
+	baseline := fixed.I(rect.Min.Y) + (fixed.I(rect.Dy())-h)/2 + m.Ascent
+	d := font.Drawer{Dst: canvas, Src: image.NewUniform(col), Face: fc, Dot: fixed.Point26_6{X: fixed.I(x), Y: baseline}}
+	d.DrawString(txt)
+}

@@ -36,7 +36,7 @@ func TestWindowsStyleMigrationEndToEnd(t *testing.T) {
 	s1 := startAt(t, cfg, nil)
 	connectMock(t, s1)
 	_ = s1.StartPreview()
-	_ = s1.StartShooting(1)
+	_ = s1.StartShooting(frameFor(1), "", "")
 	waitShoot(t, s1, capture.Review)
 	_ = s1.AcceptPhotos()
 	waitShoot(t, s1, capture.Completed)
@@ -58,7 +58,7 @@ func TestWindowsStyleMigrationEndToEnd(t *testing.T) {
 	}
 	connectMock(t, s2)
 	_ = s2.StartPreview()
-	_ = s2.StartShooting(1)
+	_ = s2.StartShooting(frameFor(1), "", "")
 	waitShoot(t, s2, capture.Review)
 	if _, err := s2.MigrateLibrary(); err == nil {
 		t.Fatal("must refuse to migrate during a capture")
@@ -74,7 +74,7 @@ func TestWindowsStyleMigrationEndToEnd(t *testing.T) {
 		t.Fatal("legacy marker missing")
 	}
 	// writes are blocked until restart so nothing lands in the old copy only
-	for name, err := range map[string]error{"shoot": s2.StartShooting(1), "trash": s2.TrashMedia("x"), "record": s2.StartRecording()} {
+	for name, err := range map[string]error{"shoot": s2.StartShooting(frameFor(1), "", ""), "trash": s2.TrashMedia("x"), "record": s2.StartRecording()} {
 		ue, ok := err.(*UserError)
 		if !ok || !strings.Contains(ue.Action, "reopen") {
 			t.Fatalf("%s should be blocked with a restart instruction, got %v", name, err)

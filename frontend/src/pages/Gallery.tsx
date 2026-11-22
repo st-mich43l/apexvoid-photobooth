@@ -6,6 +6,8 @@ import { Badge, Confirm, ErrorNote, Modal, useAction } from "../ui";
 import type { Media, Session } from "../types";
 import { Editor } from "./Editor";
 import { PrintPanel } from "../PrintPanel";
+import { FrameSelection } from "../FrameSelection";
+import type { FrameChoice } from "../types";
 
 type Filter = "all" | "photo" | "video" | "strip";
 
@@ -82,6 +84,7 @@ function Viewer({ media, onClose, onDelete, onChanged }: { media: Media; onClose
   const { mediaUrl, toast } = useApp();
   const [editing, setEditing] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [reframe, setReframe] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const { error, run } = useAction();
   const isVideo = media.kind === "video";
@@ -97,6 +100,7 @@ function Viewer({ media, onClose, onDelete, onChanged }: { media: Media; onClose
         <dl className="meta">
           <dt>Captured</dt><dd>{when(media.capturedAt)}</dd>
           <dt>Size</dt><dd>{media.width}×{media.height}{isVideo ? ` · ${clock(media.durationMs)}` : ""} · {bytes(media.sizeBytes)}</dd>
+          {media.frameName && <><dt>Frame</dt><dd>{media.frameName}{media.variantId ? ` · ${media.variantId}` : ""}</dd></>}
           <dt>Source</dt><dd>{media.source || "—"} {media.simulated && <Badge kind="sim">SIMULATED — not a real photo</Badge>} {media.status === "partial" && <Badge kind="warn">partial recording</Badge>}</dd>
         </dl>
       </div>
@@ -106,11 +110,13 @@ function Viewer({ media, onClose, onDelete, onChanged }: { media: Media; onClose
         <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", false); toast(`Original exported to ${p}`); })}>Export original</button>
         {media.editedRel && <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", true); toast(`Edited copy exported to ${p}`); })}>Export edited</button>}
         {media.editedRel && <button onClick={() => setShowOriginal((v) => !v)}>{showOriginal ? "Show edited" : "Show original"}</button>}
+        {media.kind === "strip" && <button onClick={() => setReframe(true)}>Change frame…</button>}
         {!isVideo && <button onClick={() => setPrinting(true)}>Print…</button>}
         {media.kind === "photo" && <button className="primary" onClick={() => setEditing(true)}>Edit</button>}
       </footer>
       {editing && <Editor media={media} onClose={() => setEditing(false)} onSaved={onChanged} />}
       {printing && <PrintDialog media={media} onClose={() => setPrinting(false)} />}
+      {reframe && <ReframeDialog media={media} onClose={() => setReframe(false)} onDone={(m) => { setReframe(false); onChanged(m); }} />}
     </Modal>
   );
 }
@@ -121,6 +127,31 @@ function PrintDialog({ media, onClose }: { media: Media; onClose: () => void }) 
       <div className="modal-body">
         {media.kind === "photo" && <p className="muted small">A single photo is printed through a one-photo layout (its edited version if you edited it) — never as the raw original.</p>}
         <PrintPanel mediaId={media.id} onPrinted={onClose} />
+      </div>
+    </Modal>
+  );
+}
+
+/** Give a finished session another frame, using its original photos (no retake). */
+function ReframeDialog({ media, onClose, onDone }: { media: Media; onClose: () => void; onDone: (m: Media) => void }) {
+  const { toast } = useApp();
+  const [photos, setPhotos] = useState<number | null>(null);
+  const { busy, error, run } = useAction();
+  useEffect(() => {
+    api.listMedia(media.sessionId, 200, 0).then((ms) => setPhotos(ms.filter((m) => m.kind === "photo").length)).catch(() => setPhotos(0));
+  }, [media.sessionId]);
+  const apply = (c: FrameChoice, d: { useFirst: boolean; restart: boolean }) => {
+    if (d.restart) { toast(`“${c.name}” needs ${c.photos} photos: start a new photo session and choose it there.`); onClose(); return; }
+    run(async () => { const m = await api.composeSession(media.sessionId, c.id, c.variantId, c.caption, d.useFirst); toast(`New image made with “${c.name}”`); onDone(m); });
+  };
+  return (
+    <Modal title="Change frame" onClose={onClose} wide>
+      <div className="modal-body">
+        <ErrorNote error={error} />
+        <p className="muted small">The original photos are not touched. A new image is made; the earlier one stays in the gallery.</p>
+        {photos === null ? <div className="spinner" /> : photos === 0
+          ? <div className="note err">This session has no photos to compose.</div>
+          : <FrameSelection variant="studio" takenPhotos={photos} initial={{ id: media.frameId, variantId: media.variantId }} confirmLabel="Make image" busy={busy} title="Choose a frame" onConfirm={apply} />}
       </div>
     </Modal>
   );

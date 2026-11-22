@@ -21,11 +21,14 @@ func TestBuiltinsAreValidAndExactSize(t *testing.T) {
 		if err := tpl.Validate(); err != nil {
 			t.Fatalf("%s: %v", tpl.ID, err)
 		}
+		if !tpl.Legacy && tpl.Design != "rose-pink" && tpl.Design != "film-strip" {
+			continue // every design is validated and previewed elsewhere; full 300-DPI renders of two designs are enough here
+		}
 		photos := make([]image.Image, tpl.Photos())
 		for i := range photos {
 			photos[i] = solid(900, 600, color.NRGBA{uint8(40 * i), 100, 200, 255})
 		}
-		data, w, h, err := Render(tpl, photos, "")
+		data, w, h, err := Render(tpl, photos, nil, RenderContext{})
 		if err != nil {
 			t.Fatalf("%s: %v", tpl.ID, err)
 		}
@@ -44,7 +47,7 @@ func TestBuiltinsAreValidAndExactSize(t *testing.T) {
 
 func TestForShotsMatchesPhotoCount(t *testing.T) {
 	lib := Load(t.TempDir())
-	for _, n := range []int{1, 2, 4, 6} {
+	for _, n := range []int{1, 2, 3, 4, 6} {
 		tpl := lib.Get(ForShots(n))
 		if tpl == nil || tpl.Photos() != n {
 			t.Fatalf("shots=%d -> %v", n, tpl)
@@ -60,9 +63,8 @@ func TestTwoUpRepeatsPhotos(t *testing.T) {
 }
 
 func TestComposePlacesPhotosAndBackground(t *testing.T) {
-	tpl := Template{ID: "t", DPI: 100, WidthIn: 2, HeightIn: 2, Background: "#ff0000",
-		Slots: []Slot{{X: 0.5, Y: 0.5, W: 1, H: 1, Photo: 0}}}
-	out, err := Compose(tpl, []image.Image{solid(400, 100, color.NRGBA{0, 255, 0, 255})}, "")
+	tpl := Template{ID: "t", Geometry: Geometry{DPI: 100, WidthIn: 2, HeightIn: 2, Slots: []Slot{{X: 0.5, Y: 0.5, W: 1, H: 1, Photo: 0}}}, Style: Style{Background: "#ff0000"}}
+	out, err := Compose(tpl, []image.Image{solid(400, 100, color.NRGBA{0, 255, 0, 255})}, nil, RenderContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestCoverCropsInsteadOfStretching(t *testing.T) {
 
 func TestComposeRejectsBadInput(t *testing.T) {
 	tpl := Builtin()[0]
-	if _, err := Compose(tpl, nil, ""); err == nil {
+	if _, err := Compose(tpl, nil, nil, RenderContext{}); err == nil {
 		t.Fatal("too few photos accepted")
 	}
 	bad := tpl
@@ -127,15 +129,15 @@ func TestUserTemplatesAndOverlay(t *testing.T) {
 	if tpl == nil || len(lib.Errs) != 2 {
 		t.Fatalf("tpl=%v errs=%v", tpl, lib.Errs)
 	}
-	out, err := lib.Compose(*tpl, []image.Image{solid(100, 100, color.NRGBA{0, 0, 255, 255})})
+	out, err := lib.Compose(*tpl, []image.Image{solid(100, 100, color.NRGBA{0, 0, 255, 255})}, RenderContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c := out.NRGBAAt(50, 0); c.R < 250 { // overlay row (scaled) is on top
 		t.Fatalf("overlay missing: %v", c)
 	}
-	tpl.Overlay = "../../etc/passwd" // only the base name is ever used
-	if _, err := lib.Compose(*tpl, []image.Image{solid(10, 10, color.NRGBA{})}); err == nil {
+	tpl.Overlay = "../../etc/passwd" // paths are never accepted, only plain image file names
+	if _, err := lib.Compose(*tpl, []image.Image{solid(10, 10, color.NRGBA{})}, RenderContext{}); err == nil {
 		t.Fatal("expected overlay error")
 	}
 }

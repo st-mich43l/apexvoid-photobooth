@@ -222,7 +222,7 @@ func TestSwitchRefusedDuringCountdown(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = s.StartPreview()
-	_ = s.StartShooting(1)
+	_ = s.StartShooting(frameFor(1), "", "")
 	waitShoot(t, s, capture.Countdown)
 	err = s.ConnectCamera("uvc:b")
 	if ue, ok := err.(*UserError); !ok || ue.Action == "" {

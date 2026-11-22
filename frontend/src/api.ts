@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, TemplatesResult, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
+  Session, Settings, ShootSnapshot, FramesResult, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -43,7 +43,8 @@ export const api = {
 
   shootState: () => wrap(call<ShootSnapshot>("ShootState")),
   startPreview: () => wrap(call<void>("StartPreview")),
-  startShooting: (shots: number) => wrap(call<void>("StartShooting", shots)),
+  startShooting: (frameId: string, variantId: string, caption: string) => wrap(call<void>("StartShooting", frameId, variantId, caption)),
+  setSessionFrame: (sessionId: string, frameId: string, variantId: string, caption: string, useFirst: boolean) => wrap(call<void>("SetSessionFrame", sessionId, frameId, variantId, caption, useFirst)),
   retake: (slot: number) => wrap(call<void>("RetakePhoto", slot)),
   accept: () => wrap(call<void>("AcceptPhotos")),
   cancelShooting: () => wrap(call<void>("CancelShooting")),
@@ -74,9 +75,10 @@ export const api = {
   verifyKioskPin: (pin: string) => wrap(call<void>("VerifyKioskPin", pin)),
   librarySummary: () => wrap(call<LibrarySummary>("LibrarySummary")),
 
-  listTemplates: () => wrap(call<TemplatesResult>("ListTemplates")),
-  previewTemplate: (id: string) => wrap(call<string>("PreviewTemplate", id)),
-  composeSession: (sessionId: string, templateId: string) => wrap(call<Media>("ComposeSession", sessionId, templateId)),
+  listFrames: (includeDisabled = false) => wrap(call<FramesResult>("ListFrames", includeDisabled)),
+  setFrameEnabled: (id: string, enabled: boolean) => wrap(call<void>("SetFrameEnabled", id, enabled)),
+  previewFrame: (id: string, variantId: string, caption: string, width: number) => wrap(call<string>("PreviewFrame", id, variantId, caption, width)),
+  composeSession: (sessionId: string, frameId: string, variantId: string, caption: string, useFirst: boolean) => wrap(call<Media>("ComposeSession", sessionId, frameId, variantId, caption, useFirst)),
 
   listPrinters: () => wrap(call<PrintersResult>("ListPrinters")),
   printerCapabilities: (printer: string) => wrap(call<PrinterCaps>("PrinterCapabilities", printer)),
