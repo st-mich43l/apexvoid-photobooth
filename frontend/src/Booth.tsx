@@ -5,29 +5,27 @@ import { enterFullscreen } from "./fullscreen";
 import { ShootFlow } from "./ShootFlow";
 import { SimulatedRibbon } from "./ui";
 import { useApp } from "./state";
-import { VideoFlow } from "./VideoFlow";
 import type { FrameChoice } from "./types";
 import { usePrepareMode } from "./usePrepareMode";
 import { Icon } from "./icons";
 
-type Screen = "welcome" | "frames" | "photo" | "video";
+type Screen = "welcome" | "frames" | "photo";
 
 /** Booth Mode — the fullscreen guest interface. Touch-first, large targets,
  *  portrait and landscape. The operator leaves through the visible "Exit Booth"
  *  button, the Esc key, or by holding the top-left corner for 3 s — all three
  *  open the same confirmation (and the PIN prompt when kiosk protection is on). */
 export function Booth({ onExited }: { onExited: () => void }) {
-  const { camera, settings } = useApp();
-  // #booth/photo and #booth/video deep-link into a flow (support, screenshots)
-  const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "frames" : window.location.hash === "#booth/video" ? "video" : "welcome"));
+  const { camera } = useApp();
+  // #booth/photo deep-links into the frame choice (support, screenshots)
+  const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "frames" : "welcome"));
   const [asking, setAsking] = useState(false);
   const [fsError, setFsError] = useState("");
   const { prepare, dialog: modeDialog, error: modeError } = usePrepareMode();
-  // the frame is chosen first (no camera, no live view, no session yet); the video flow is unchanged
+  // the frame is chosen first (no camera, no live view, no session yet). Booth Mode is photo-only; video recording is a separate flow (Studio)
   const [frame, setFrame] = useState<FrameChoice | null>(null);
   const [preparing, setPreparing] = useState(false);
   const choosePhoto = () => setScreen("frames");
-  const chooseVideo = async () => { if (await prepare("video")) setScreen("video"); };
   const confirmFrame = async (c: FrameChoice) => {
     setPreparing(true);
     try { if (await prepare("photo")) { setFrame(c); setScreen("photo"); } } finally { setPreparing(false); }
@@ -80,12 +78,11 @@ export function Booth({ onExited }: { onExited: () => void }) {
       {screen === "welcome" && (
         <div className="welcome">
           <h1>Say cheese!</h1>
-          <p>Choose what you would like to make</p>
+          <p>Touch to start</p>
           {!ready && <div className="note warn">The camera is not ready yet. Please ask the host.</div>}
           {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
           <div className="choices">
-            <button className="choice photo" onClick={choosePhoto}><Icon name="camera" size={96} className="choice-icon" />Photo<small>choose a frame</small></button>
-            <button className="choice video" onClick={chooseVideo}><Icon name="video" size={96} className="choice-icon" />Video<small>up to {settings.video.maxSeconds}s</small></button>
+            <button className="choice photo" onClick={choosePhoto}><Icon name="camera" size={96} className="choice-icon" />Take photos<small>choose a frame to begin</small></button>
           </div>
         </div>
       )}
@@ -97,7 +94,6 @@ export function Booth({ onExited }: { onExited: () => void }) {
         </>
       )}
       {screen === "photo" && frame && <ShootFlow variant="booth" frame={frame} onChangeFrame={() => setScreen("frames")} onDone={() => { setFrame(null); setScreen("welcome"); }} />}
-      {screen === "video" && <VideoFlow variant="booth" onDone={() => setScreen("welcome")} />}
       {screen !== "welcome" && screen !== "frames" && <button className="home-btn" onClick={() => setScreen("welcome")}>← Home</button>}
       {modeDialog}
       {asking && <ExitDialog onClose={() => setAsking(false)} onExited={onExited} />}
