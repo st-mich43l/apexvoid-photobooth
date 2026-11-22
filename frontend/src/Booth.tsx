@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ExitDialog } from "./ExitDialog";
 import { FrameSelection } from "./FrameSelection";
 import { enterFullscreen } from "./fullscreen";
+import { GuestHeader, GuestMessage, type Step } from "./guest/parts";
+import { Welcome } from "./guest/Welcome";
 import { Icon } from "./icons";
 import { LeaveDialog } from "./LeaveDialog";
 import { sessionGate, useGate } from "./sessionGate";
@@ -143,9 +145,11 @@ export function Booth({ onExited }: { onExited: () => void }) {
   const blocked = readiness ? !readiness.canStart && !onlyASession : !(camera.device && camera.state !== "error" && !camera.reconnecting);
   const guestText = readiness && (readiness.status === "setup_required" || readiness.status === "reconnecting") ? readiness.guest : "The photo booth is not ready yet. Please ask the host.";
   const resetting = gate.phase === "resetting";
+  // where the guest is in Frame → Shoot → Review → Done (informational only)
+  const step: Step = screen === "frames" ? 1 : st === "REVIEW" || st === "SAVING" ? 3 : st === "COMPLETED" ? 4 : 2;
 
   return (
-    <div className="booth-root" data-orientation={orientation} onPointerDown={() => setTouch((n) => n + 1)}>
+    <div className="booth-root" data-orientation={orientation} data-screen={screen} data-state={screen === "photo" ? st : undefined} onPointerDown={() => setTouch((n) => n + 1)}>
       <SimulatedRibbon />
       <div className={`exit-corner ${holding ? "holding" : ""}`} data-testid="exit-corner" onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold} onPointerCancel={endHold} aria-hidden />
       <button className="exit-btn" onClick={() => setAsking(true)} aria-label="Exit Booth Mode" title="Exit Booth Mode (Esc)">
@@ -157,36 +161,14 @@ export function Booth({ onExited }: { onExited: () => void }) {
           <button onClick={goFullscreen}>Retry</button>
         </div>
       )}
+      {screen !== "welcome" && <GuestHeader step={step} />}
       {screen === "welcome" && (
-        <div className="welcome">
-          <h1>Say cheese!</h1>
-          <p>{blocked ? "We will be right with you" : "Touch to start"}</p>
-          {blocked && (
-            <div className="note warn booth-status" role="status">
-              <div>{guestText}</div>
-              {readiness && <small className="host-hint">Host: {readiness.status === "attention" ? "Operator attention required" : readiness.headline}</small>}
-            </div>
-          )}
-          {gate.phase === "failed" && !resetting && (
-            <div className="note warn booth-status" role="alert">
-              <div>We are still tidying up the last session.</div>
-              <button onClick={() => { void sessionGate.reset(); }}>Try again</button>
-              <small className="host-hint">Host: {gate.error}</small>
-            </div>
-          )}
-          {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
-          <div className="choices">
-            <button className="choice photo" disabled={blocked || resetting} onClick={() => setScreen("frames")}>
-              <Icon name="camera" size={96} className="choice-icon" />
-              {resetting ? "One moment…" : "Take photos"}
-              <small>{resetting ? "getting ready for you" : "choose a frame to begin"}</small>
-            </button>
-          </div>
-        </div>
+        <Welcome blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
+          modeError={modeError} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />
       )}
       {screen === "frames" && (
         <>
-          {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
+          {modeError && <GuestMessage kind="err">{modeError}</GuestMessage>}
           <FrameSelection variant="booth" busy={preparing} initial={frame ? { id: frame.id, variantId: frame.variantId, caption: frame.caption } : undefined}
             onConfirm={confirmFrame} onBack={goWelcome} backLabel="Home" />
         </>
@@ -195,7 +177,9 @@ export function Booth({ onExited }: { onExited: () => void }) {
         <ShootFlow variant="booth" frame={frame} onChangeFrame={() => { void (async () => { if (busy.current) return; busy.current = true; try { if (await sessionGate.reset()) setScreen("frames"); } finally { busy.current = false; } })(); }}
           onDone={finish} />
       )}
-      {screen === "photo" && <button className="home-btn" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}>← Home</button>}
+      {screen === "photo" && (
+        <button type="button" className="home-btn g-btn g-secondary" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}><Icon name="back" size={24} /><span>Home</span></button>
+      )}
       {modeDialog}
       {confirmLeave && (
         <LeaveDialog state={st} taken={shoot.taken.length} busy={leaving} error={leaveError} onKeep={() => setConfirmLeave(false)} onLeave={() => { void leave(); }} />

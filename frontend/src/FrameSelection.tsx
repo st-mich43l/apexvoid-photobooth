@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, toAppError } from "./api";
 import { choiceOf, explainFit, filterFrames, fitFor, photoCounts, photosLabel, swatch } from "./frameInfo";
+import { GuestFrames } from "./guest/GuestFrames";
+import { LoadingState, GuestMessage, SecondaryAction } from "./guest/parts";
 import { useApp } from "./state";
 import type { Frame, FrameChoice } from "./types";
+import { useOrientation } from "./useOrientation";
 
 export interface FrameDecision { useFirst: boolean; restart: boolean }
 
@@ -49,11 +52,39 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
   const picked = frames?.find((f) => f.id === pickId);
   const fit = picked ? fitFor(picked, takenPhotos) : { kind: "ok" as const };
   const booth = variant === "booth";
+  const portrait = useOrientation() === "portrait";
 
   const select = (f: Frame) => {
     if (f.id !== pickId) { setPickId(f.id); setVariantId(""); }
   };
   const confirm = (d: Partial<FrameDecision>) => picked && onConfirm(choiceOf(picked, variantId, caption), { useFirst: false, restart: false, ...d });
+
+  if (booth) {
+    return (
+      <div className="g-screen" data-testid="frame-selection">
+        {error && (
+          <GuestMessage kind="err" action={<button type="button" className="g-btn g-secondary" onClick={load}>Try again</button>}>
+            <strong>The frames could not be loaded.</strong> {error}
+          </GuestMessage>
+        )}
+        {!error && !frames && <LoadingState>Loading frames…</LoadingState>}
+        {frames && frames.length === 0 && <GuestMessage kind="warn">No frames are available. Please ask the host.</GuestMessage>}
+        {!(frames && frames.length > 0) && (
+          <div className="g-actions">
+            {onBack && <SecondaryAction icon="back" className="g-back" disabled={busy} onClick={onBack}>{backLabel ?? "Back"}</SecondaryAction>}
+          </div>
+        )}
+        {frames && frames.length > 0 && (
+          <GuestFrames frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
+            picked={picked} pickId={pickId} select={select} variantId={variantId} setVariantId={setVariantId} caption={caption} setCaption={setCaption}
+            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? "Choose your frame"} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
+            confirm={confirm} portrait={portrait}
+            thumbUrl={(f) => frameUrl(f.id, "", 420)}
+            bigUrl={(f) => frameUrl(f.id, variantId, portrait ? 320 : 720, f.captionEnabled ? caption.trim() : "")} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`frames ${booth ? "booth" : "studio"}`} data-testid="frame-selection">

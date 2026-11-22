@@ -309,7 +309,7 @@ describe("Booth frame selection comes before the camera", () => {
     render(<Booth onExited={() => {}} />);
     photo();
     const card = await screen.findByRole("radio", { name: /Rose Pink/ });
-    expect(card.textContent).toMatch(/2×6 strip · 4 photos/);
+    expect(card.textContent).toMatch(/2×6.*strip.*4 photos/);
     expect(card.getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: /Mono/ }).textContent).toMatch(/3 photos/);
   });
