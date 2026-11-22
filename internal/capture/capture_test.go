@@ -493,3 +493,166 @@ func TestSnapshotVersionNeverGoesBackAcrossSessionsAndResets(t *testing.T) {
 	_ = e.eng.Reset()
 	check("reset after cancel")
 }
+
+// ---- UX-1: one idempotent, serialised way out of any session state ----
+
+func TestRecoverIsIdempotentFromEveryStateAndKeepsOriginals(t *testing.T) {
+	type setup func(e *env)
+	cases := map[string]setup{
+		"idle":    func(e *env) {},
+		"preview": func(e *env) { e.preview() },
+		"countdown": func(e *env) {
+			e.preview()
+			_ = e.eng.Start(capture.Config{Shots: 2, Countdown: 30, TemplateID: "t"})
+			e.waitState(capture.Countdown)
+		},
+		"review": func(e *env) { e.preview(); _ = e.eng.Start(cfg(2)); e.waitState(capture.Review) },
+		"completed": func(e *env) {
+			e.preview()
+			_ = e.eng.Start(cfg(1))
+			e.waitState(capture.Review)
+			_ = e.eng.Accept()
+			e.waitState(capture.Completed)
+		},
+		"cancelled": func(e *env) { e.preview(); _ = e.eng.Start(cfg(2)); e.waitState(capture.Review); _ = e.eng.Cancel() },
+		"error": func(e *env) {
+			e.preview()
+			_ = e.eng.Start(cfg(2))
+			e.waitState(capture.Capturing)
+			e.drv.Last().FailNextCapture(camera.Errf(camera.CodeCaptureFailed, "x", nil, "AF failed"))
+			e.waitState(capture.Error)
+		},
+	}
+	for name, setup := range cases {
+		e := newEnv(t, 0)
+		setup(e)
+		before := e.eng.Snapshot()
+		var wg sync.WaitGroup
+		errs := make(chan error, 4)
+		for i := 0; i < 4; i++ { // repeated and concurrent calls (a double tap) must all succeed
+			wg.Add(1)
+			go func() { defer wg.Done(); errs <- e.eng.Recover(2 * time.Second) }()
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+		if s := e.eng.Snapshot(); s.State != capture.Idle || len(s.Taken) != 0 {
+			t.Fatalf("%s: %+v", name, s)
+		}
+		if st := e.mgr.Status(); st.LiveView {
+			t.Fatalf("%s: live view must be released", name)
+		}
+		if before.SessionID != "" && len(before.Taken) > 0 {
+			sess, _ := e.store.Session(before.SessionID)
+			if sess.Status == sessions.StatusFailed && name != "error" { // a capture error already failed that session; Recover must not be what fails it
+				t.Fatalf("%s: session wrongly failed: %+v", name, sess)
+			}
+			ms, _ := e.store.ListMedia(before.SessionID, 50, 0)
+			if len(ms) < len(before.Taken) {
+				t.Fatalf("%s: originals were lost (%d < %d)", name, len(ms), len(before.Taken))
+			}
+		}
+	}
+}
+
+func slowFinalize(d time.Duration) func(string) (string, error) {
+	return func(string) (string, error) { time.Sleep(d); return "", nil }
+}
+
+func TestRecoverWaitsForASaveInFlightAndNeverCutsItOff(t *testing.T) {
+	e := newEnv(t, 0)
+	e.eng = capture.New(capture.Options{Camera: e.mgr, Store: e.store, Tick: 5 * time.Millisecond, IsSimulated: func() bool { return true }, Finalize: slowFinalize(300 * time.Millisecond)})
+	e.preview()
+	_ = e.eng.Start(cfg(1))
+	e.waitState(capture.Review)
+	go func() { _ = e.eng.Accept() }()
+	e.waitState(capture.Saving)
+	start := time.Now()
+	if err := e.eng.Recover(5 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) < 200*time.Millisecond {
+		t.Fatal("Recover must wait for the save instead of interrupting it")
+	}
+	sess, _ := e.store.Session(e.eng.Snapshot().SessionID)
+	_ = sess
+	if e.eng.Snapshot().State != capture.Idle {
+		t.Fatalf("%+v", e.eng.Snapshot())
+	}
+}
+
+func TestRecoverGivesUpWhileSavingAndLeavesTheSaveAlone(t *testing.T) {
+	e := newEnv(t, 0)
+	e.eng = capture.New(capture.Options{Camera: e.mgr, Store: e.store, Tick: 5 * time.Millisecond, IsSimulated: func() bool { return true }, Finalize: slowFinalize(400 * time.Millisecond)})
+	e.preview()
+	_ = e.eng.Start(cfg(1))
+	e.waitState(capture.Review)
+	go func() { _ = e.eng.Accept() }()
+	e.waitState(capture.Saving)
+	if err := e.eng.Recover(50 * time.Millisecond); err == nil {
+		t.Fatal("a recovery that cannot finish must say so")
+	}
+	if e.eng.Snapshot().State != capture.Saving {
+		t.Fatalf("the save must not be disturbed: %+v", e.eng.Snapshot())
+	}
+	e.waitState(capture.Completed) // the save finishes on its own
+	if err := e.eng.Recover(time.Second); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConcurrentTransitionsNeverLeaveAHalfStartedSession(t *testing.T) {
+	e := newEnv(t, 0)
+	for round := 0; round < 25; round++ {
+		var wg sync.WaitGroup
+		for i := 0; i < 3; i++ {
+			wg.Add(3)
+			go func() { defer wg.Done(); _ = e.eng.StartPreview(context.Background()) }()
+			go func() { defer wg.Done(); _ = e.eng.Reset() }()
+			go func() { defer wg.Done(); _ = e.eng.Recover(time.Second) }()
+		}
+		wg.Wait()
+		// whatever order the calls ran in, the engine and the camera must agree
+		st, live := e.eng.Snapshot().State, e.mgr.Status().LiveView
+		if (st == capture.Idle && live) || (st == capture.Preview && !live) {
+			t.Fatalf("round %d: engine says %s but live view is %v", round, st, live)
+		}
+	}
+	if err := e.eng.Recover(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if s := e.eng.Snapshot(); s.State != capture.Idle {
+		t.Fatalf("%+v", s)
+	}
+	if e.mgr.Status().LiveView {
+		t.Fatal("a reset that raced a preview start must not leave live view running")
+	}
+	// and the next session starts normally
+	e.preview()
+	_ = e.eng.Start(cfg(1))
+	e.waitState(capture.Review)
+}
+
+func TestNewSessionImmediatelyAfterFinishStartsCleanly(t *testing.T) {
+	e := newEnv(t, 0)
+	for i := 0; i < 4; i++ {
+		e.preview()
+		_ = e.eng.Start(cfg(1))
+		e.waitState(capture.Review)
+		_ = e.eng.Accept()
+		e.waitState(capture.Completed)
+		done := make(chan error, 1)
+		go func() { done <- e.eng.Recover(time.Second) }() // Finish
+		// the guest taps again straight away: the next session waits for the reset, it never overlaps it
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s := e.eng.Snapshot(); s.State != capture.Idle {
+		t.Fatalf("%+v", s)
+	}
+}

@@ -26,8 +26,8 @@ export function VideoPage() {
 
   const update = (patch: Partial<typeof v>) =>
     save.run(async () => {
-      const n = { ...settings, video: { ...v, ...patch } };
-      await api.saveSettings(n); setSettings(n); toast("Video settings saved");
+      const r = await api.patchSettings({ video: { ...v, ...patch } });
+      setSettings(r.settings ?? { ...settings, video: { ...v, ...patch } }); toast("Video settings saved");
     });
 
   return (

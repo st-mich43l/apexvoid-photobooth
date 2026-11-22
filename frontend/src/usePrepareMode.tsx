@@ -17,10 +17,21 @@ export function usePrepareMode(): { prepare: (mode: CameraMode) => Promise<boole
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const resolve = useRef<((ok: boolean) => void) | null>(null);
+  const flight = useRef<Promise<boolean> | null>(null);
 
   const finish = (ok: boolean) => { resolve.current?.(ok); resolve.current = null; setAsk(null); setPin(""); setError(""); };
 
-  const prepare = useCallback(async (mode: CameraMode): Promise<boolean> => {
+  // One preparation at a time: a second tap gets the first one's answer instead of racing it
+  // (two overlapping camera switches, or a dialog whose promise is overwritten and never resolves).
+  const prepare = useCallback((mode: CameraMode): Promise<boolean> => {
+    if (flight.current) return flight.current;
+    const run = prepareOnce(mode).finally(() => { flight.current = null; });
+    flight.current = run;
+    return run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]);
+
+  const prepareOnce = async (mode: CameraMode): Promise<boolean> => {
     setError("");
     try {
       const r = await api.prepareMode(mode, "");
@@ -33,7 +44,7 @@ export function usePrepareMode(): { prepare: (mode: CameraMode) => Promise<boole
     } catch (e) {
       const err = toAppError(e); setError(err.action ? `${err.message} ${err.action}` : err.message); return false;
     }
-  }, [toast]);
+  };
 
   const approve = async () => {
     if (!ask?.candidate) return;

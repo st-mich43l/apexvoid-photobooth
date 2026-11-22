@@ -75,6 +75,10 @@ type Service struct {
 	restartRequired atomic.Bool         // the library was migrated; writes stop until the app restarts
 	restoreMsg      string              // why the preferred camera was not connected at start-up
 	pinMu           sync.Mutex
+	mock            *mock.Driver // the simulated camera driver (enabled by Settings → simulated camera)
+	patchMu         sync.Mutex   // serialises settings read-modify-write
+	writeProbe      probeCache   // library writability check (cached for a few seconds)
+	prnCache        printerCache // printer list for readiness (cached)
 	pinFails        int
 	pinLockedUntil  time.Time
 }
@@ -136,7 +140,8 @@ func New(o Options) (*Service, error) {
 	}
 	add(s.edsdk)
 	add(uv)
-	add(&gated{Driver: mock.NewDriver(), enabled: func() bool { return s.settings.Get().EnableMock }})
+	s.mock = mock.NewDriver()
+	add(&gated{Driver: s.mock, enabled: func() bool { return s.settings.Get().EnableMock }})
 	for _, d := range o.ExtraDrivers {
 		drivers = append(drivers, d)
 	}
@@ -277,3 +282,6 @@ func newUserErr(msg, action string) error { return &UserError{Msg: msg, Action: 
 func (s *Service) ctx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 45*time.Second)
 }
+
+// mockDriver exposes the simulated camera driver (tests unplug it).
+func (s *Service) mockDriver() *mock.Driver { return s.mock }

@@ -27,7 +27,7 @@ export interface Capabilities {
 export interface DriverStatus { name: string; available: boolean; problem?: string }
 export interface CameraStatus {
   device?: DeviceInfo; state: CamState; capabilities?: Capabilities; liveView: boolean;
-  mode?: Mode; reconnecting: boolean; lastError?: string; lastAction?: string; lastCode?: string; drivers: DriverStatus[];
+  mode?: Mode; reconnecting: boolean; lastError?: string; lastAction?: string; lastCode?: string; drivers: DriverStatus[]; version?: number;
 }
 
 export type ShootStateName = "IDLE" | "PREVIEW" | "COUNTDOWN" | "CAPTURING" | "REVIEW" | "SAVING" | "COMPLETED" | "ERROR" | "CANCELLED";
@@ -151,4 +151,11 @@ export interface CanonStatus {
   recommendation?: string;
   guide: string[];
   verification: string;
+}
+
+// ---- Booth readiness (internal/app/readiness_api.go) ----
+export type ReadinessStatus = "ready" | "setup_required" | "reconnecting" | "attention";
+export interface ReadinessItem { key: string; label: string; required: boolean; state: "ok" | "problem" | "warn" | "info"; detail?: string; action?: string }
+export interface BoothReadiness {
+  status: ReadinessStatus; canStart: boolean; headline: string; detail?: string; guest: string; items: ReadinessItem[]; at: string;
 }

@@ -564,3 +564,71 @@ label.inline { display: flex; align-items: center; gap: 10px; cursor: pointer; f
 .canon-guide summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .canon-guide ol { margin: 8px 0 0; padding-left: 22px; color: var(--muted); line-height: 1.55; }
 .canon-guide li { margin-bottom: 6px; }
+
+/* =====================================================================
+   UX-1: guest flow, readiness, operator layout, touch targets
+   ===================================================================== */
+
+/* The Booth launch stays reachable in portrait: the sidebar collapses to icons, the launch button stays (icon only) */
+@media (orientation: portrait) {
+  .studio nav .booth-btn, .studio nav .ver { display: inline-flex !important; }
+  .studio nav .ver { display: block !important; font-size: 10px; }
+  .studio nav .booth-btn { min-width: 48px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  .studio nav .booth-btn .icon { width: 22px; height: 22px; }
+}
+
+/* Guest controls: generous, consistent touch targets (56 css px; scales with the display's DPI setting) */
+.booth-root button { min-height: 56px; min-width: 56px; }
+.booth-root .chip { min-height: 56px; padding: 0 22px; font-size: 17px; }
+.booth-root .frame-card { min-height: 56px; }
+.booth .controls button, .booth .review .thumbs button { min-height: 56px; }
+.booth button:focus-visible, .booth-root button:focus-visible, .booth-root input:focus-visible { box-shadow: 0 0 0 4px rgba(244,166,192,.55); }
+
+/* Calm host-only hint on guest screens */
+.booth-status { max-width: 640px; margin: 14px auto; justify-content: center; align-items: center; flex-direction: column; text-align: center; font-size: clamp(17px, 2.4vmin, 22px); }
+.booth-status .host-hint { opacity: .65; font-size: 13px; }
+.choice:disabled { opacity: .55; cursor: not-allowed; filter: saturate(.7); transform: none; }
+
+/* Progress: one dot per photo */
+.steps { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 8px 18px; border-radius: 999px; background: rgba(8,4,22,.62); backdrop-filter: blur(8px); color: #fff; font-weight: 650; z-index: 3; }
+.review .steps { position: static; transform: none; margin: 0 auto 14px; width: max-content; background: var(--surface); }
+.steps ol { list-style: none; display: flex; gap: 8px; margin: 0; padding: 0; }
+.steps li { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,.28); transition: background .2s, transform .2s; }
+.steps li.done { background: var(--rose); }
+.steps li.now { background: #fff; transform: scale(1.35); box-shadow: 0 0 0 4px rgba(244,166,192,.45); }
+.steps span { font-size: clamp(15px, 2.2vmin, 20px); }
+
+/* Countdown: big, centred, readable on any picture */
+.count { background: radial-gradient(closest-side, rgba(10,5,26,.55), transparent 72%); }
+.count span { display: block; font-variant-numeric: tabular-nums; filter: drop-shadow(0 6px 30px #000c); }
+/* Capture feedback never blocks: a brief flash, no pointer events */
+.flash { pointer-events: none; animation-duration: .35s; }
+.flash span { font-size: clamp(28px, 6vmin, 56px); }
+.stage .count, .stage .flash { pointer-events: none; }
+
+/* Camera reconnection, calm and inline */
+.reconnect-card { display: flex; gap: 16px; align-items: center; padding: 16px 20px; border-radius: 18px; background: rgba(242,196,109,.12); border: 1px solid rgba(242,196,109,.4); margin-bottom: 12px; }
+.reconnect-card strong { display: block; font-size: clamp(18px, 2.6vmin, 24px); }
+.reconnect-card span { color: var(--muted); font-size: clamp(15px, 2.1vmin, 19px); }
+
+/* Studio: what needs the operator, with the fix one tap away */
+.dash-hero.status-setup_required { border-color: #7a3a52; background: radial-gradient(80% 140% at 0% 0%, rgba(240,138,155,.28), transparent 60%), linear-gradient(160deg, #2a1830, #150e2c); }
+.dash-hero.status-reconnecting, .dash-hero.status-attention { border-color: #6b5320; background: radial-gradient(80% 140% at 0% 0%, rgba(242,196,109,.22), transparent 60%), linear-gradient(160deg, #2a2230, #150e2c); }
+.todo { margin: 0 0 18px; }
+.todo h2 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.todo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.todo li { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-soft); }
+.todo li > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.todo li span { color: var(--muted); font-size: 13.5px; }
+.todo li em { font-style: normal; font-size: 13.5px; color: #ffe9b8; }
+.todo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); flex: 0 0 auto; }
+.todo li.problem .todo-dot { background: var(--err); box-shadow: 0 0 8px var(--err); }
+
+/* Portrait and landscape kiosks */
+.booth-root[data-orientation="portrait"] .choices { max-width: min(560px, 100%); }
+.booth-root[data-orientation="portrait"] .stage-row { flex-direction: column-reverse; align-items: center; }
+.booth-root[data-orientation="portrait"] .frame-side { width: min(120px, 22vw); }
+.booth-root[data-orientation="portrait"] .controls { flex-direction: column; align-items: stretch; }
+.booth-root[data-orientation="portrait"] .controls button { width: 100%; }
+.booth-root[data-orientation="landscape"] .stage-preview { max-height: 62vh; }
+@media (max-height: 560px) { .booth-root .welcome h1 { font-size: clamp(32px, 7vmin, 56px); } .choice { min-height: clamp(150px, 30vmin, 260px); } }

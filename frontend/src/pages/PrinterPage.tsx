@@ -32,7 +32,7 @@ export function PrinterPage() {
   useEffect(() => { if (printer) api.printerCapabilities(printer).then(setCaps).catch(() => setCaps(null)); }, [printer]);
 
   const save = (patch: Partial<typeof settings>) => act.run(async () => {
-    const n = { ...settings, ...patch }; await api.saveSettings(n); setSettings(n); toast("Saved");
+    const r = await api.patchSettings(patch); setSettings(r.settings ?? { ...settings, ...patch }); toast("Saved");
   });
   const cur = pr?.printers.find((p) => p.name === printer);
   const paper = pickPaper(caps?.papers ?? [], settings.printPaper);

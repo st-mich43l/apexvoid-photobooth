@@ -36,7 +36,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
           </button>
         ))}
         <div className="spacer" />
-        <button className="booth-btn" onClick={onBooth}><Icon name="play" size={16} /> Open Booth Mode</button>
+        <button className="booth-btn" onClick={onBooth} aria-label="Open Booth Mode" title="Open Booth Mode"><Icon name="play" size={16} /> Open Booth Mode</button>
         <small className="ver">v{boot.version}</small>
       </nav>
       <main>

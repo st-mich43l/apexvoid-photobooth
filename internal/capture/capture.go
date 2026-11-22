@@ -110,6 +110,7 @@ type Options struct {
 // Engine is the state machine. Create with New.
 type Engine struct {
 	o    Options
+	tr   sync.Mutex // serialises session transitions that touch the camera: StartPreview, Cancel, Reset, Recover
 	emit sync.Mutex // orders OnChange calls
 	mu   sync.Mutex
 	s    Snapshot
@@ -167,6 +168,8 @@ func invalid(from State, action string) error {
 
 // StartPreview turns live view on: IDLE -> PREVIEW.
 func (e *Engine) StartPreview(ctx context.Context) error {
+	e.tr.Lock()
+	defer e.tr.Unlock()
 	e.mu.Lock()
 	if e.s.State != Idle {
 		st := e.s.State
@@ -488,6 +491,12 @@ func (e *Engine) Accept() error {
 // Cancel aborts COUNTDOWN/CAPTURING/REVIEW: -> CANCELLED. Photos already
 // stored stay on disk (session marked cancelled).
 func (e *Engine) Cancel() error {
+	e.tr.Lock()
+	defer e.tr.Unlock()
+	return e.cancelLocked()
+}
+
+func (e *Engine) cancelLocked() error {
 	e.mu.Lock()
 	switch e.s.State {
 	case Countdown, Capturing, Review:
@@ -512,6 +521,12 @@ func (e *Engine) Cancel() error {
 // Reset returns to IDLE from PREVIEW, COMPLETED, CANCELLED or ERROR, and
 // releases live view so the camera is not left busy.
 func (e *Engine) Reset() error {
+	e.tr.Lock()
+	defer e.tr.Unlock()
+	return e.resetLocked()
+}
+
+func (e *Engine) resetLocked() error {
 	e.mu.Lock()
 	switch e.s.State {
 	case Idle, Preview, Completed, Cancelled, Error:
@@ -525,6 +540,40 @@ func (e *Engine) Reset() error {
 	_ = e.o.Camera.StopLiveView()
 	e.update(func(s *Snapshot) { *s = Snapshot{State: Idle, Taken: []Shot{}} })
 	return nil
+}
+
+// Recover returns the engine to IDLE from whatever state it is in, and is safe to
+// call repeatedly and concurrently: it is the one operation a screen needs when
+// it is done with a session (Finish, Home, an error screen, a stale leftover).
+//
+//   - COUNTDOWN / CAPTURING / REVIEW: the session is cancelled first (originals
+//     already taken stay in the library, the session is marked cancelled);
+//   - SAVING: it waits (up to wait) for the save to finish — an in-flight save is never cut off;
+//   - PREVIEW / COMPLETED / CANCELLED / ERROR: live view is released;
+//   - IDLE: nothing to do.
+//
+// It returns an error only if the engine could not be brought back to IDLE.
+func (e *Engine) Recover(wait time.Duration) error {
+	e.tr.Lock()
+	defer e.tr.Unlock()
+	deadline := time.Now().Add(wait)
+	for {
+		switch st := e.Snapshot().State; st {
+		case Idle:
+			return nil
+		case Countdown, Capturing, Review:
+			if err := e.cancelLocked(); err != nil {
+				return err
+			}
+		case Saving:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("the photos are still being saved")
+			}
+			time.Sleep(20 * time.Millisecond)
+		default: // Preview, Completed, Cancelled, Error
+			return e.resetLocked()
+		}
+	}
 }
 
 // Shutdown stops everything (application exit).
