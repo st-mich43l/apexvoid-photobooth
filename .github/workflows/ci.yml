@@ -123,6 +123,10 @@ jobs:
           if (-not $ff.ok -or $ff.detail -notlike '*built into this application*') { throw "the built-in FFmpeg was not found/unpacked: $($ff.detail)" }
           if (-not $enc.ok) { throw "the built-in FFmpeg has no usable H.264 encoder: $($enc.detail)" }
           Write-Host "FFmpeg: $($ff.detail); encoder: $($enc.detail)"
+          if (-not $r.frameFlow.ok) { throw "the frame flow (choose a frame, 4 photos, compose, two-up sheet) failed: $($r.frameFlow | ConvertTo-Json)" }
+          Write-Host "Frame flow: strip $($r.frameFlow.stripPixels) @ $($r.frameFlow.dpi) dpi with $($r.frameFlow.frame)/$($r.frameFlow.variant); two-up sheet $($r.frameFlow.twoUpPixels)"
+          New-Item dist\ci-evidence -ItemType Directory -Force | Out-Null
+          Copy-Item selftest-frame-*.jpg dist\ci-evidence\
       - name: "Camera probe on the runner (no camera attached; native enumeration must work and report everything as unverified)"
         shell: pwsh
         run: |

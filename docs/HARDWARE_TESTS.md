@@ -87,3 +87,18 @@ Record the printer model, driver, paper and result in the table below; any step 
 ## Results
 | Step | Date | Tester | Camera/firmware/SDK | Pass/Fail | Notes |
 |---|---|---|---|---|---|
+
+
+## Frames (Phase 3) — to be done on the real Windows machine
+
+| # | Step | Expected | Result |
+|---|---|---|---|
+| F1 | Booth → Photo | Frame selection appears **before** the camera starts (no live view, no shutter sound) | ☐ |
+| F2 | Pick a 4-photo Korean frame, choose a colour, Continue | Camera prepares, live view shows with the frame thumbnail beside it, button says "4 photos" | ☐ |
+| F3 | Shoot four real photos, retake one, accept | Strip is composed in the chosen frame; file is under `Documents\apexvoid-studio\sessions\<id>\exports` | ☐ |
+| F4 | On the review/result screen choose *Change design* with a different 4-photo frame | New design appears without retaking; earlier image stays in the Gallery | ☐ |
+| F5 | Choose a 3-photo frame after taking 4 | The app explains and offers "Use the first 3 photos" — it never switches silently | ☐ |
+| F6 | Studio → Frames → Create frame, import a transparent PNG overlay (600×1800), move the 4 photo slots, Save, enable | Frame appears in Booth; overlay sits over the photos, transparent windows show them | ☐ |
+| F7 | Print the strip on a 4×6 printer (Printer page / Booth *Print*) | Preview shows two strips on a 4×6 sheet; the paper has two identical strips, cuttable in half, correct size and margins | ☐ |
+| F8 | Edit then delete the frame used for a finished session, reprint | The reprint is identical to the first print | ☐ |
+| F9 | Touch the builder with a finger (drag a slot, resize with a handle) | Works; note any problem | ☐ |
