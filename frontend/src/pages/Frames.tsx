@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { filterFrames, photoCounts, photosLabel } from "../frameInfo";
 import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
-import type { Frame } from "../types";
+import { FrameBuilder } from "../builder/FrameBuilder";
+import { Confirm } from "../ui";
+import type { Frame, FrameDef } from "../types";
 
 /** Studio: every frame (built-in and custom). The operator chooses which ones guests can pick in Booth Mode. */
 export function Frames() {
@@ -16,6 +18,9 @@ export function Frames() {
   const [count, setCount] = useState(0);
   const [onlyOn, setOnlyOn] = useState(false);
   const { error, run } = useAction();
+  const [building, setBuilding] = useState<{ def: FrameDef; isNew: boolean } | null>(null);
+  const [removing, setRemoving] = useState<Frame | null>(null);
+  const [layout, setLayout] = useState("plain.strip4");
 
   const load = useCallback(() => run(async () => {
     const r = await api.listFrames(true);
@@ -35,6 +40,14 @@ export function Frames() {
     await load();
     toast(on ? `${shown.length} frames offered in Booth Mode` : `${shown.length} frames hidden from Booth Mode`);
   });
+  const layouts = useMemo(() => (frames ?? []).filter((f) => f.design === "plain"), [frames]);
+  // #frames/new opens the builder straight away (support and screenshots)
+  const auto = useRef(false);
+  useEffect(() => { if (!auto.current && window.location.hash === "#frames/new" && layouts.length) { auto.current = true; startNew(); } }); // eslint-disable-line react-hooks/exhaustive-deps
+  const startNew = () => run(async () => setBuilding({ def: await api.newFrameDraft(layout, "My frame"), isNew: true }));
+  const edit = (f: Frame) => run(async () => setBuilding({ def: await api.getFrame(f.id), isNew: false }));
+  const duplicate = (f: Frame) => run(async () => setBuilding({ def: await api.newFrameDraft(f.id), isNew: true }));
+  const remove = (f: Frame) => run(async () => { await api.deleteFrame(f.id); setRemoving(null); await load(); toast(`“${f.name}” deleted. Photos and earlier sessions are not affected.`); });
   const makeDefault = (f: Frame) => run(async () => {
     const n = { ...settings, templateId: f.id }; await api.saveSettings(n); setSettings(n); toast(`“${f.name}” is preselected in Booth Mode`);
   });
@@ -51,6 +64,13 @@ export function Frames() {
       {problems.map((e, i) => <div key={i} className="note warn">{e}</div>)}
 
       <div className="frames-toolbar">
+        <div className="row" aria-label="Create a frame">
+          <b>New frame from a layout:</b>
+          <select aria-label="Layout" value={layout} onChange={(e) => setLayout(e.target.value)}>
+            {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
+          </select>
+          <button className="primary" onClick={startNew} disabled={!layouts.length}>Create frame…</button>
+        </div>
         <div className="filters" role="group" aria-label="Categories">
           {["All", ...categories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
         </div>
@@ -71,15 +91,28 @@ export function Frames() {
         {shown.map((f) => (
           <section key={f.id} className={`card tpl ${settings.templateId === f.id ? "selected" : ""} ${f.enabled ? "" : "off"}`}>
             <div className="tpl-preview"><img src={frameUrl(f.id, "", 220)} alt={`${f.name} preview`} loading="lazy" /></div>
-            <h3>{f.name} {!f.builtin && <Badge kind="info">custom</Badge>}</h3>
+            <h3>{f.name} {f.editable ? <Badge kind="info">custom</Badge> : !f.builtin ? <Badge kind="warn">file</Badge> : null}</h3>
             <p className="muted small">{f.category} · {f.format} · {photosLabel(f.photos)} · {f.pixelW}×{f.pixelH} px @ {f.dpi} dpi</p>
             <label className="inline"><input type="checkbox" checked={f.enabled} onChange={(e) => toggle(f, e.target.checked)} aria-label={`Offer ${f.name} ${f.format} in Booth Mode`} /> Offered in Booth</label>
-            <button className={settings.templateId === f.id ? "" : "primary"} disabled={settings.templateId === f.id || !f.enabled} onClick={() => makeDefault(f)}>
-              {settings.templateId === f.id ? "Preselected" : "Preselect"}
-            </button>
+            <div className="row">
+              <button className={settings.templateId === f.id ? "" : "primary"} disabled={settings.templateId === f.id || !f.enabled} onClick={() => makeDefault(f)}>
+                {settings.templateId === f.id ? "Preselected" : "Preselect"}
+              </button>
+              {f.editable && <button onClick={() => edit(f)} aria-label={`Edit ${f.name}`}>Edit</button>}
+              <button onClick={() => duplicate(f)} aria-label={`Duplicate ${f.name}`}>Duplicate</button>
+              {f.editable && <button className="danger" onClick={() => setRemoving(f)} aria-label={`Delete ${f.name}`}>Delete</button>}
+            </div>
           </section>
         ))}
       </div>
+      {building && (
+        <FrameBuilder initial={building.def} isNew={building.isNew} onClose={() => setBuilding(null)}
+          onSaved={(saved) => { setBuilding(null); load(); toast(`“${saved.name}” saved${saved.enabled ? " and offered in Booth Mode" : " (switch it on to offer it in Booth Mode)"}`); }} />
+      )}
+      {removing && (
+        <Confirm title="Delete frame?" danger confirmLabel="Delete frame" onNo={() => setRemoving(null)} onYes={() => remove(removing)}
+          body={<p>“{removing.name}” will be removed from the library. Photos, finished images and earlier sessions that used it are not affected — each session keeps its own copy of the frame.</p>} />
+      )}
     </div>
   );
 }

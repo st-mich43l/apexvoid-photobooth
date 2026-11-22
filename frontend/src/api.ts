@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, FramesResult, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
+  Session, Settings, ShootSnapshot, FramesResult, FrameDef, Frame, AssetInfo, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -78,6 +78,12 @@ export const api = {
   listFrames: (includeDisabled = false) => wrap(call<FramesResult>("ListFrames", includeDisabled)),
   setFrameEnabled: (id: string, enabled: boolean) => wrap(call<void>("SetFrameEnabled", id, enabled)),
   previewFrame: (id: string, variantId: string, caption: string, width: number) => wrap(call<string>("PreviewFrame", id, variantId, caption, width)),
+  getFrame: (id: string) => wrap(call<FrameDef>("GetFrame", id)),
+  newFrameDraft: (sourceId: string, name = "") => wrap(call<FrameDef>("NewFrameDraft", sourceId, name)),
+  importFrameImage: (dataUrl: string) => wrap(call<AssetInfo>("ImportFrameImage", dataUrl)),
+  previewDraft: (f: FrameDef, variantId: string, caption: string, width: number) => wrap(call<string>("PreviewDraft", f, variantId, caption, width)),
+  saveFrame: (f: FrameDef) => wrap(call<Frame>("SaveFrame", f)),
+  deleteFrame: (id: string) => wrap(call<void>("DeleteFrame", id)),
   composeSession: (sessionId: string, frameId: string, variantId: string, caption: string, useFirst: boolean) => wrap(call<Media>("ComposeSession", sessionId, frameId, variantId, caption, useFirst)),
 
   listPrinters: () => wrap(call<PrintersResult>("ListPrinters")),

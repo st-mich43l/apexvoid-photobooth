@@ -84,7 +84,30 @@ warning and the guest or operator can compose again.
 
 Database v3 adds the frame columns to `sessions` and `media` (empty for older rows; tested upgrade from v2).
 
+## Frame Builder (Studio → Frames)
+
+*Create frame…* (from any built-in layout), *Duplicate* (any frame), *Edit* / *Delete* (custom frames only).
+
+* Three panes: add elements and layer list (left) · canvas (centre) · properties of the selected photo slot, layer or the
+  frame (right). Undo / redo (Ctrl+Z / Ctrl+Y), duplicate (Ctrl+D), Delete, arrow-key nudging (Shift = 0.1 in), zoom, grid,
+  snapping to a 0.05 in grid and to canvas / sibling edges and centres, layer order, locking, hiding, "behind the photos".
+* The picture on the canvas is rendered by the Go renderer from the draft (`PreviewDraft`, debounced); the boxes and
+  handles are drawn on top in percent of the canvas, so screen pixels convert to print inches exactly at any zoom
+  (`builder/geometry.ts`, unit-tested).
+* Editable: name, category, description, colours, photo border width/colour, corner radius, resolution, photo slots
+  (position, size, photo number, crop focus), shapes, patterns, text (`{caption|date}`), images, background image,
+  transparent overlay, colour options for guests, caption allowed or not, offered in Booth Mode.
+* Storage: `templates/custom/<id>/{frame.json, preview.png, assets/}`. Saving writes a complete new folder and swaps it in
+  (an interrupted swap is repaired on the next start); the revision increases with every save. Deleting moves the folder
+  to `templates/custom/.deleted/`; sessions are unaffected because each owns its snapshot.
+* Image import (PNG / JPEG): the bytes are decoded — the signature decides, not the file name or MIME type — and checked
+  against 15 MB, 10 000 px per side and 40 megapixels (a "decompression bomb" header is refused before any pixels are
+  allocated). The file is stored under a hash-based name with the detected extension, in the frame's own `assets/`;
+  no path of the original is kept. SVG, GIF, HTML and executables are refused; frames cannot name URLs or paths. Alpha is
+  preserved and reported; the builder warns when an overlay has no transparency, is stretched or is lower-resolution than the print.
+* Imported but unsaved images wait in `templates/.staging/` and are purged after 24 hours.
+* Guests never reach the builder: Booth Mode only lists enabled frames and starts sessions.
+
 ## Not in this stage
 
-The Studio frame **builder** (custom artwork import, drag-and-drop slots), printing the frame snapshot as a two-up
-4×6 sheet and golden-image regression files are staged as F3.2 / F3.3.
+Printing a 2×6 snapshot as a two-up 4×6 sheet, print-from-snapshot and the Windows artifact evidence are F3.3.

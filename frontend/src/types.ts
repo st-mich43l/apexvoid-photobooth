@@ -84,19 +84,29 @@ export interface Edits { rotate: number; crop: Rect | null; brightness: number; 
 export interface VDevice { name: string; id: string; kind: string; modes?: Mode[] }
 export interface VDevices { video: VDevice[]; audio: VDevice[] }
 
-export interface Slot { x: number; y: number; w: number; h: number; photo: number }
+export interface Slot { x: number; y: number; w: number; h: number; photo: number; focusX?: number; focusY?: number; locked?: boolean }
 export interface Template {
   id: string; name: string; kind: string; widthIn: number; heightIn: number; dpi: number; background: string;
   borderIn: number; borderColor: string; overlay: string; slots: Slot[];
 }
 export interface Variant { id: string; name: string; background?: string; borderColor?: string; accent?: string; textColor?: string }
-/** A frame: layout (photo slots) + style, as listed by the backend. */
-export interface Frame {
-  id: string; name: string; kind: string; category: string; description?: string; order: number; revision: number;
-  enabled: boolean; builtin?: boolean; legacy?: boolean; captionEnabled?: boolean; design?: string; layoutId?: string;
-  widthIn: number; heightIn: number; dpi: number; slots: Slot[]; background: string; accent?: string; variants?: Variant[];
-  photos: number; format: string; pixelW: number; pixelH: number;
+export type LayerKind = "text" | "rect" | "ellipse" | "shape" | "pattern" | "image";
+export interface Layer {
+  id: string; name?: string; kind: LayerKind; x: number; y: number; w: number; h: number; color?: string; opacity?: number; under?: boolean; hidden?: boolean; locked?: boolean;
+  strokeIn?: number; radiusIn?: number; shape?: string; elemH?: number; size?: number; gap?: number; spread?: boolean; colors?: string[];
+  text?: string; font?: string; sizeIn?: number; align?: string; asset?: string; fit?: string;
 }
+/** A frame definition: what the Go renderer draws and the Frame Builder edits (all lengths in inches). */
+export interface FrameDef {
+  id: string; name: string; kind: string; category: string; description?: string; order: number; revision: number;
+  enabled: boolean; builtin?: boolean; legacy?: boolean; editable?: boolean; captionEnabled?: boolean; design?: string; layoutId?: string;
+  widthIn: number; heightIn: number; dpi: number; slots: Slot[];
+  background: string; borderIn?: number; borderColor?: string; cornerIn?: number; accent?: string; textColor?: string;
+  backgroundImage?: string; overlay?: string; layers?: Layer[]; variants?: Variant[];
+}
+/** A frame as listed to the UI: the definition plus derived facts. */
+export interface Frame extends FrameDef { photos: number; format: string; pixelW: number; pixelH: number }
+export interface AssetInfo { name: string; format: string; width: number; height: number; hasAlpha: boolean; bytes: number }
 export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
 /** What the guest picked: stays with the session from the first shot to the printed result. */
 export interface FrameChoice { id: string; name: string; variantId: string; caption: string; photos: number; format: string }

@@ -22,7 +22,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
   const { camera, boot, location } = useApp();
   const [migrateOpen, setMigrateOpen] = useState(true);
   // #camera, #gallery … deep-link straight to a page (handy for support and screenshots)
-  const [page, setPage] = useState(() => (NAV.some(([id]) => id === window.location.hash.slice(1)) ? window.location.hash.slice(1) : "dashboard"));
+  const [page, setPage] = useState(() => (NAV.some(([id]) => id === window.location.hash.slice(1).split("/")[0]) ? window.location.hash.slice(1).split("/")[0] : "dashboard"));
   const ok = camera.device && camera.state !== "error" && !camera.reconnecting;
 
   return (

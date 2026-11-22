@@ -118,6 +118,7 @@ func New(o Options) (*Service, error) {
 	}
 	s.recoverVideos()
 	s.tpl = templates.Load(layout.TemplatesDir())
+	s.tpl.Staging().Purge(24 * time.Hour) // images imported in the builder but never saved
 
 	// camera drivers
 	s.edsdk = edsdk.NewDriver(func() string { return s.settings.Get().CanonSDKDir })
