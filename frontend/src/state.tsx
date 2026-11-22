@@ -13,6 +13,8 @@ export interface Ctx {
   libraryVersion: number;
   bumpLibrary: () => void;
   mediaUrl: (id: string, kind: "thumb" | "preview" | "basepreview" | "original" | "edited", v?: string) => string;
+  /** A frame preview rendered by the Go renderer (sample photos), at the given pixel width. */
+  frameUrl: (id: string, variantId: string, width: number, caption?: string) => string;
   previewUrl: string;
   setSettings: (s: Settings) => void;
   toast: (msg: string, kind?: "ok" | "err", undo?: () => void) => void;
@@ -81,6 +83,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       boot, camera, shoot, video, settings, location, libraryVersion,
       bumpLibrary: () => setLib((v) => v + 1),
       mediaUrl: (id, kind, v) => `${base}/media/${id}/${kind}?t=${tok}${v ? `&v=${encodeURIComponent(v)}` : ""}`,
+      frameUrl: (id, variantId, width, caption = "") => `${base}/frame/${encodeURIComponent(id)}/${variantId ? encodeURIComponent(variantId) : "-"}?t=${tok}&w=${width}${caption ? `&caption=${encodeURIComponent(caption)}` : ""}`,
       previewUrl: `${base}/preview.mjpg?t=${tok}&n=${previewNonce}`,
       setSettings: setSettingsState,
       toast,

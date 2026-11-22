@@ -1,0 +1,38 @@
+import type { Frame, FrameChoice, Variant } from "./types";
+
+export const photosLabel = (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`;
+
+/** Colour shown for a variant button. */
+export const swatch = (v: Variant, f: Frame): string => v.background || v.accent || f.background;
+
+export interface Filters { category: string; photos: number | 0 }
+
+export function filterFrames(frames: Frame[], f: Filters): Frame[] {
+  return frames.filter((x) => (f.category === "All" || x.category === f.category) && (f.photos === 0 || x.photos === f.photos));
+}
+
+/** The photo counts present in a list of frames, ascending. */
+export const photoCounts = (frames: Frame[]): number[] => [...new Set(frames.map((f) => f.photos))].sort((a, b) => a - b);
+
+/**
+ * How a frame relates to photographs that were already taken:
+ *  ok       – same number, nothing to decide
+ *  fewer    – the frame uses fewer photos than were taken (the first N can be used)
+ *  more     – the frame needs more photos than were taken (retake required)
+ */
+export type Fit = { kind: "ok" } | { kind: "fewer"; need: number; have: number } | { kind: "more"; need: number; have: number };
+export function fitFor(frame: Frame, taken: number | undefined): Fit {
+  if (!taken || frame.photos === taken) return { kind: "ok" };
+  return frame.photos < taken ? { kind: "fewer", need: frame.photos, have: taken } : { kind: "more", need: frame.photos, have: taken };
+}
+
+export function explainFit(f: Fit, name: string): string {
+  switch (f.kind) {
+    case "fewer": return `“${name}” uses ${photosLabel(f.need)}, but you took ${f.have}. You can use the first ${f.need}, or pick a design for ${f.have} photos.`;
+    case "more": return `“${name}” needs ${photosLabel(f.need)}, but you took ${f.have}. Pick a design for ${f.have} photos, or start over to take ${f.need}.`;
+    default: return "";
+  }
+}
+
+export const choiceOf = (f: Frame, variantId: string, caption: string): FrameChoice =>
+  ({ id: f.id, name: f.name, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format });

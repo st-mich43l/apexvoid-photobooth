@@ -22,6 +22,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | Media library: sessions, originals never overwritten, thumbnails, gallery, edit (rotate/crop/brightness/contrast/saturation), export, trash/restore, crash recovery | working | CI |
 | Layouts (2×6 strips, 4×6 sheets, single, custom JSON/overlay) at exact size and DPI | working | CI |
 | Printing (Windows spooler + GDI): enumeration, capabilities, real page geometry, preview, submission, spooler job tracking, history, reprint | **implemented**; physical paper output **NOT verified** on any printer (see docs/PRINTING.md for what CI proves) | unit tests, Windows struct tests, CI file-port printer step |
+| **Frame selection before capture**: 17 original designs × 9 layouts, colour options, optional caption, frame decides the photo count, per-session immutable snapshot, change design after capture without retaking | working with the simulated camera; unit/UI tests | CI; **not yet run inside WebView2 or with a real camera** — see [docs/FRAMES.md](docs/FRAMES.md) |
 | Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
 | Windows x64 single-file exe (FFmpeg built in) | built by CI as the only artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
 
