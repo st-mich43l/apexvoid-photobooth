@@ -237,3 +237,15 @@ func TestPreferredMatchNeverGuessesBetweenLookAlikes(t *testing.T) {
 		t.Fatal("ExactOnly still matches the same id")
 	}
 }
+
+func TestStatusVersionOnlyGrows(t *testing.T) {
+	m := camera.NewManager()
+	last := m.Status().Version
+	for i := 0; i < 5; i++ {
+		v := m.Status().Version
+		if v <= last {
+			t.Fatalf("version %d after %d: the UI could not tell a stale snapshot from a new one", v, last)
+		}
+		last = v
+	}
+}

@@ -124,3 +124,26 @@ Record the printer model, driver, paper and result in the table below; any step 
 | F9 | Touch the builder with a finger (drag a slot, resize with a handle) | Works; note any problem | ☐ |
 | F10 | Settings → Print resolution 600 dpi, shoot, print the strip on the real printer (driver set to its highest quality) | File is 1200×3600 px; paper is 2×6 in with sharp detail; compare with a 300 dpi print | ☐ |
 | F11 | Studio → Frames → *Import PNG as frame…* with your real frame PNG | Builder opens with a photo slot under each transparent window and a note saying how many were found; Save, offer, shoot: photos appear exactly in the windows | ☐ |
+
+
+## G. UX-1 — session safety and readiness (run in the real WebView2 window on the booth machine)
+Automated tests cover the logic with jsdom and the simulated camera. These rows need the real window, touch and a camera.
+Every row is **UNVERIFIED** until a person fills it in.
+
+| # | Step | Expected | Result |
+|---|---|---|---|
+| G1 | Booth → Take photos → frame → Continue, then do **not touch** the screen for 3 minutes in each state: live preview *after* the first shot starts, during the countdown, in review | The session is never reset. Review stays until the guest acts. | ☐ |
+| G2 | Same, but stop before the first shot (live preview only) | After 90 s the booth returns to Welcome and the camera light goes off | ☐ |
+| G3 | Finish a session, leave the result screen for 2 minutes | Returns to Welcome by itself; the strip is in the gallery | ☐ |
+| G4 | Tap **Home** during the countdown and in review | A dialog explains the effect; "Keep going" changes nothing; "Leave" returns to Welcome and the originals are in the gallery | ☐ |
+| G5 | Tap **Home** repeatedly while a photo is being taken | Nothing happens until the photo is saved; no half photo | ☐ |
+| G6 | Operator **Exit** (button, Esc, corner hold, with and without PIN) during the countdown, the shot and review | Waits for the shot, closes the session, restores the window; photos taken are in the gallery | ☐ |
+| G7 | Tap **Finish** 5× quickly, then **Take photos** immediately, 10 times in a row | One reset each time; "One moment…" appears briefly at most; never a stuck screen; the camera opens every time | ☐ |
+| G8 | Pull the camera USB cable *before* tapping Take photos | Welcome says the booth is not ready (calm text, no technical words); Studio Dashboard says Setup required / Reconnecting and what to do | ☐ |
+| G9 | Pull the cable *during* the countdown, then during review, then replug | Calm "Reconnecting…" card; photos are kept; the shot is repeated after reconnection (see CAMERAS.md); Retake/Start disabled meanwhile | ☐ |
+| G10 | Make the media folder unwritable (read-only) or nearly full | Welcome blocks guests; Dashboard names the folder and the fix; nothing is lost | ☐ |
+| G11 | Select a printer, then switch it off / remove it | Dashboard shows a warning within ~10 s; Booth still takes digital photos; guests see no printer error | ☐ |
+| G12 | Set a preferred photo camera, unplug it, plug a different camera | Dashboard says the preferred camera is missing; Booth does not silently use the other one | ☐ |
+| G13 | Portrait and landscape kiosk displays, 100 %, 125 %, 150 % and 200 % Windows scaling, touch only | Primary buttons ≥ 56×56 CSS px and comfortable; nothing overlaps or clips; **Open Booth Mode** reachable in Studio in both orientations; countdown number readable from 1.5 m | ☐ |
+| G14 | Tab through a dialog with a keyboard; press Escape | Focus stays inside; Escape closes only that dialog; focus returns to the opener | ☐ |
+| G15 | Change a setting on Settings, then (before saving) choose a camera or preselect a frame on another page, then Save | The camera/frame choice is still there afterwards | ☐ |

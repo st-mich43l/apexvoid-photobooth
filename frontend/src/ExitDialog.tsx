@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, toAppError } from "./api";
 import { leaveFullscreen } from "./fullscreen";
 import { exitImpact, safeExit } from "./safeExit";
+import { sessionGate } from "./sessionGate";
 import { useApp } from "./state";
 import { Modal } from "./ui";
 
@@ -31,7 +32,9 @@ export function ExitDialog({ onClose, onExited, leave = leaveFullscreen }: { onC
       }
       await safeExit({
         getVideo: () => v.current, getShoot: () => s.current,
-        stopRecording: () => api.stopRecording(), cancelShooting: () => api.cancelShooting(),
+        stopRecording: () => api.stopRecording(),
+        // the same coordinated reset every other way out uses, so Exit during a Finish cannot overlap it
+        cancelShooting: async () => { if (!(await sessionGate.reset())) throw new Error("The photo session could not be closed. Try again in a moment."); },
         leaveFullscreen: leave, onStep: setStep,
       });
       onExited();

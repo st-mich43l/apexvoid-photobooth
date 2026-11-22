@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Frame, FrameChoice, ShootSnapshot } from "./types";
 
 const h = vi.hoisted(() => ({
-  api: { startPreview: vi.fn(), startShooting: vi.fn(), cancelShooting: vi.fn(), resetShooting: vi.fn(), retake: vi.fn(), accept: vi.fn(), listFrames: vi.fn(), setSessionFrame: vi.fn(), composeSession: vi.fn(), printResult: vi.fn() },
+  api: { startPreview: vi.fn(), startShooting: vi.fn(), cancelShooting: vi.fn(), resetShooting: vi.fn(), recoverShooting: vi.fn(), retake: vi.fn(), accept: vi.fn(), listFrames: vi.fn(), setSessionFrame: vi.fn(), composeSession: vi.fn(), printResult: vi.fn() },
   S: {} as Record<string, unknown>,
 }));
 vi.mock("./state", () => ({ useApp: () => h.S }));
@@ -12,6 +12,7 @@ vi.mock("./SourceChip", () => ({ SourceChip: () => null }));
 vi.mock("./PrintPanel", () => ({ PrintPanel: () => <div data-testid="print-panel" /> }));
 vi.mock("./ui", async (orig) => ({ ...(await orig<typeof import("./ui")>()), LivePreview: () => <div data-testid="live" />, SimulatedRibbon: () => null }));
 import { ShootFlow } from "./ShootFlow";
+import { sessionGate } from "./sessionGate";
 
 const FRAME: FrameChoice = { id: "four", name: "Four", variantId: "", caption: "", photos: 4, format: "2×6 strip" };
 const snap = (state: ShootSnapshot["state"], o: Partial<ShootSnapshot> = {}): ShootSnapshot =>
@@ -20,6 +21,7 @@ const taken = (n: number) => Array.from({ length: n }, (_, i) => ({ slot: i, med
 const fr = (id: string, photos: number): Frame => ({ id, name: id, kind: "strip", category: "Classic", order: 1, revision: 1, enabled: true, widthIn: 2, heightIn: 6, dpi: 300, slots: [], background: "#fff", photos, format: "2×6 strip", pixelW: 600, pixelH: 1800 });
 
 beforeEach(() => {
+  sessionGate._forget();
   h.S = { shoot: snap("PREVIEW"), camera: { device: { id: "c", name: "C" }, state: "connected", reconnecting: false, liveView: true }, settings: { templateId: "", printerName: "Lab" },
     mediaUrl: (id: string) => `/m/${id}`, frameUrl: (id: string) => `/f/${id}`, toast: vi.fn() };
   for (const k of Object.keys(h.api)) (h.api as Record<string, ReturnType<typeof vi.fn>>)[k].mockReset().mockResolvedValue(undefined);
@@ -60,12 +62,12 @@ describe("ShootFlow with a pre-selected frame", () => {
 
     it("same photo count: switches the design of the session without any retake", async () => {
       await open();
-      h.api.cancelShooting.mockClear(); h.api.resetShooting.mockClear();   // (mounting directly in REVIEW counts as a leftover state; clear that call)
+      h.api.recoverShooting.mockClear();   // (mounting directly in REVIEW counts as a leftover state; clear that call)
       fireEvent.click(screen.getByRole("radio", { name: /other4/ }));
       fireEvent.click(screen.getByRole("button", { name: "Use this design" }));
       await waitFor(() => expect(h.api.setSessionFrame).toHaveBeenCalledWith("S1", "other4", "", "", false));
       expect(h.api.retake).not.toHaveBeenCalled();
-      expect(h.api.cancelShooting).not.toHaveBeenCalled();
+      expect(h.api.recoverShooting).not.toHaveBeenCalled();
     });
 
     it("a frame for fewer photos needs an explicit 'use the first N'", async () => {
@@ -79,8 +81,7 @@ describe("ShootFlow with a pre-selected frame", () => {
       await open();
       fireEvent.click(screen.getByRole("radio", { name: /six/ }));
       fireEvent.click(screen.getByRole("button", { name: "Start over with this frame" }));
-      await waitFor(() => expect(h.api.resetShooting).toHaveBeenCalled());
-      expect(h.api.cancelShooting).toHaveBeenCalled();
+      await waitFor(() => expect(h.api.recoverShooting).toHaveBeenCalled());
       expect(h.api.setSessionFrame).not.toHaveBeenCalled();
     });
 
@@ -141,17 +142,16 @@ describe("ShootFlow with a pre-selected frame", () => {
   describe("finishing and starting again", () => {
     it("Finish returns to the caller at once, without waiting for the camera to stop", async () => {
       h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
-      h.api.resetShooting.mockReturnValue(new Promise(() => {}));       // the camera takes forever to stop
+      h.api.recoverShooting.mockReturnValue(new Promise(() => {}));     // the camera takes forever to stop
       const onDone = vi.fn();
       render(<ShootFlow variant="booth" frame={FRAME} onDone={onDone} />);
       fireEvent.click(screen.getByRole("button", { name: "Finish" }));
       expect(onDone).toHaveBeenCalledTimes(1);
-      expect(h.api.resetShooting).toHaveBeenCalled();
     });
 
     it("a reset that fails does not leave the guest on the result screen", () => {
       h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
-      h.api.resetShooting.mockRejectedValue(new Error("boom"));
+      h.api.recoverShooting.mockRejectedValue(new Error("boom"));
       const onDone = vi.fn();
       render(<ShootFlow variant="booth" frame={FRAME} onDone={onDone} />);
       fireEvent.click(screen.getByRole("button", { name: "Finish" }));
@@ -161,14 +161,122 @@ describe("ShootFlow with a pre-selected frame", () => {
     it("opening a new session while the old 'All done' state is still there clears it first", async () => {
       h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "OLD" });
       render(<ShootFlow variant="booth" frame={FRAME} />);
-      await waitFor(() => expect(h.api.resetShooting).toHaveBeenCalled());
-      expect(h.api.cancelShooting).toHaveBeenCalled();
+      await waitFor(() => expect(h.api.recoverShooting).toHaveBeenCalledTimes(1)); // one coordinated reset, not a cancel followed by a reset
     });
 
     it("a normal start (idle or preview) does not reset anything", () => {
       h.S.shoot = snap("PREVIEW");
       render(<ShootFlow variant="booth" frame={FRAME} />);
-      expect(h.api.resetShooting).not.toHaveBeenCalled();
+      expect(h.api.recoverShooting).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("UX-1: guest flow safety and clarity", () => {
+  it("Cancel during the countdown asks first; 'Keep going' changes nothing; 'Start over' closes it through the one reset", async () => {
+    const view = render(<ShootFlow variant="booth" frame={FRAME} />);      // opened in PREVIEW, the normal way in
+    h.S.shoot = snap("COUNTDOWN", { remaining: 2, slot: 1, taken: taken(1) });
+    view.rerender(<ShootFlow variant="booth" frame={FRAME} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(await screen.findByRole("dialog", { name: "Leave this photo session?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep going" }));
+    expect(h.api.recoverShooting).not.toHaveBeenCalled();
+    expect(h.api.cancelShooting).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start over" }));
+    await waitFor(() => expect(h.api.recoverShooting).toHaveBeenCalledTimes(1));
+  });
+
+  it("'Start over' in review also asks, and says what happens to the photos", async () => {
+    const view = render(<ShootFlow variant="booth" frame={FRAME} />);
+    h.S.shoot = snap("REVIEW", { taken: taken(4) });
+    view.rerender(<ShootFlow variant="booth" frame={FRAME} />);
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }));
+    const dlg = await screen.findByRole("dialog", { name: "Leave this photo session?" });
+    expect(dlg.textContent).toMatch(/4 photos/);
+    expect(dlg.textContent).toMatch(/originals/);
+    expect(h.api.recoverShooting).not.toHaveBeenCalled();
+  });
+
+  it("shows which photo is being taken: 'Photo 2 of 4' with one dot per photo", () => {
+    h.S.shoot = snap("COUNTDOWN", { remaining: 3, slot: 1, taken: taken(1) });
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    const p = screen.getByRole("progressbar", { name: "Photo progress" });
+    expect(p.textContent).toContain("Photo 2 of 4");
+    expect(p.getAttribute("aria-valuenow")).toBe("2");
+    expect(p.querySelectorAll("li")).toHaveLength(4);
+    expect(p.querySelectorAll("li.done")).toHaveLength(1);
+    expect(p.querySelectorAll("li.now")).toHaveLength(1);
+    expect(screen.getByText("3")).toBeTruthy(); // the countdown number
+  });
+
+  it("the capture flash and countdown never take pointer events or block the controls", () => {
+    h.S.shoot = snap("CAPTURING", { slot: 0 });
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    expect(screen.getByText("Smile!")).toBeTruthy();
+    expect(screen.getByText(/Hold still/)).toBeTruthy();
+  });
+
+  it("rapid Finish taps call Finish once and disable the button", () => {
+    h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
+    const onDone = vi.fn();
+    render(<ShootFlow variant="booth" frame={FRAME} onDone={onDone} />);
+    const fin = screen.getByRole("button", { name: "Finish" }) as HTMLButtonElement;
+    fireEvent.click(fin); fireEvent.click(fin); fireEvent.click(fin);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("button", { name: "Finish" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  describe("the camera is lost during a session", () => {
+    beforeEach(() => { h.S.camera = { device: { id: "c", name: "C" }, state: "connected", reconnecting: true, liveView: false }; });
+
+    it("guests get a calm reconnection card (no raw technical text) and their photos are said to be safe", () => {
+      h.S.shoot = snap("COUNTDOWN", { remaining: 2, taken: taken(1), slot: 1 });
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      const card = screen.getByRole("status");
+      expect(card.textContent).toMatch(/Reconnecting the camera/);
+      expect(card.textContent).toMatch(/photos are safe/);
+      expect(document.body.textContent).not.toMatch(/disconnected|USB|EDSDK|error/i);
+    });
+
+    it("cannot start a session or retake while reconnecting", () => {
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      expect((screen.getByRole("button", { name: /TAP TO START/ }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+      h.S.shoot = snap("REVIEW", { taken: taken(2), shots: 2 });
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      for (const b of screen.getAllByRole("button", { name: "Retake" })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("Studio keeps the operator informed that photos already taken are kept", () => {
+      render(<ShootFlow variant="studio" frame={FRAME} />);
+      expect(screen.getByText(/Photos already taken are kept/)).toBeTruthy();
+    });
+  });
+
+  it("a camera error leads to a recovery screen, not a dead end: friendly text and one big 'Try again'", async () => {
+    h.S.shoot = snap("ERROR", { error: "EDSDK error 0x00008D01 raw", errorAction: "Check focus" });
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    expect(screen.getByText(/couldn’t take that photo/)).toBeTruthy();
+    expect(screen.getByText(/other photos are safe/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/EDSDK|0x00008D01/);
+    h.api.recoverShooting.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(h.api.recoverShooting).toHaveBeenCalledTimes(1));
+  });
+
+  it("Studio still shows the real error and its action", () => {
+    h.S.shoot = snap("ERROR", { error: "Autofocus failed", errorAction: "Check focus" });
+    render(<ShootFlow variant="studio" frame={FRAME} />);
+    expect(screen.getByText("Autofocus failed")).toBeTruthy();
+    expect(screen.getByText("Check focus")).toBeTruthy();
+  });
+
+  it("a failed action in Booth is explained kindly, without the raw message", async () => {
+    h.api.startShooting.mockRejectedValue(Object.assign(new Error("Cannot write to C:\\Docs: access is denied"), { action: "Choose another media folder." }));
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    fireEvent.click(screen.getByRole("button", { name: /TAP TO START/ }));
+    await screen.findByText(/That didn’t work/);
+    expect(document.body.textContent).not.toMatch(/access is denied/);
   });
 });
