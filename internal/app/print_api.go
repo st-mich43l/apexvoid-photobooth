@@ -79,6 +79,9 @@ type PrintOptions struct {
 	Orientation string `json:"orientation"` // auto | portrait | landscape
 	Fit         string `json:"fit"`         // fit | fill | actual
 	Copies      int    `json:"copies"`
+	// TwoUp prints a finished 2×6 strip twice on one sheet twice as wide (4×6),
+	// copied pixel for pixel from the approved composition; cut the print in half.
+	TwoUp bool `json:"twoUp"`
 }
 
 // printable is the final, print-ready image chosen for a media item.
@@ -102,7 +105,7 @@ type printable struct {
 // size). A single photo is NEVER printed as the raw original: it is rendered
 // through a single-photo layout (using its edited version when it has one).
 // save=false renders in memory (preview) without touching the library.
-func (s *Service) printSource(mediaID, templateID, paper string, save bool) (*printable, error) {
+func (s *Service) printSource(mediaID, templateID, paper string, twoUp, save bool) (*printable, error) {
 	m, err := s.store.Media(mediaID)
 	if err != nil {
 		return nil, newUserErr("That image could not be found.", "")
@@ -133,6 +136,39 @@ func (s *Service) printSource(mediaID, templateID, paper string, save bool) (*pr
 			w, h := t.PixelSize()
 			if abs(w-b.Dx()) > 1 || abs(h-b.Dy()) > 1 {
 				return nil, newUserErr("This image was not made with the layout “"+t.Name+"”.", "Choose the layout it was created with, or compose it again from the session in the Gallery.")
+			}
+		}
+		if m.Kind == "strip" && m.FrameDir != "" { // the finished image must still match the frame snapshot it was made from
+			if abs2, err := s.db.Layout.Abs(m.FrameDir); err == nil {
+				if snap, _, err := templates.ReadSnapshot(abs2); err == nil {
+					w, h := snap.Frame.PixelSize()
+					if abs(w-b.Dx()) > 1 || abs(h-b.Dy()) > 1 {
+						return nil, newUserErr("This image does not match the frame it was made with.", "Compose it again from the session in the Gallery.")
+					}
+					pr.templateID = snap.FrameID
+				}
+			}
+		}
+		if twoUp {
+			if m.Kind != "strip" && m.Kind != "print" || !templates.StripLike(b.Dx(), b.Dy()) {
+				return nil, newUserErr("Two-up printing is for narrow strips such as 2×6.", "Turn it off for this image.")
+			}
+			sheet := templates.TwoUpSheet(img, color.NRGBA{255, 255, 255, 255})
+			enc, err := media.EncodeJPEG(sheet, 98)
+			if err != nil {
+				return nil, userErr(err)
+			}
+			enc = media.SetJPEGDensity(enc, dpi)
+			sb := sheet.Bounds()
+			pr = &printable{img: sheet, data: enc, widthIn: float64(sb.Dx()) / float64(dpi), heightIn: float64(sb.Dy()) / float64(dpi), dpi: dpi, sessionID: m.SessionID, templateID: pr.templateID}
+			if save {
+				rm, err := s.store.AddFrameExport(m.SessionID, "print", "twoup-"+m.ID, enc, sb.Dx(), sb.Dy(),
+					sessions.FrameRef{ID: m.FrameID, Name: m.FrameName, Variant: m.VariantID, Revision: m.FrameRev, Dir: m.FrameDir})
+				if err != nil {
+					return nil, userErr(err)
+				}
+				pr.rendered = &rm
+				pr.path, _ = s.store.FilePath(rm.ID, "original")
 			}
 		}
 		return pr, nil
@@ -256,6 +292,9 @@ type PreviewResult struct {
 	AssumedGeom bool       `json:"assumedGeometry"`
 	ImageInches [2]float64 `json:"imageInches"`
 	Template    string     `json:"templateId"`
+	// TwoUpOffer: the image is a strip that fits twice on this paper; TwoUp: the preview shows that sheet.
+	TwoUpOffer bool `json:"twoUpOffer"`
+	TwoUp      bool `json:"twoUp"`
 }
 
 func (s *Service) plan(ctx context.Context, o PrintOptions, pr *printable) (printing.PageGeometry, printing.PagePlan, printing.Paper, printing.Orientation, error) {
@@ -282,7 +321,7 @@ func (s *Service) plan(ctx context.Context, o PrintOptions, pr *printable) (prin
 func (s *Service) PrintPreview(o PrintOptions) (PreviewResult, error) {
 	ctx, cancel := s.ctx()
 	defer cancel()
-	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, false)
+	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, o.TwoUp, false)
 	if err != nil {
 		return PreviewResult{}, err
 	}
@@ -290,6 +329,7 @@ func (s *Service) PrintPreview(o PrintOptions) (PreviewResult, error) {
 	if err != nil {
 		return PreviewResult{}, err
 	}
+	offer := s.twoUpOffer(ctx, o)
 	pv := printing.Preview(pr.img, g, pl, 420)
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, pv, &jpeg.Options{Quality: 85}); err != nil {
@@ -300,7 +340,7 @@ func (s *Service) PrintPreview(o PrintOptions) (PreviewResult, error) {
 		Image: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), Orientation: string(or), Template: pr.templateID,
 		PaperMm: [2]float64{mm(g.PhysW, g.DPIX), mm(g.PhysH, g.DPIY)}, PrintableMm: [2]float64{mm(g.PrintW, g.DPIX), mm(g.PrintH, g.DPIY)},
 		MarginMm: pl.MarginMM, ScalePct: pl.ScalePct, CroppedPct: pl.CroppedPct, Rotated: pl.Rotated, Warning: pl.Warning, AssumedGeom: g.Assumed,
-		ImageInches: [2]float64{pr.widthIn, pr.heightIn},
+		ImageInches: [2]float64{pr.widthIn, pr.heightIn}, TwoUp: o.TwoUp, TwoUpOffer: offer,
 	}, nil
 }
 
@@ -318,7 +358,7 @@ func (s *Service) PrintMedia(o PrintOptions) (printing.Job, error) {
 	if j, ok, err := s.prnStore.ByRequest(o.RequestID); err == nil && ok {
 		return j, nil
 	}
-	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, true)
+	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, o.TwoUp, true)
 	if err != nil {
 		return printing.Job{}, err
 	}
@@ -472,3 +512,41 @@ func (s *Service) pollPrints(stop <-chan struct{}) {
 }
 
 func mmToPx(mm float64) int { return int(mm / 25.4 * 300) }
+
+// twoUpOffer tells whether the media is a finished strip that fits twice on the
+// paper (2×6 strips on 4×6 or 5×7 paper), so the UI can offer a two-up sheet.
+func (s *Service) twoUpOffer(ctx context.Context, o PrintOptions) bool {
+	m, err := s.store.Media(o.MediaID)
+	if err != nil || (m.Kind != "strip" && m.Kind != "print") || !templates.StripLike(m.Width, m.Height) {
+		return false
+	}
+	paper, _, err := s.resolvePaper(ctx, o.Printer, o.Paper)
+	if err != nil || paper.WidthIn <= 0 {
+		return false
+	}
+	dpi := 300
+	if data, err := os.ReadFile(func() string { p, _ := s.store.FilePath(m.ID, "original"); return p }()); err == nil {
+		if u, x, _, ok := media.JPEGDensity(data); ok && u == 1 && x >= 72 {
+			dpi = x
+		}
+	}
+	short, long := min(paper.WidthIn, paper.HeightIn), max(paper.WidthIn, paper.HeightIn)
+	w, h := float64(m.Width)/float64(dpi), float64(m.Height)/float64(dpi)
+	return short >= 2*w-0.06 && long >= h-0.06 && !(short >= 2*w+w*0.9) // not for paper much larger than two strips
+}
+
+// PrintResult prints a finished image with the printer and paper the operator
+// chose in Studio (Booth Mode: one tap, no printer settings for guests). A 2×6
+// strip is printed two-up when the paper fits two. Requests are idempotent per
+// requestID, and the duplicate guard stops accidental double prints.
+func (s *Service) PrintResult(mediaID, requestID string) (printing.Job, error) {
+	cfg := s.settings.Get()
+	if cfg.PrinterName == "" {
+		return printing.Job{}, newUserErr("Printing is not set up.", "Ask the host to choose a printer in Studio → Printer.")
+	}
+	ctx, cancel := s.ctx()
+	defer cancel()
+	o := PrintOptions{RequestID: requestID, MediaID: mediaID, Printer: cfg.PrinterName, Paper: cfg.PrintPaper, Orientation: "auto", Fit: "fit", Copies: 1}
+	o.TwoUp = s.twoUpOffer(ctx, o)
+	return s.PrintMedia(o)
+}

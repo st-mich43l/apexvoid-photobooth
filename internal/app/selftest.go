@@ -3,12 +3,15 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/capture"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/templates"
 )
 
 // SelfTest starts the real application core (SQLite, filesystem, loopback
@@ -88,9 +91,89 @@ func SelfTest(version string, args []string) int {
 	if ls.Photos != 1 {
 		return fail("library", fmt.Errorf("expected 1 photo, got %d", ls.Photos))
 	}
+	// the frame flow end to end: choose a four-photo frame, shoot, compose, and make the two-up 4×6 print sheet
+	ff, err := selfTestFrameFlow(svc, wait, evidenceDir(args))
+	report["frameFlow"] = ff
+	if err != nil {
+		return fail("frame flow", err)
+	}
 	if err := svc.Shutdown(); err != nil {
 		return fail("shutdown", err)
 	}
 	report["ok"] = true
 	return finish(0)
+}
+
+// evidenceDir is where the self-test leaves the images it produced: next to the report.
+func evidenceDir(args []string) string {
+	if len(args) > 0 {
+		return filepath.Dir(args[0])
+	}
+	return ""
+}
+
+// selfTestFrameFlow runs frame selection → four photos → composition → two-up
+// sheet through the real service, checks sizes and DPI, and (when dir is set)
+// saves the strip and the sheet so CI can publish them as evidence.
+func selfTestFrameFlow(svc *Service, wait func(capture.State) bool, dir string) (map[string]any, error) {
+	out := map[string]any{"ok": false}
+	_ = svc.ResetShooting()
+	if err := svc.StartPreview(); err != nil {
+		return out, err
+	}
+	if err := svc.StartShooting("rose-pink.strip4", "coral", ""); err != nil {
+		return out, err
+	}
+	if !wait(capture.Review) {
+		return out, fmt.Errorf("review not reached: %s", svc.ShootState().State)
+	}
+	sn := svc.ShootState()
+	if sn.Shots != 4 || len(sn.Taken) != 4 {
+		return out, fmt.Errorf("the frame must decide four shots, got %d/%d", len(sn.Taken), sn.Shots)
+	}
+	if err := svc.AcceptPhotos(); err != nil {
+		return out, err
+	}
+	if !wait(capture.Completed) {
+		return out, fmt.Errorf("completion not reached: %s", svc.ShootState().State)
+	}
+	done := svc.ShootState()
+	m, err := svc.store.Media(done.ResultID)
+	if err != nil {
+		return out, fmt.Errorf("no composed image: %v", err)
+	}
+	path, _ := svc.store.FilePath(m.ID, "original")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return out, err
+	}
+	img, err := media.Decode(data)
+	if err != nil {
+		return out, err
+	}
+	_, dpi, _, ok := media.JPEGDensity(data)
+	out["stripPixels"], out["frame"], out["variant"], out["dpi"] = fmt.Sprintf("%dx%d", img.Bounds().Dx(), img.Bounds().Dy()), m.FrameID, m.VariantID, dpi
+	if img.Bounds().Dx() != 600 || img.Bounds().Dy() != 1800 || !ok || dpi != 300 || m.FrameID != "rose-pink.strip4" || m.VariantID != "coral" {
+		return out, fmt.Errorf("unexpected composition %v %d dpi %+v", img.Bounds(), dpi, m)
+	}
+	sess, _ := svc.store.Session(done.SessionID)
+	if _, err := os.Stat(filepath.Join(svc.db.Layout.Root, filepath.FromSlash(sess.FrameDir), "frame.json")); err != nil {
+		return out, fmt.Errorf("the frame snapshot was not stored: %v", err)
+	}
+	sheet := templates.TwoUpSheet(img, color.NRGBA{255, 255, 255, 255})
+	enc, err := media.EncodeJPEG(sheet, 98)
+	if err != nil {
+		return out, err
+	}
+	enc = media.SetJPEGDensity(enc, dpi)
+	out["twoUpPixels"] = fmt.Sprintf("%dx%d", sheet.Bounds().Dx(), sheet.Bounds().Dy())
+	if sheet.Bounds().Dx() != 1200 || sheet.Bounds().Dy() != 1800 {
+		return out, fmt.Errorf("two-up sheet is %v", sheet.Bounds())
+	}
+	if dir != "" {
+		_ = os.WriteFile(filepath.Join(dir, "selftest-frame-strip-2x6.jpg"), data, 0o644)
+		_ = os.WriteFile(filepath.Join(dir, "selftest-frame-twoup-4x6.jpg"), enc, 0o644)
+	}
+	out["ok"] = true
+	return out, nil
 }

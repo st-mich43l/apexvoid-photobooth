@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Frame, FrameChoice, ShootSnapshot } from "./types";
 
 const h = vi.hoisted(() => ({
-  api: { startPreview: vi.fn(), startShooting: vi.fn(), cancelShooting: vi.fn(), resetShooting: vi.fn(), retake: vi.fn(), accept: vi.fn(), listFrames: vi.fn(), setSessionFrame: vi.fn(), composeSession: vi.fn() },
+  api: { startPreview: vi.fn(), startShooting: vi.fn(), cancelShooting: vi.fn(), resetShooting: vi.fn(), retake: vi.fn(), accept: vi.fn(), listFrames: vi.fn(), setSessionFrame: vi.fn(), composeSession: vi.fn(), printResult: vi.fn() },
   S: {} as Record<string, unknown>,
 }));
 vi.mock("./state", () => ({ useApp: () => h.S }));
-vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: "" }) }));
+vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
 vi.mock("./SourceChip", () => ({ SourceChip: () => null }));
+vi.mock("./PrintPanel", () => ({ PrintPanel: () => <div data-testid="print-panel" /> }));
 vi.mock("./ui", async (orig) => ({ ...(await orig<typeof import("./ui")>()), LivePreview: () => <div data-testid="live" />, SimulatedRibbon: () => null }));
 import { ShootFlow } from "./ShootFlow";
 
@@ -19,7 +20,7 @@ const taken = (n: number) => Array.from({ length: n }, (_, i) => ({ slot: i, med
 const fr = (id: string, photos: number): Frame => ({ id, name: id, kind: "strip", category: "Classic", order: 1, revision: 1, enabled: true, widthIn: 2, heightIn: 6, dpi: 300, slots: [], background: "#fff", photos, format: "2×6 strip", pixelW: 600, pixelH: 1800 });
 
 beforeEach(() => {
-  h.S = { shoot: snap("PREVIEW"), camera: { device: { id: "c", name: "C" }, state: "connected", reconnecting: false, liveView: true }, settings: { templateId: "" },
+  h.S = { shoot: snap("PREVIEW"), camera: { device: { id: "c", name: "C" }, state: "connected", reconnecting: false, liveView: true }, settings: { templateId: "", printerName: "Lab" },
     mediaUrl: (id: string) => `/m/${id}`, frameUrl: (id: string) => `/f/${id}`, toast: vi.fn() };
   for (const k of Object.keys(h.api)) (h.api as Record<string, ReturnType<typeof vi.fn>>)[k].mockReset().mockResolvedValue(undefined);
   h.api.listFrames.mockResolvedValue({ frames: [fr("four", 4), fr("three", 3), fr("six", 6), fr("other4", 4)], categories: ["Classic"], errors: [], dir: "", default: "four" });
@@ -101,5 +102,38 @@ describe("ShootFlow with a pre-selected frame", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use this design" }));
     await waitFor(() => expect(h.api.composeSession).toHaveBeenCalledWith("S1", "other4", "", "", false));
     await waitFor(() => expect((screen.getByAltText("Your photo strip") as HTMLImageElement).src).toContain("/m/R2"));
+  });
+
+  describe("printing the result", () => {
+    beforeEach(() => { h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" }); });
+
+    it("Booth: one tap prints the finished image with the operator's printer and says it was only sent", async () => {
+      h.api.printResult.mockResolvedValue({ id: "P1", status: "queued", detail: "Sent to the Windows print queue." });
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      fireEvent.click(screen.getByRole("button", { name: /Print/ }));
+      await waitFor(() => expect(h.api.printResult).toHaveBeenCalledWith("R1", expect.any(String)));
+      await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Sent to the printer/));
+      expect(screen.getByRole("button", { name: "Print another copy" })).toBeTruthy();
+    });
+
+    it("Booth: a printing problem is shown with what to do, not swallowed", async () => {
+      h.api.printResult.mockRejectedValue(Object.assign(new Error("Printing is not set up."), { action: "Ask the host to choose a printer in Studio → Printer." }));
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      fireEvent.click(screen.getByRole("button", { name: /Print/ }));
+      await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Ask the host/));
+    });
+
+    it("Booth: no print button when the operator has not set up a printer", () => {
+      (h.S.settings as { printerName: string }).printerName = "";
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      expect(screen.queryByRole("button", { name: /Print/ })).toBeNull();
+    });
+
+    it("Studio: opens the full print dialog (placement preview) instead of printing blindly", () => {
+      render(<ShootFlow variant="studio" frame={FRAME} />);
+      fireEvent.click(screen.getByRole("button", { name: "Print…" }));
+      expect(screen.getByTestId("print-panel")).toBeTruthy();
+      expect(h.api.printResult).not.toHaveBeenCalled();
+    });
   });
 });
