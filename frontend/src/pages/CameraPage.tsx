@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { backendLabel, canRecordVideo, guidance, kindLabel, modeOptions, resolutions } from "../sourceInfo";
+import { CanonPanel } from "../CanonPanel";
 import { useApp } from "../state";
 import { Badge, ErrorNote, LivePreview, SimulatedRibbon, SupportBadge, useAction } from "../ui";
 import type { CameraSources, DeviceInfo } from "../types";
@@ -111,6 +112,8 @@ export function CameraPage() {
           {camera.device && camera.mode && camera.mode.width > 0 && <p className="muted small">Streaming {camera.mode.width}×{camera.mode.height}{camera.mode.fpsMax ? ` @ ${Math.round(camera.mode.fpsMax)} fps` : ""}. Changing it reconnects the camera.</p>}
         </section>
       </div>
+
+      <CanonPanel />
 
       {camera.device && caps && (
         <section className="card">

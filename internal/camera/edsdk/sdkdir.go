@@ -1,9 +1,7 @@
 package edsdk
 
 import (
-	"debug/pe"
-	"fmt"
-	"os"
+	"errors"
 	"path/filepath"
 )
 
@@ -27,41 +25,12 @@ func sdkCandidates(configured, exeDir string) []string {
 	return c
 }
 
-// locateSDK returns the full path of EDSDK.dll and verifies that it is a
-// 64-bit DLL with EdsImage.dll beside it.
+// locateSDK returns the full path of a usable EDSDK.dll: 64-bit, dependencies
+// present and every required export available (see Inspect).
 func locateSDK(configured, exeDir string) (string, error) {
-	var last error
-	for _, d := range sdkCandidates(configured, exeDir) {
-		p := filepath.Join(d, "EDSDK.dll")
-		if _, err := os.Stat(p); err != nil {
-			continue
-		}
-		if err := checkX64(p); err != nil {
-			last = err
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(d, "EdsImage.dll")); err != nil {
-			last = fmt.Errorf("EdsImage.dll is missing next to %s", p)
-			continue
-		}
-		return p, nil
+	r := Inspect(configured, exeDir)
+	if r.OK() {
+		return r.Path, nil
 	}
-	if last != nil {
-		return "", last
-	}
-	return "", fmt.Errorf("EDSDK.dll not found (searched %d locations)", len(sdkCandidates(configured, exeDir)))
-}
-
-// checkX64 verifies the PE machine type: a 32-bit EDSDK.dll cannot be loaded
-// by this 64-bit application (Canon ships both; use the EDSDK_64 folder).
-func checkX64(path string) error {
-	f, err := pe.Open(path)
-	if err != nil {
-		return fmt.Errorf("%s is not a valid DLL: %w", path, err)
-	}
-	defer f.Close()
-	if f.Machine != pe.IMAGE_FILE_MACHINE_AMD64 {
-		return fmt.Errorf("%s is not a 64-bit DLL (machine 0x%x); use the EDSDK_64 files", path, f.Machine)
-	}
-	return nil
+	return "", errors.New(r.Problem)
 }

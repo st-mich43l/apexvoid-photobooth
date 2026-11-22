@@ -6,22 +6,42 @@ person with the hardware, treat it as **unverified**.
 Prerequisites: Windows 10/11 x64, Canon EOS R50 + USB cable, Canon EDSDK x64 DLLs in place (docs/CAMERAS.md),
 EOS Utility closed. Download the `ApexVoidPhotobooth-windows-x64` artifact from the CI run and unzip it.
 
-## A. Canon EOS R50 via EDSDK
-| # | Step | Expected |
-|---|---|---|
-| A1 | Confirm the SDK release notes list the R50. Studio → Diagnostics. | `canon-edsdk` driver "ready"; no conflicting programs. |
-| A2 | Camera on, Photo mode, JPEG. Studio → Camera → Refresh. | "Canon EOS R50" listed (driver `canon-edsdk`). |
-| A3 | Connect. | Connected; capabilities show live view / still capture **unverified**. |
-| A4 | Start live view. | Live image in ~1–2 s, smooth; capability flips to **supported**. |
-| A5 | Photo → Start (1 shot). | Countdown, shutter fires, review shows the photo; original is a full-resolution JPEG in `sessions\<id>\originals`; capability `originalTransfer` **supported**. |
-| A6 | Compare the file with the card copy (same pixel size, EXIF present). | Matches. |
-| A7 | 4-photo session, retake photo 2, accept. | Strip created; gallery shows originals + strip; no simulated badge. |
-| A8 | Open EOS Utility first, then connect in the app. | Error `device_busy` naming EOS Utility, with an action. |
-| A9 | During live view, unplug USB, wait 5 s, replug. | "reconnecting" banner; automatic reconnect; live view restored. |
-| A10 | Unplug during the countdown of a session. | Session ends in ERROR with an action; photos taken so far are kept; Reset works. |
-| A11 | Close the app (X) mid-live-view, then start EOS Utility. | EOS Utility connects immediately (camera not left busy); app log shows clean shutdown. |
-| A12 | Record any struct/constant mismatch found vs `EDSDKTypes.h`. | None, or fix `types.go`. |
-| A13 | (Investigation) Does movie start/stop / movie transfer work via EDSDK on the R50? | Document the finding; capability stays unverified until implemented and proven. |
+## A. Canon EOS R50 via EDSDK (Phase C acceptance)
+Run the automated script first, then the manual rows it cannot cover. **Nothing below has been run on real hardware
+by the project: every result is UNVERIFIED until a person records it in the table at the end.**
+
+```powershell
+Start-Process -Wait .\ApexVoidPhotobooth.exe -ArgumentList '--canon-validate','C:\temp\canon.json','--interactive'
+```
+It uses a throw-away library (your media is not touched), prints one line per scenario and writes the JSON report and
+the evidence files (live-view frames, the first photo, the strip). `PASS` = the automated criterion held;
+`UNVERIFIED` = not run or needs a person; scenarios marked *review* still need you to look at the evidence.
+
+| # | Scenario | How it is checked | Result |
+|---|---|---|---|
+| 1 | Camera detected | script step 1 (SDK folder check, then discovery); Studio → Camera → *Canon camera setup* | UNVERIFIED |
+| 2 | Camera connected | step 2 | UNVERIFIED |
+| 3 | Live view shows the physical camera feed | step 3 counts frames and saves two; **review** the image | UNVERIFIED |
+| 4 | Shutter command captures an actual photograph | step 4; **review**: shutter sound, scene visible | UNVERIFIED |
+| 5 | Full-resolution JPEG transfers | step 5: decodes, ≥ 1920 px long edge, written byte-identical; compare with the camera's JPEG size (R50 L = 6000×4000) | UNVERIFIED |
+| 6 | EXIF and dimensions preserved | step 6 finds the Canon EXIF block in the original; compare with the card copy | UNVERIFIED |
+| 7 | Four-photo session completes | step 7: 4 distinct originals (no late transfer attached to the wrong slot) | UNVERIFIED |
+| 8 | One photo can be retaken | step 8: only slot 2 changes | UNVERIFIED |
+| 9 | Strip produced with the selected frame | step 9; **review** `strip.jpg` | UNVERIFIED |
+| 10 | USB disconnect and reconnect recover | step 10 (`--interactive`: unplug, replug); also unplug *during the countdown* of a session — the session must wait, then continue with the same frame and photos | UNVERIFIED |
+| 11 | Closing ApexVoid releases the camera for EOS Utility | step 11 (`--interactive`: start EOS Utility, answer y/n) | UNVERIFIED |
+| 12 | Repeated sessions: no leak, camera never busy | step 12 (`--sessions N`): goroutines and OS handle count stay flat | UNVERIFIED |
+
+Manual rows (not in the script):
+| # | Step | Expected | Result |
+|---|---|---|---|
+| A0 | Run `EDSDK_HEADERS=<Canon Header folder> go test ./internal/camera/edsdk -run Headers -v`; confirm the SDK release notes list the R50. | No constant mismatch; R50 listed. | UNVERIFIED |
+| A1 | Open EOS Utility first, then connect in the app. | Error `device_busy` naming EOS Utility, with an action (the setup panel says "busy"). | UNVERIFIED |
+| A2 | Remove `EdsImage.dll`, restart; then use the 32-bit DLL. | Setup panel says *incomplete* / *wrong architecture* with the action; webcams still work. | UNVERIFIED |
+| A3 | Set image quality to RAW only. | Capture reports "only a RAW file"; RAW+JPEG works and the JPEG is used. | UNVERIFIED |
+| A4 | Take 20 shots quickly (retakes included); watch for a wrong or repeated image. | Every slot holds the photo taken for it. | UNVERIFIED |
+| A5 | Settings → *Mirror the live preview*. | Preview mirrored; the saved photo and strip are not. | UNVERIFIED |
+| A6 | (Investigation, not implemented) Movie start/stop and movie transfer through EDSDK. | Document the finding; capability stays unverified. | UNVERIFIED |
 
 ## B. R50 (or webcam) via UVC
 | # | Step | Expected |

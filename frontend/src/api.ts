@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
+  Session, Settings, ShootSnapshot, CanonStatus, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -31,6 +31,7 @@ export const api = {
   bootstrap: () => wrap(call<BootInfo>("Bootstrap")),
   listCameras: () => wrap(call<DeviceInfo[]>("ListCameras")),
   listCameraSources: () => wrap(call<CameraSources>("ListCameraSources")),
+  canonStatus: () => wrap(call<CanonStatus>("CanonStatus")),
   setPreferredCamera: (mode: CameraMode, id: string) => wrap(call<void>("SetPreferredCamera", mode, id)),
   clearPreferredCamera: (mode: CameraMode) => wrap(call<void>("ClearPreferredCamera", mode)),
   setCameraMode: (id: string, m: SavedMode) => wrap(call<void>("SetCameraMode", id, m)),
