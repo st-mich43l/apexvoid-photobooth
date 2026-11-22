@@ -445,3 +445,40 @@ func TestAttemptsAreDistinctAndStrictestFirst(t *testing.T) {
 		t.Fatal(n)
 	}
 }
+
+// Finishing a photo session stops the live view. A preview-only stream has no MP4 to
+// finalise, so even an ffmpeg that ignores "q" (as a busy DirectShow device may) must
+// not keep the guest waiting for the long recording grace period.
+func TestStoppingAPreviewOnlyStreamDoesNotWaitForTheRecordingGracePeriod(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as a fake ffmpeg")
+	}
+	dir := t.TempDir()
+	img := image.NewNRGBA(image.Rect(0, 0, 64, 48))
+	var jb bytes.Buffer
+	_ = jpeg.Encode(&jb, img, nil)
+	fixture := filepath.Join(dir, "frame.jpg")
+	_ = os.WriteFile(fixture, jb.Bytes(), 0o644)
+	script := filepath.Join(dir, "ffmpeg")
+	_ = os.WriteFile(script, []byte("#!/bin/bash\nwhile true; do cat "+fixture+"; sleep 0.05; done\n"), 0o755) // never reads stdin
+	frames := make(chan []byte, 4)
+	s := NewStream(StreamOptions{FFmpeg: script, OnFrame: func(b []byte) {
+		select {
+		case frames <- b:
+		default:
+		}
+	}, Source: Source{Video: Device{Name: "cam", ID: "/dev/video0"}, Width: 640, Height: 480, FPS: 30, Format: "mjpeg"}})
+	if err := s.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-frames:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no frames")
+	}
+	start := time.Now()
+	s.Stop()
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("stopping the preview took %v; the guest would be left on the last screen", d)
+	}
+}
