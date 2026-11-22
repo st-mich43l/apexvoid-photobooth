@@ -101,6 +101,10 @@ type Options struct {
 	OnChange func(Snapshot)
 	// CaptureRetries is how many times a failed capture is retried (not for disconnects).
 	CaptureRetries int
+	// ReconnectWait is how long a session waits for a camera that was lost
+	// during a shot (default 60 s; negative = do not wait, fail at once). The
+	// session, its frame and the photos already taken are kept meanwhile.
+	ReconnectWait time.Duration
 }
 
 // Engine is the state machine. Create with New.
@@ -233,6 +237,7 @@ func (e *Engine) Start(cfg Config) error {
 // runShots takes slots [from, from+count). replace is the media id being
 // replaced by a retake ("" for a first take).
 func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, from, count int, replace string) {
+	resumes := 0
 	for slot := from; slot < from+count; slot++ {
 		if !e.countdown(ctx, gen, slot) {
 			return
@@ -245,6 +250,21 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 		photo, err := e.captureWithRetry(ctx, gen)
 		if ctx.Err() != nil || !e.current(gen) {
 			return
+		}
+		if err != nil && isLost(err) && e.o.ReconnectWait >= 0 && resumes < maxResumes {
+			// The USB link dropped during the shot. Nothing is lost: the session, the frame
+			// snapshot and the photos already taken stay as they are; wait for the manager to
+			// reconnect, then repeat this slot from its countdown.
+			resumes++
+			if e.awaitCamera(ctx, gen) {
+				slot-- // same slot again (the loop increments it)
+				continue
+			}
+			if ctx.Err() != nil || !e.current(gen) {
+				return
+			}
+			err = camera.Errf(camera.CodeDisconnected, "Check the USB cable and that the camera is on, then start again. The photos already taken were kept.", err,
+				"the camera did not come back")
 		}
 		if err != nil {
 			if replace != "" { // failed retake: keep the old photo, back to review
@@ -312,6 +332,64 @@ func (e *Engine) countdown(ctx context.Context, gen uint64, slot int) bool {
 		}
 	}
 	return ctx.Err() == nil
+}
+
+// maxResumes bounds how often one run of shots may wait for a lost camera.
+const maxResumes = 5
+
+func isLost(err error) bool {
+	switch camera.CodeOf(err) {
+	case camera.CodeDisconnected, camera.CodeNotConnected:
+		return true
+	}
+	return false
+}
+
+// awaitCamera waits until the camera answers again. It reports true when the
+// camera is back and false when the wait ended (timeout, cancel, session gone).
+func (e *Engine) awaitCamera(ctx context.Context, gen uint64) bool {
+	wait := e.o.ReconnectWait
+	if wait == 0 {
+		wait = 60 * time.Second
+	}
+	poll := e.o.Tick / 2
+	if poll < 20*time.Millisecond {
+		poll = 20 * time.Millisecond
+	}
+	if poll > time.Second {
+		poll = time.Second
+	}
+	e.update(func(s *Snapshot) {
+		if e.gen == gen {
+			s.State, s.Remaining = Capturing, 0
+			s.Warning = "The camera was disconnected. Waiting for it to reconnect - your photos and frame are kept."
+		}
+	})
+	deadline := time.NewTimer(wait)
+	defer deadline.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-deadline.C:
+			return false
+		case <-time.After(poll):
+		}
+		if !e.current(gen) {
+			return false
+		}
+		pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := e.o.Camera.StartLiveView(pctx) // idempotent when it is already running
+		cancel()
+		if err == nil {
+			e.update(func(s *Snapshot) {
+				if e.gen == gen {
+					s.Warning = ""
+				}
+			})
+			return true
+		}
+	}
 }
 
 func (e *Engine) captureWithRetry(ctx context.Context, gen uint64) (camera.Photo, error) {

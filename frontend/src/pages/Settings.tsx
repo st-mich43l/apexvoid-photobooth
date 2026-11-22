@@ -35,6 +35,7 @@ export function SettingsPage() {
             </select>
           </label>
           <p className="muted small">Applies to the next photo session. Custom frames keep the resolution set in the Frame Builder. Finished sessions are never changed.</p>
+          <label className="check"><input type="checkbox" checked={!!draft.previewMirror} onChange={(e) => set("previewMirror", e.target.checked)} /> Mirror the live preview (like a mirror). Saved photos are never mirrored.</label>
           <label className="check"><input type="checkbox" checked={draft.autoReconnect} onChange={(e) => set("autoReconnect", e.target.checked)} /> Reconnect the camera automatically after a USB drop</label>
         </div>
       </section>

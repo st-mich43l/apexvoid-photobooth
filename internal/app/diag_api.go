@@ -61,6 +61,11 @@ func (s *Service) RunDiagnostics() Diagnostics {
 		ok("FFmpeg", true, detail, "")
 		ok("H.264 encoder", eerr == nil, orDash(enc, "none found"), "Use an FFmpeg build with libx264 or h264_mf.")
 	}
+	if sdk := edsdk.SDKStatus(s.settings.Get().CanonSDKDir); sdk.OK() {
+		ok("Canon SDK files", true, sdk.Path+" ("+sdk.Machine+")", "")
+	} else {
+		ok("Canon SDK files", false, edsdkKind(sdk.Kind)+": "+sdk.Problem, sdk.Action)
+	}
 	if runtime.GOOS == "windows" {
 		d.Conflicts = edsdk.Conflicts()
 		if len(d.Conflicts) > 0 {
@@ -97,4 +102,24 @@ func humanBytes(n int64) string {
 // folder takes effect after a restart (the library is opened once at startup).
 type SaveResult struct {
 	RestartRequired bool `json:"restartRequired"`
+}
+
+// edsdkKind names the kind of SDK problem so missing, incompatible and
+// incomplete installs are told apart.
+func edsdkKind(k string) string {
+	switch k {
+	case edsdk.SDKNotFound:
+		return "missing"
+	case edsdk.SDKWrongArch:
+		return "wrong architecture"
+	case edsdk.SDKInvalid:
+		return "invalid DLL"
+	case edsdk.SDKMissingDependency:
+		return "incomplete (a dependent DLL is missing)"
+	case edsdk.SDKMissingExport:
+		return "incompatible version"
+	case edsdk.SDKPlatform:
+		return "not available on this platform"
+	}
+	return k
 }
