@@ -90,8 +90,9 @@ func (l *Library) reload() {
 		have[t.ID] = true
 		list = append(list, t)
 	}
+	list = append(list, l.loadCustom(have)...)
 	for i := range list {
-		if on, ok := l.enabled[list[i].ID]; ok && !list[i].Legacy {
+		if on, ok := l.enabled[list[i].ID]; ok && list[i].Builtin && !list[i].Legacy {
 			list[i].Enabled = on
 		}
 		if list[i].Legacy {
@@ -153,6 +154,13 @@ func (l *Library) SetEnabled(id string, on bool) error {
 	if l.list[idx].Legacy {
 		return fmt.Errorf("%q is a legacy layout and cannot be offered to guests", id)
 	}
+	if l.list[idx].Editable { // custom frames carry their own switch
+		if err := l.setCustomEnabled(&l.list[idx], on); err != nil {
+			return err
+		}
+		l.list[idx].Enabled = on
+		return nil
+	}
 	next := map[string]bool{}
 	for k, v := range l.enabled {
 		next[k] = v
@@ -165,15 +173,6 @@ func (l *Library) SetEnabled(id string, on bool) error {
 	l.enabled = next
 	l.list[idx].Enabled = on
 	return nil
-}
-
-// Assets returns the image files of frame id (nil when it has none).
-func (l *Library) Assets(id string) fs.FS {
-	t := l.Get(id)
-	if t == nil || len(t.AssetNames()) == 0 {
-		return nil
-	}
-	return os.DirFS(l.Dir)
 }
 
 // Compose renders photos into frame t using its assets.

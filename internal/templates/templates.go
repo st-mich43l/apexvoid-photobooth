@@ -157,6 +157,7 @@ type Template struct {
 	Enabled     bool   `json:"enabled"`                  // offered in Booth Mode
 	Builtin     bool   `json:"builtin,omitempty"`        // shipped with the app (never persisted)
 	Legacy      bool   `json:"legacy,omitempty"`         // an earlier layout kept so old sessions still resolve
+	Editable    bool   `json:"editable,omitempty"`       // a custom frame saved by the Frame Builder (derived, not stored)
 	Caption     bool   `json:"captionEnabled,omitempty"` // guests may type a short caption
 	Design      string `json:"design,omitempty"`         // design family id (built-ins: one design on many layouts)
 	LayoutID    string `json:"layoutId,omitempty"`
