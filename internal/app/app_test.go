@@ -50,6 +50,12 @@ func newTestApp(t *testing.T) (*Service, string, *events) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Shutdown() })
+	// decorated designs are off by default; many tests exercise them, so switch the ones they use on
+	for _, id := range []string{"rose-pink.strip4", "film-strip.strip4", "rose-pink.strip3", "plain.twoup4", "plain.sheet4", "plain.sheet2", "plain.p57"} {
+		if err := s.tpl.SetEnabled(id, true); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return s, root, ev
 }
 
