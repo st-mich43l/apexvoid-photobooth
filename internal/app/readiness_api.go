@@ -19,6 +19,17 @@ const (
 	ReadyStatusSetup        = "setup_required" // Setup required
 	ReadyStatusReconnecting = "reconnecting"   // Reconnecting
 	ReadyStatusAttention    = "attention"      // Operator attention required
+	ReadyStatusDemo         = "demo"           // Usable, but only a SIMULATED camera is connected: a test, not a real booth
+
+	// Verification: how much is actually known about a capability.
+	VerVerified   = "verified"   // it has worked on this machine in this run
+	VerUnverified = "unverified" // present/reported, but nothing has proved it works yet
+	VerDemo       = "demo"       // simulated: proves nothing about real hardware
+
+	// Printing: what the booth will offer guests.
+	PrintDigital     = "digital_only"
+	PrintUnverified  = "unverified" // Windows lists the printer as ready; paper output is never proven by the spooler
+	PrintUnavailable = "unavailable"
 
 	ItemOK      = "ok"
 	ItemProblem = "problem" // blocks guests when Required
@@ -37,6 +48,10 @@ type ReadinessItem struct {
 	State    string `json:"state"`
 	Detail   string `json:"detail,omitempty"`
 	Action   string `json:"action,omitempty"`
+	// Group is the Prepare Booth section the line belongs to: camera, storage, frames, printer or session.
+	Group string `json:"group"`
+	// Verification is set where "ok" could be mistaken for "proven": verified, unverified or demo (simulated).
+	Verification string `json:"verification,omitempty"`
 }
 
 // BoothReadiness is the answer shown in Studio and used by Booth Mode.
@@ -48,6 +63,23 @@ type BoothReadiness struct {
 	Guest    string          `json:"guest"`            // a calm sentence suitable for the guest screen
 	Items    []ReadinessItem `json:"items"`
 	At       string          `json:"at"`
+	// Demo is true while the SIMULATED camera is the photo camera: sessions work, but it is not hardware verification.
+	Demo bool `json:"demo"`
+	// Printing is what guests will be offered: digital_only, unverified (Windows reports the printer ready) or unavailable.
+	Printing string `json:"printing"`
+}
+
+// readinessGroup says which Prepare Booth section a readiness line belongs to.
+func readinessGroup(key string) string {
+	switch key {
+	case "camera", "capture":
+		return "camera"
+	case "storage", "library", "space", "interrupted":
+		return "storage"
+	case "frames", "printer":
+		return key
+	}
+	return "session"
 }
 
 type probeCache struct {
@@ -107,6 +139,9 @@ func (s *Service) printersCached() ([]printing.Printer, error) {
 	return c.ps, c.err
 }
 
+// freeSpace is replaceable so tests can simulate a nearly full disk.
+var freeSpace = freeBytes
+
 // BoothReadiness evaluates every prerequisite. It changes nothing.
 func (s *Service) BoothReadiness() BoothReadiness { return s.readiness(false) }
 
@@ -115,8 +150,16 @@ func (s *Service) BoothReadiness() BoothReadiness { return s.readiness(false) }
 func (s *Service) readiness(forStart bool) BoothReadiness {
 	r := BoothReadiness{Items: []ReadinessItem{}, At: time.Now().Format(time.RFC3339)}
 	add := func(key, label string, required bool, state, detail, action string) {
-		r.Items = append(r.Items, ReadinessItem{Key: key, Label: label, Required: required, State: state, Detail: detail, Action: action})
+		r.Items = append(r.Items, ReadinessItem{Key: key, Group: readinessGroup(key), Label: label, Required: required, State: state, Detail: detail, Action: action})
 	}
+	verify := func(key, v string) {
+		for i := range r.Items {
+			if r.Items[i].Key == key {
+				r.Items[i].Verification = v
+			}
+		}
+	}
+	r.Printing = PrintDigital
 	cfg := s.settings.Get()
 	cs := s.mgr.Status()
 	reconnecting := false
@@ -143,6 +186,10 @@ func (s *Service) readiness(forStart bool) BoothReadiness {
 		add("camera", "Photo camera", true, ItemProblem, cs.Device.Name+" cannot take photos.", "Choose a photo camera on the Camera page.")
 	case !forStart && (pref.ID != "" || pref.Name != "") && !matchesPreferred(pref, *cs.Device):
 		add("camera", "Photo camera", true, ItemProblem, fmt.Sprintf("%s is connected, but your preferred photo camera is “%s”.", cs.Device.Name, pref.Name), "Connect the preferred camera, or make this one the Photo camera on the Camera page.")
+	case cs.Device.Simulated:
+		r.Demo = true
+		add("camera", "Photo camera", true, ItemOK, "SIMULATED camera — demo/test only. Its images are test patterns, not a real camera check.", "Connect a real camera before an event.")
+		verify("camera", VerDemo)
 	default:
 		add("camera", "Photo camera", true, ItemOK, cs.Device.Name, "")
 	}
@@ -151,9 +198,21 @@ func (s *Service) readiness(forStart bool) BoothReadiness {
 		case camera.Unsupported:
 			add("capture", "Can take photos", true, ItemProblem, "The camera or its driver reported that photos are not supported.", "Put the camera in a still-photo mode, or choose another camera.")
 		case camera.Supported:
-			add("capture", "Can take photos", true, ItemOK, "A photograph was taken in this session.", "")
+			if cs.Device.Simulated {
+				add("capture", "Can take photos", true, ItemOK, "A test pattern was captured. This is not a real hardware check.", "")
+				verify("capture", VerDemo)
+			} else {
+				add("capture", "Can take photos", true, ItemOK, "A photograph was taken in this session.", "")
+				verify("capture", VerVerified)
+			}
 		default:
-			add("capture", "Can take photos", true, ItemOK, "Not tried yet in this session (the first photo will confirm it).", "")
+			if cs.Device.Simulated {
+				add("capture", "Can take photos", true, ItemOK, "Not tried yet (simulated camera).", "")
+				verify("capture", VerDemo)
+			} else {
+				add("capture", "Can take photos", true, ItemOK, "Not tried yet in this session (the first photo will confirm it).", "")
+				verify("capture", VerUnverified)
+			}
 		}
 	}
 
@@ -167,7 +226,7 @@ func (s *Service) readiness(forStart bool) BoothReadiness {
 	if err := s.guardWrite(); err != nil {
 		add("library", "Library is ready", true, ItemProblem, err.Error(), orDash(userAction(err), ""))
 	}
-	free := freeBytes(root)
+	free := freeSpace(root)
 	switch {
 	case free < 0:
 		add("space", "Free disk space", false, ItemInfo, "unknown", "")
@@ -211,12 +270,17 @@ func (s *Service) readiness(forStart bool) BoothReadiness {
 			switch {
 			case err != nil && found == nil:
 				add("printer", "Printer", false, ItemWarn, "The printer list could not be read: "+err.Error(), "Open the Printer page. Photos are saved digitally either way.")
+				r.Printing = PrintUnavailable
 			case found == nil:
 				add("printer", "Printer", false, ItemWarn, fmt.Sprintf("“%s” is not installed.", cfg.PrinterName), "Choose another printer on the Printer page. Photos are saved digitally either way.")
+				r.Printing = PrintUnavailable
 			case found.Available():
 				add("printer", "Printer", false, ItemOK, found.Name+": Windows reports it ready. Whether paper actually comes out is not checked.", "")
+				verify("printer", VerUnverified)
+				r.Printing = PrintUnverified
 			default:
 				add("printer", "Printer", false, ItemWarn, fmt.Sprintf("%s is %s.", found.Name, found.Status), "Check the printer. Photos are saved digitally either way.")
+				r.Printing = PrintUnavailable
 			}
 		}
 	}
@@ -242,12 +306,16 @@ func (s *Service) readiness(forStart bool) BoothReadiness {
 	case len(hard) > 0:
 		r.Status, r.Headline = ReadyStatusSetup, "Setup required"
 		r.Guest = "The photo booth is not ready yet. Please ask the host."
+	case r.Demo:
+		r.Status, r.Headline = ReadyStatusDemo, "Demo / test mode"
 	case len(soft) > 0:
 		r.Status, r.Headline = ReadyStatusAttention, "Ready — operator attention suggested"
 	default:
 		r.Status, r.Headline = ReadyStatusReady, "Ready for guests"
 	}
-	if len(hard) > 0 {
+	if r.Demo && len(hard) == 0 {
+		r.Detail = "A SIMULATED camera is connected. Use this for testing the screens only — connect a real camera before an event."
+	} else if len(hard) > 0 {
 		r.Detail = hard[0].Detail
 		if hard[0].Action != "" {
 			r.Detail += " " + hard[0].Action

@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/app"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/camera/mock"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/printing"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
 )
@@ -53,6 +55,31 @@ func (f *fakePrinter) Status(context.Context, string, string) (printing.JobState
 	return printing.JobState{Status: printing.StatusQueued, Detail: "Sent to the Windows print queue."}, nil
 }
 
+// fakeWebcam presents the mock camera as a physical USB webcam (backend "uvc", not simulated) so the operator
+// screens can be captured in their "real webcam" state. It is a harness stand-in only: nothing here proves anything
+// about real webcams, and the screenshots say so.
+type fakeWebcam struct{ *mock.Driver }
+
+func (fakeWebcam) Name() string { return "uvc" }
+func (fakeWebcam) Discover(context.Context) ([]camera.DeviceInfo, error) {
+	return []camera.DeviceInfo{{ID: "uvc:harness-1", Name: "USB Webcam (harness stand-in)", Driver: "uvc", Kind: camera.KindWebcam, USBID: "0000:0000",
+		Modes: []camera.Mode{{Width: 1280, Height: 720, FPSMax: 30, Format: "mjpeg"}}}}, nil
+}
+func (d fakeWebcam) Open(i camera.DeviceInfo) (camera.Camera, error) {
+	c, err := d.Driver.Open(i)
+	if err != nil {
+		return nil, err
+	}
+	return webcamCam{c, i}, nil
+}
+
+type webcamCam struct {
+	camera.Camera
+	info camera.DeviceInfo
+}
+
+func (w webcamCam) Info() camera.DeviceInfo { return w.info }
+
 type hub struct {
 	mu   sync.Mutex
 	subs map[chan []byte]struct{}
@@ -75,7 +102,9 @@ func main() {
 	dist := flag.String("dist", "cmd/photobooth/frontend_dist", "built frontend")
 	tick := flag.Duration("tick", 700*time.Millisecond, "countdown second length")
 	shots := flag.Int("shots", 4, "default photos")
-	noCamera := flag.Bool("no-camera", false, "simulated camera off (shows the 'not ready' welcome)")
+	noCamera := flag.Bool("no-camera", false, "no camera at all (shows the 'not ready' states)")
+	webcam := flag.Bool("webcam", false, "a fake USB webcam instead of the simulated camera (operator-screen screenshots)")
+	fewFrames := flag.Bool("few-frames", false, "leave the default set of frames (instead of switching every design on)")
 	printer := flag.Bool("printer", true, "configure the fake printer")
 	flag.Parse()
 
@@ -83,7 +112,7 @@ func main() {
 	cfg := filepath.Join(dir, "settings.json")
 	sm, _ := settings.Load(cfg)
 	st := sm.Get()
-	st.MediaDir, st.EnableMock, st.CountdownSeconds, st.Shots = filepath.Join(dir, "media"), !*noCamera, 3, *shots
+	st.MediaDir, st.EnableMock, st.CountdownSeconds, st.Shots = filepath.Join(dir, "media"), !*noCamera && !*webcam, 3, *shots
 	if *printer {
 		st.PrinterName, st.PrintPaper = "Lab", "4x6 in"
 	}
@@ -92,20 +121,30 @@ func main() {
 	}
 
 	h := &hub{subs: map[chan []byte]struct{}{}}
-	svc, err := app.New(app.Options{Version: "uxharness", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
-		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}})
+	opts := app.Options{Version: "uxharness", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
+		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}}
+	var wd *fakeWebcam
+	if *webcam {
+		wd = &fakeWebcam{mock.NewDriver()}
+		opts.ExtraDrivers = []camera.Driver{wd}
+	}
+	svc, err := app.New(opts)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer svc.Shutdown()
 	// every built-in design on, so the gallery shows the full catalogue
-	if r := svc.ListFrames(true); true {
+	if r := svc.ListFrames(true); !*fewFrames {
 		for _, f := range r.Frames {
 			_ = svc.SetFrameEnabled(f.ID, true)
 		}
 	}
 
-	if !*noCamera {
+	if *webcam {
+		if err := svc.ConnectCamera("uvc:harness-1"); err != nil {
+			log.Printf("connect webcam stand-in: %v", err)
+		}
+	} else if !*noCamera {
 		if err := svc.ConnectCamera("mock-0"); err != nil {
 			log.Printf("connect simulated camera: %v", err)
 		}
@@ -135,6 +174,10 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/dev/camera", func(w http.ResponseWriter, r *http.Request) {
+		if wd != nil {
+			wd.SetPresent(r.URL.Query().Get("present") == "1")
+			return
+		}
 		app.DevSetCameraPresent(svc, r.URL.Query().Get("present") == "1")
 	})
 	sv := reflect.ValueOf(svc)
