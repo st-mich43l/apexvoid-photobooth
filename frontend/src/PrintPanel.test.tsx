@@ -88,4 +88,24 @@ describe("PrintPanel", () => {
     await screen.findByText(/not made with the layout/);
     expect(printBtn().disabled).toBe(true);
   });
+
+  it("offers two strips on one 4x6 sheet, shows that sheet in the preview and sends the choice with the job", async () => {
+    h.api.printPreview.mockImplementation(async (o: { twoUp: boolean }) => ({ ...preview, twoUpOffer: true, twoUp: o.twoUp, imageInches: o.twoUp ? [4, 6] : [2, 6] }));
+    render(<PrintPanel mediaId="M1" />);
+    await waitFor(() => expect(screen.getByText(/image 4\.00×6\.00 in/)).toBeTruthy());         // two-up is the default for a strip on 4x6
+    const box = screen.getByRole("checkbox", { name: /Two strips side by side/ }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(printBtn());
+    await waitFor(() => expect(h.api.printMedia).toHaveBeenCalled());
+    expect(h.api.printMedia.mock.calls[0][0].twoUp).toBe(true);
+    fireEvent.click(box);                                                                          // the operator can still print a single strip
+    await waitFor(() => expect(screen.getByText(/image 2\.00×6\.00 in/)).toBeTruthy());
+    expect(h.api.printPreview.mock.calls.at(-1)![0].twoUp).toBe(false);
+  });
+
+  it("does not show the two-up option for images that are not strips", async () => {
+    render(<PrintPanel mediaId="M1" />);
+    await screen.findByAltText("Print preview");
+    expect(screen.queryByRole("checkbox", { name: /Two strips/ })).toBeNull();
+  });
 });

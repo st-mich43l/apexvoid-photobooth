@@ -3,6 +3,7 @@ import { api } from "./api";
 import { FrameSelection } from "./FrameSelection";
 import { photosLabel } from "./frameInfo";
 import { useApp } from "./state";
+import { ResultPrint } from "./ResultPrint";
 import { SourceChip } from "./SourceChip";
 import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
 import type { FrameChoice } from "./types";
@@ -143,6 +144,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           </div>
           <div className="controls">
             <button disabled={busy} onClick={() => setChanging(true)}>Change design</button>
+            {resultId && <ResultPrint mediaId={resultId} booth={booth} />}
             <button className="primary big" onClick={() => { api.resetShooting().then(() => onDone?.()); }}>
               {booth ? "Finish" : "New session"}
             </button>

@@ -122,10 +122,10 @@ export interface PrintJob {
   file: string; printer: string; paperName: string; paperId: number; orientation: string; fit: string; copies: number; status: JobStatus; detail: string;
   nativeId: string; attempt: number; createdAt: string; updatedAt: string;
 }
-export interface PrintOptions { requestId: string; mediaId: string; templateId: string; printer: string; paper: string; orientation: string; fit: string; copies: number }
+export interface PrintOptions { requestId: string; mediaId: string; templateId: string; printer: string; paper: string; orientation: string; fit: string; copies: number; twoUp: boolean }
 export interface PrintPreview {
   image: string; paperMm: [number, number]; printableMm: [number, number]; marginMm: [number, number, number, number]; scalePct: number; croppedPct: number;
-  rotated: boolean; orientation: string; warning: string; assumedGeometry: boolean; imageInches: [number, number]; templateId: string;
+  rotated: boolean; orientation: string; warning: string; assumedGeometry: boolean; imageInches: [number, number]; templateId: string; twoUpOffer: boolean; twoUp: boolean;
 }
 
 export interface Check { name: string; ok: boolean; detail: string; action?: string }

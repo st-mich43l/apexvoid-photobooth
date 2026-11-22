@@ -90,6 +90,7 @@ export const api = {
   printerCapabilities: (printer: string) => wrap(call<PrinterCaps>("PrinterCapabilities", printer)),
   printPreview: (o: PrintOptions) => wrap(call<PrintPreview>("PrintPreview", o)),
   printMedia: (o: PrintOptions) => wrap(call<PrintJob>("PrintMedia", o)),
+  printResult: (mediaId: string, requestId: string) => wrap(call<PrintJob>("PrintResult", mediaId, requestId)),
   testPrint: (printer: string, paper: string, orientation: string) => wrap(call<PrintJob>("TestPrint", printer, paper, orientation)),
   printJobs: () => wrap(call<PrintJob[]>("PrintJobs")),
   reprint: (id: string, confirmed: boolean) => wrap(call<PrintJob>("Reprint", id, confirmed)),
