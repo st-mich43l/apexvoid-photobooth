@@ -48,7 +48,7 @@ func TestReadinessReadyWithCameraAndNoPrinter(t *testing.T) {
 	if p := item(r, "printer"); p.Required || p.State != ItemInfo || !strings.Contains(p.Detail, "digital") {
 		t.Fatalf("a missing printer must not block digital-only sessions: %+v", p)
 	}
-	if r.Status != ReadyStatusReady && r.Status != ReadyStatusAttention {
+	if r.Status != ReadyStatusDemo {
 		t.Fatalf("%+v", r)
 	}
 	if err := s.StartPreview(); err != nil {
@@ -71,7 +71,7 @@ func TestReadinessPrinterProblemsAreOptionalAndNeverClaimPaper(t *testing.T) {
 	if p.Required || p.State != ItemWarn || !r.CanStart {
 		t.Fatalf("an unavailable printer informs but never blocks: %+v / %+v", p, r)
 	}
-	if r.Status != ReadyStatusAttention {
+	if r.Status != ReadyStatusDemo {
 		t.Fatalf("%+v", r)
 	}
 	if !strings.Contains(p.Action, "digitally") {

@@ -4,6 +4,8 @@ import { jobActive, jobKind, jobLabel, paperLabel, pickPaper } from "../printInf
 import { PrintPanel } from "../PrintPanel";
 import { useApp } from "../state";
 import { Badge, Confirm, ErrorNote, useAction } from "../ui";
+import { Fact, PageHeader, StatusPill } from "../operator/parts";
+import { TestPrint } from "../operator/TestPrint";
 import { when } from "../format";
 import type { Media, PrintJob, PrinterCaps, PrintersResult } from "../types";
 
@@ -15,7 +17,6 @@ export function PrinterPage() {
   const [jobs, setJobs] = useState<PrintJob[]>([]);
   const [recent, setRecent] = useState<Media[]>([]);
   const [pick, setPick] = useState("");
-  const [confirmTest, setConfirmTest] = useState(false);
   const [confirmReprint, setConfirmReprint] = useState<PrintJob | null>(null);
   const load = useAction();
   const act = useAction();
@@ -28,19 +29,43 @@ export function PrinterPage() {
   }, [libraryVersion]);
   useEffect(() => { const t = setInterval(() => api.printJobs().then(setJobs).catch(() => {}), 4000); return () => clearInterval(t); }, []);
 
-  const printer = settings.printerName || pr?.default || "";
+  const printer = settings.printerName; // empty = Digital only: the Windows default printer is never used silently
+  const digital = !printer;
   useEffect(() => { if (printer) api.printerCapabilities(printer).then(setCaps).catch(() => setCaps(null)); }, [printer]);
 
   const save = (patch: Partial<typeof settings>) => act.run(async () => {
     const r = await api.patchSettings(patch); setSettings(r.settings ?? { ...settings, ...patch }); toast("Saved");
   });
   const cur = pr?.printers.find((p) => p.name === printer);
+  const lastTest = jobs.find((j) => j.kind === "test");
   const paper = pickPaper(caps?.papers ?? [], settings.printPaper);
 
   return (
     <div className="page">
-      <header className="row"><h1>Printer</h1><button onClick={refreshPrinters} disabled={load.busy}>{load.busy ? "Scanning…" : "Refresh printers"}</button></header>
+      <PageHeader title="Printer" sub="Printing is optional. Digital only works without a printer.">
+        <button onClick={refreshPrinters} disabled={load.busy}>{load.busy ? "Scanning…" : "Refresh printers"}</button>
+      </PageHeader>
       <ErrorNote error={load.error ?? act.error} onClose={() => { load.clear(); act.clear(); }} />
+      <section className="card print-mode" aria-label="Printing mode">
+        <h3>Printing mode</h3>
+        <div className="mode-choice" role="radiogroup" aria-label="Printing mode">
+          <button role="radio" aria-checked={digital} className={digital ? "on" : ""} disabled={act.busy} onClick={() => { if (!digital) save({ printerName: "" }); }}>
+            <strong>Digital only</strong><span>Guests get digital photos. No printer needed.</span></button>
+          <button role="radio" aria-checked={!digital} className={!digital ? "on" : ""} disabled={act.busy}
+            onClick={() => { if (digital) { if (pr?.default) save({ printerName: pr.default }); else toast("Choose a printer from the list below."); } }}>
+            <strong>Print with a printer</strong><span>{digital ? "Choose a printer below." : "On."}</span></button>
+        </div>
+        <dl className="facts">
+          <Fact label="Printer">{printer || <span className="muted">none — digital only</span>}</Fact>
+          {!digital && <>
+            <Fact label="Windows reports">{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? "ready (not verified)" : cur.status} /> : <span className="warn-text">printer not found</span>}</Fact>
+            <Fact label="Paper size">{settings.printPaper || <span className="muted">not set</span>}</Fact>
+            <Fact label="Test print">{lastTest ? <>{lastTest.detail || jobLabel[lastTest.status]} <span className="muted small">{when(lastTest.createdAt)}</span></> : <span className="muted">not requested — it is never sent automatically</span>}</Fact>
+          </>}
+        </dl>
+        <p className="muted small">{digital ? "Pick a printer below to offer prints." : !cur ? "This printer is not installed any more. Photos are still saved digitally; choose another printer, or switch to Digital only." : cur.status !== "ready" ? "Windows reports the printer is not ready. Guests can still take photos — they are saved digitally. Check power, paper and the cable, then Refresh printers." : "Windows says the printer is ready; that does not prove paper will come out. Send a test print to check the tray."}</p>
+        {!digital && <div className="row"><TestPrint printer={printer} paper={paper} disabled={!cur || cur.status !== "ready"} onSent={() => { void api.printJobs().then(setJobs); }} /></div>}
+      </section>
       <div className="note warn"><div>{pr?.note}</div></div>
 
       <div className="two-col">
@@ -77,12 +102,13 @@ export function PrinterPage() {
             </div>
             {caps && <p className="muted small">{caps.papers.length} paper sizes · orientations: {caps.orientations.join(", ")} · up to {caps.maxCopies} copies · {caps.color ? "colour" : "monochrome"}
               {caps.resolutions && caps.resolutions.length > 0 ? ` · ${caps.resolutions.map((r) => `${r[0]}×${r[1]} dpi`).join(", ")}` : ""}{caps.note ? ` · ${caps.note}` : ""}</p>}
-            <button disabled={!cur || cur.status !== "ready" || act.busy} onClick={() => setConfirmTest(true)}>Test print…</button>
-            <p className="muted small">The test page has a 10 mm grid, 25 mm corner squares and the paper size, so margins and scale can be checked on paper.</p>
+            <p className="muted small">The test page has a 10 mm grid, 25 mm corner squares and the paper size, so margins and scale can be checked on paper (use “Test print…” above).</p>
           </>)}
         </section>
       </div>
 
+      <details className="advanced">
+      <summary>Advanced — preview, placement, rotation and calibration</summary>
       <section className="card">
         <h3>Preview and print</h3>
         {recent.length === 0 ? <p className="muted">Take a photo session first, then print its strip from here or from the Gallery.</p> : (<>
@@ -97,6 +123,7 @@ export function PrinterPage() {
           {pick && <PrintPanel key={pick} mediaId={pick} />}
         </>)}
       </section>
+      </details>
 
       <section className="card">
         <h3>Print queue and history</h3>
@@ -116,9 +143,6 @@ export function PrinterPage() {
         )}
       </section>
 
-      {confirmTest && <Confirm title="Print a test page?" confirmLabel="Print test page" onNo={() => setConfirmTest(false)}
-        body={<p>One calibration page will be sent to <strong>{printer}</strong> on <strong>{paper}</strong>. It uses paper (and ink or ribbon).</p>}
-        onYes={() => { setConfirmTest(false); act.run(async () => { const j = await api.testPrint(printer, paper, "portrait"); toast(`Test page sent (${j.id})`); setJobs(await api.printJobs()); }); }} />}
       {confirmReprint && <Confirm title="Print this again?" confirmLabel="Reprint" onNo={() => setConfirmReprint(null)}
         body={<p>This sends the same finished image to <strong>{confirmReprint.printer}</strong> again ({confirmReprint.copies} {confirmReprint.copies > 1 ? "copies" : "copy"} on {confirmReprint.paperName}). Check the output tray first: the spooler cannot tell whether the earlier print came out.</p>}
         onYes={() => { const j = confirmReprint; setConfirmReprint(null); act.run(async () => { const r = await api.reprint(j.id, true); toast(`Reprint sent (${r.id})`); setJobs(await api.printJobs()); }); }} />}

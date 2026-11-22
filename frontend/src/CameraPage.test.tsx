@@ -37,7 +37,7 @@ describe("Camera sources screen", () => {
   it("lists every source with kind, backend, USB id and resolutions", async () => {
     h.api.listCameraSources.mockResolvedValue(sources([canon, web()]));
     render(<CameraPage />);
-    await screen.findByText("Integrated Webcam");
+    await screen.findAllByText("Integrated Webcam");
     expect(screen.getByText(/Webcam · Windows video device/)).toBeTruthy();
     expect(screen.getByText(/USB 0bda:5830/)).toBeTruthy();
     expect(screen.getByText(/Resolutions: 1920×1080 · 1280×720/)).toBeTruthy();
@@ -48,7 +48,7 @@ describe("Camera sources screen", () => {
   it("connects a selected source and refreshes without a restart", async () => {
     h.api.listCameraSources.mockResolvedValue(sources([web()]));
     render(<CameraPage />);
-    await screen.findByText("Integrated Webcam");
+    await screen.findAllByText("Integrated Webcam");
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(h.api.connectCamera).toHaveBeenCalledWith("uvc:a"));
     h.api.listCameraSources.mockClear();
@@ -59,12 +59,12 @@ describe("Camera sources screen", () => {
   it("saves separate Photo and Video defaults, and refuses video for the Canon SDK source", async () => {
     h.api.listCameraSources.mockResolvedValue(sources([canon, web()]));
     render(<CameraPage />);
-    await screen.findByText("Integrated Webcam");
+    await screen.findAllByText("Integrated Webcam");
     const videoBtns = screen.getAllByRole("button", { name: "Use for Video" }) as HTMLButtonElement[];
-    expect(videoBtns[0].disabled).toBe(true);                                // Canon SDK: photo only
-    fireEvent.click(videoBtns[1]);
+    expect(videoBtns).toHaveLength(1);                                       // Canon SDK: photo only, so it is not offered for video at all
+    fireEvent.click(videoBtns[0]);
     await waitFor(() => expect(h.api.setPreferredCamera).toHaveBeenCalledWith("video", "uvc:a"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Use for Photo" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Use as the Photo camera" })[0]);
     await waitFor(() => expect(h.api.setPreferredCamera).toHaveBeenCalledWith("photo", "eds:1"));
   });
 
@@ -100,7 +100,7 @@ describe("Camera sources screen", () => {
   it("warns when FFmpeg is missing but still lists the cameras", async () => {
     h.api.listCameraSources.mockResolvedValue(sources([web()], { ffmpegFound: false }));
     render(<CameraPage />);
-    await screen.findByText("Integrated Webcam");
+    await screen.findAllByText("Integrated Webcam");
     expect(screen.getByText(/FFmpeg was not found/)).toBeTruthy();
   });
 
