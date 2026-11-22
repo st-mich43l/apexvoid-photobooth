@@ -4,8 +4,9 @@ import { filterFrames, photoCounts, photosLabel } from "../frameInfo";
 import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
 import { FrameBuilder } from "../builder/FrameBuilder";
+import { ImageImport } from "../builder/Panels";
 import { Confirm } from "../ui";
-import type { Frame, FrameDef } from "../types";
+import type { AssetInfo, Frame, FrameDef } from "../types";
 
 /** Studio: every frame (built-in and custom). The operator chooses which ones guests can pick in Booth Mode. */
 export function Frames() {
@@ -18,7 +19,8 @@ export function Frames() {
   const [count, setCount] = useState(0);
   const [onlyOn, setOnlyOn] = useState(false);
   const { error, run } = useAction();
-  const [building, setBuilding] = useState<{ def: FrameDef; isNew: boolean } | null>(null);
+  const [building, setBuilding] = useState<{ def: FrameDef; isNew: boolean; notes?: string[]; assets?: AssetInfo[] } | null>(null);
+  const [importing, setImporting] = useState(false);
   const [removing, setRemoving] = useState<Frame | null>(null);
   const [layout, setLayout] = useState("plain.strip4");
 
@@ -45,6 +47,17 @@ export function Frames() {
   const auto = useRef(false);
   useEffect(() => { if (!auto.current && window.location.hash === "#frames/new" && layouts.length) { auto.current = true; startNew(); } }); // eslint-disable-line react-hooks/exhaustive-deps
   const startNew = () => run(async () => setBuilding({ def: await api.newFrameDraft(layout, "My frame"), isNew: true }));
+  // Import PNG as frame: pick a picture with transparent windows; photo slots are placed under them
+  const importPng = async (file: File) => {
+    if (file.size > 15 * 1024 * 1024) { toast("That image is larger than 15 MB.", "err"); return; }
+    setImporting(true);
+    await run(async () => {
+      const url = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("The file could not be read.")); r.readAsDataURL(file); });
+      const r = await api.importPngFrame(url, file.name);
+      setBuilding({ def: r.draft, isNew: true, notes: r.notes, assets: [r.asset] });
+    });
+    setImporting(false);
+  };
   const edit = (f: Frame) => run(async () => setBuilding({ def: await api.getFrame(f.id), isNew: false }));
   const duplicate = (f: Frame) => run(async () => setBuilding({ def: await api.newFrameDraft(f.id), isNew: true }));
   const remove = (f: Frame) => run(async () => { await api.deleteFrame(f.id); setRemoving(null); await load(); toast(`“${f.name}” deleted. Photos and earlier sessions are not affected.`); });
@@ -70,6 +83,8 @@ export function Frames() {
             {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
           </select>
           <button className="primary" onClick={startNew} disabled={!layouts.length}>Create frame…</button>
+          <span className="muted">or</span>
+          <ImageImport label="Import PNG as frame…" busy={importing} onPick={importPng} />
         </div>
         <div className="filters" role="group" aria-label="Categories">
           {["All", ...categories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
@@ -106,7 +121,7 @@ export function Frames() {
         ))}
       </div>
       {building && (
-        <FrameBuilder initial={building.def} isNew={building.isNew} onClose={() => setBuilding(null)}
+        <FrameBuilder initial={building.def} isNew={building.isNew} notes={building.notes} knownAssets={building.assets} onClose={() => setBuilding(null)}
           onSaved={(saved) => { setBuilding(null); load(); toast(`“${saved.name}” saved${saved.enabled ? " and offered in Booth Mode" : " (switch it on to offer it in Booth Mode)"}`); }} />
       )}
       {removing && (

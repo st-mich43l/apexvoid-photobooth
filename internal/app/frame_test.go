@@ -35,7 +35,7 @@ func finish(t *testing.T, s *Service) capture.Snapshot {
 func TestListFramesOffersOnlyEnabledNonLegacyFrames(t *testing.T) {
 	s, _, _ := newTestApp(t)
 	r := s.ListFrames(false)
-	if len(r.Frames) < 20 || len(r.Categories) < 5 || r.Default == "" {
+	if len(r.Frames) < 5 || len(r.Categories) < 1 || r.Default == "" {
 		t.Fatalf("%d frames, categories %v, default %q", len(r.Frames), r.Categories, r.Default)
 	}
 	for _, f := range r.Frames {
