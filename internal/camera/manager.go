@@ -41,7 +41,7 @@ type Manager struct {
 	reconnect bool
 	cancelRec context.CancelFunc
 	onChange  func(Status)
-	shooting  sync.Mutex // held for the whole duration of a capture
+	shooting  sync.Mutex   // held for the whole duration of a capture
 	seen      []DeviceInfo // the most recent discovery, to know whether the camera had look-alikes
 
 	// ReconnectInterval is how often a lost camera is looked for again.
