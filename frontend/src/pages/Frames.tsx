@@ -5,6 +5,7 @@ import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
 import { FrameBuilder } from "../builder/FrameBuilder";
 import { ImageImport } from "../builder/Panels";
+import { Icon } from "../icons";
 import { Confirm } from "../ui";
 import type { AssetInfo, Frame, FrameDef } from "../types";
 
@@ -77,14 +78,30 @@ export function Frames() {
       {problems.map((e, i) => <div key={i} className="note warn">{e}</div>)}
 
       <div className="frames-toolbar">
-        <div className="row" aria-label="Create a frame">
-          <b>New frame from a layout:</b>
-          <select aria-label="Layout" value={layout} onChange={(e) => setLayout(e.target.value)}>
-            {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
-          </select>
-          <button className="primary" onClick={startNew} disabled={!layouts.length}>Create frame…</button>
-          <span className="muted">or</span>
-          <ImageImport label="Import PNG as frame…" busy={importing} onPick={importPng} />
+        <div className="make-grid" aria-label="Add a frame">
+          <section className="make-card" aria-label="Create a frame">
+            <span className="make-icon" aria-hidden="true"><Icon name="sparkle" size={24} /></span>
+            <div className="make-text">
+              <h3>Design your own</h3>
+              <p>Start from a layout, then place photos, shapes and text in the builder.</p>
+            </div>
+            <div className="make-actions">
+              <select aria-label="Layout" value={layout} onChange={(e) => setLayout(e.target.value)}>
+                {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
+              </select>
+              <button className="primary" onClick={startNew} disabled={!layouts.length}>Create frame…</button>
+            </div>
+          </section>
+          <section className="make-card make-import" aria-label="Import a PNG frame">
+            <span className="make-icon" aria-hidden="true"><Icon name="upload" size={24} /></span>
+            <div className="make-text">
+              <h3>Already have a PNG?</h3>
+              <p>Drop in a frame picture with transparent windows. Photo slots are placed for you.</p>
+            </div>
+            <div className="make-actions">
+              <ImageImport className="primary alt" label="Import PNG as frame…" hint="Fastest way to use your own artwork" busy={importing} onPick={importPng} />
+            </div>
+          </section>
         </div>
         <div className="filters" role="group" aria-label="Categories">
           {["All", ...categories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}

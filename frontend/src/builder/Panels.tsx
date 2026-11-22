@@ -35,11 +35,14 @@ export function ColorInput({ label, value, onChange, tokens }: { label: string; 
 }
 
 /** Choose a PNG/JPEG; the file is validated and copied by the backend, never referenced by path. */
-export function ImageImport({ label, onPick, busy }: { label: string; onPick: (file: File) => void; busy?: boolean }) {
+export function ImageImport({ label, onPick, busy, className, hint }: { label: string; onPick: (file: File) => void; busy?: boolean; className?: string; hint?: string }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button type="button" disabled={busy} onClick={() => ref.current?.click()}>{busy ? "Importing…" : label}</button>
+      <button type="button" className={className} disabled={busy} onClick={() => ref.current?.click()}>
+        {busy ? "Importing…" : label}
+        {hint && <small aria-hidden="true">{hint}</small>}
+      </button>
       <input ref={ref} type="file" accept="image/png,image/jpeg" hidden data-testid="file-input" aria-label={label}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ""; }} />
     </>

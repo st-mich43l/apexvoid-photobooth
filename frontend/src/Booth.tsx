@@ -8,6 +8,7 @@ import { useApp } from "./state";
 import { VideoFlow } from "./VideoFlow";
 import type { FrameChoice } from "./types";
 import { usePrepareMode } from "./usePrepareMode";
+import { Icon } from "./icons";
 
 type Screen = "welcome" | "frames" | "photo" | "video";
 
@@ -68,7 +69,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
       <SimulatedRibbon />
       <div className={`exit-corner ${holding ? "holding" : ""}`} data-testid="exit-corner" onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold} onPointerCancel={endHold} aria-hidden />
       <button className="exit-btn" onClick={() => setAsking(true)} aria-label="Exit Booth Mode" title="Exit Booth Mode (Esc)">
-        <span aria-hidden>⎋</span> Exit Booth
+        <Icon name="exit" size={18} /> Exit Booth
       </button>
       {fsError && (
         <div className="note warn fs-note" role="alert">
@@ -83,8 +84,8 @@ export function Booth({ onExited }: { onExited: () => void }) {
           {!ready && <div className="note warn">The camera is not ready yet. Please ask the host.</div>}
           {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
           <div className="choices">
-            <button className="choice photo" onClick={choosePhoto}><span aria-hidden>📷</span>Photo<small>choose a frame</small></button>
-            <button className="choice video" onClick={chooseVideo}><span aria-hidden>🎬</span>Video<small>up to {settings.video.maxSeconds}s</small></button>
+            <button className="choice photo" onClick={choosePhoto}><Icon name="camera" size={96} className="choice-icon" />Photo<small>choose a frame</small></button>
+            <button className="choice video" onClick={chooseVideo}><Icon name="video" size={96} className="choice-icon" />Video<small>up to {settings.video.maxSeconds}s</small></button>
           </div>
         </div>
       )}
