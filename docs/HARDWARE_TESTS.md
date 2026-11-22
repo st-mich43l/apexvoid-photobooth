@@ -103,3 +103,4 @@ Record the printer model, driver, paper and result in the table below; any step 
 | F8 | Edit then delete the frame used for a finished session, reprint | The reprint is identical to the first print | ☐ |
 | F9 | Touch the builder with a finger (drag a slot, resize with a handle) | Works; note any problem | ☐ |
 | F10 | Settings → Print resolution 600 dpi, shoot, print the strip on the real printer (driver set to its highest quality) | File is 1200×3600 px; paper is 2×6 in with sharp detail; compare with a 300 dpi print | ☐ |
+| F11 | Studio → Frames → *Import PNG as frame…* with your real frame PNG | Builder opens with a photo slot under each transparent window and a note saying how many were found; Save, offer, shoot: photos appear exactly in the windows | ☐ |

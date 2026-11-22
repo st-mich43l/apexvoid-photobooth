@@ -16,30 +16,46 @@ import (
 	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
 )
 
-func TestCatalogueHasEveryCategoryFormatAndPhotoCount(t *testing.T) {
+func TestDefaultOfferIsMinimalAndTheWholeCatalogueIsStillThere(t *testing.T) {
 	lib := Load(t.TempDir())
-	cats, formats, counts := map[string]bool{}, map[string]bool{}, map[int]bool{}
-	names := map[string]bool{}
+	// a new installation shows guests only the undecorated Plain frame for each photo count
+	var offered []string
+	counts := map[int]bool{}
 	for _, f := range lib.Active() {
-		cats[f.Category] = true
-		formats[f.Format()] = true
+		offered = append(offered, f.ID)
 		counts[f.Photos()] = true
-		names[f.Name] = true
+		if f.Design != "plain" {
+			t.Errorf("%s is decorated but offered by default", f.ID)
+		}
+	}
+	if len(offered) != 5 {
+		t.Fatalf("minimal default set expected (5 plain frames), got %v", offered)
+	}
+	for _, n := range []int{1, 2, 3, 4, 6} {
+		if !counts[n] {
+			t.Errorf("no default frame takes %d photos", n)
+		}
+	}
+	if f := lib.Get(DefaultFrameID); f == nil || !f.Enabled || f.Photos() != 4 || f.Design != "plain" {
+		t.Fatalf("the preselected default must be the Plain 4-photo strip: %+v", f)
+	}
+	// every design is still available to the operator (disabled until switched on)
+	cats, names := map[string]bool{}, map[string]bool{}
+	for _, f := range lib.All() {
+		if !f.Legacy {
+			cats[f.Category] = true
+			names[f.Name] = true
+		}
 	}
 	for _, c := range []string{CatClassic, CatPastel, CatRetro, CatSpecial, CatPlain} {
 		if !cats[c] {
-			t.Errorf("category %s has no enabled frame", c)
+			t.Errorf("category %s is missing from the catalogue", c)
 		}
 	}
 	for _, n := range []string{"White Minimal", "Black Minimal", "Clean Border", "Soft Gray", "Rose Pink", "Lavender", "Cream Beige", "Sky Blue",
 		"Film Strip", "Vintage Camera", "Polaroid Inspired", "Monochrome Film", "Floral", "Birthday", "Couple", "Seasonal", "Plain"} {
 		if !names[n] {
 			t.Errorf("built-in frame %q is missing", n)
-		}
-	}
-	for _, n := range []int{1, 2, 3, 4, 6} {
-		if !counts[n] {
-			t.Errorf("no enabled frame takes %d photos", n)
 		}
 	}
 	// every layout × design exists (disabled ones are for the operator to enable)

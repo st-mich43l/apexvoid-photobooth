@@ -223,3 +223,17 @@ describe("Frame Builder", () => {
     expect(h.api.saveFrame).toHaveBeenCalledWith(expect.objectContaining({ id: "custom-x-copy", name: "X copy", enabled: false, revision: 0 }));
   });
 });
+
+describe("Frame Builder opened from a PNG import", () => {
+  it("shows what the import found, until dismissed, and knows the image it came with", async () => {
+    const draft: FrameDef = { ...DRAFT, overlay: "img-1.png" };
+    render(<FrameBuilder initial={draft} isNew notes={["Found 4 transparent windows: a photo slot was placed under each."]}
+      knownAssets={[{ name: "img-1.png", format: "png", width: 600, height: 1800, hasAlpha: true, bytes: 10 }]} onSaved={() => {}} onClose={() => {}} />);
+    await flush();
+    expect(screen.getByRole("status", { name: "Import result" }).textContent).toMatch(/Found 4 transparent windows/);
+    expect(screen.getByText(/600×1800 px · PNG · transparent/)).toBeTruthy();         // the overlay's details are shown, no warnings
+    expect(screen.queryByText(/no transparency/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss import notes" }));
+    expect(screen.queryByRole("status", { name: "Import result" })).toBeNull();
+  });
+});

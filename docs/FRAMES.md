@@ -38,8 +38,10 @@ Frame ids are `<design>.<layout>` (for example `rose-pink.strip4`). All artwork 
 shapes and the embedded Go fonts (BSD licence): there is no third-party artwork. The earlier layouts (`strip-2x6-4`, …)
 stay resolvable as hidden *legacy* frames so old sessions and settings still work.
 
-By default the 4-photo 2×6 strip of every design and every Plain layout are offered in the Booth; the rest are
-off until the operator switches them on (**Studio → Frames**). The switches are stored in `templates/frame-state.json`.
+**Minimal default.** A new installation offers guests only the undecorated **Plain** frame for each photo count (4, 3, 2 and
+1 photos, plus the 6-photo sheet); **Plain 2×6 · 4 photos** is preselected. Every decorated design and every other layout is
+still in the catalogue: Studio → Frames → *Offer* switches them on (the switches are stored in `templates/frame-state.json`).
+Existing installations keep whatever the operator already switched on.
 
 ## One renderer
 
@@ -84,9 +86,24 @@ warning and the guest or operator can compose again.
 
 Database v3 adds the frame columns to `sessions` and `media` (empty for older rows; tested upgrade from v2).
 
+## Import PNG as frame (Studio → Frames, next to *Create frame…*)
+
+Pick a ready-made frame picture and get a usable frame in one step (it then opens in the builder, ready to name and Save):
+
+* The file is validated and copied exactly like any builder import (PNG/JPEG, 15 MB, 40 MP, hash-named, no paths kept).
+* **Canvas**: the pixel size is matched to a standard print size at 300, 600, 200 or 150 dpi (600×1800 → 2×6 at 300 dpi,
+  1200×3600 → the same strip at 600 dpi, 1200×1800 → 4×6, 1500×2100 → 5×7, …); other sizes are taken at 300 dpi and flagged.
+* **Windows**: the transparent areas (alpha < 50 %) are found — connected, roughly rectangular (rounded corners are fine),
+  at least 1 % of the picture; specks, hairlines, semi-transparent veils and a transparent outside are ignored. One photo
+  slot is placed under each window, numbered row by row from the top left (up to 12), and grown by 0.01 in so no seam shows.
+  The picture becomes the **overlay**.
+* **No windows** (opaque picture, nothing rectangular, more than 12): the picture becomes the **background** and the photo slots
+  come from the standard layout of that size (or one large slot) — move them in the builder. The notes say which happened.
+* Notes (windows found, size guesses, "smaller than the print size") are shown above the canvas.
+
 ## Frame Builder (Studio → Frames)
 
-*Create frame…* (from any built-in layout), *Duplicate* (any frame), *Edit* / *Delete* (custom frames only).
+*Create frame…* (from any built-in layout) or *Import PNG as frame…*, *Duplicate* (any frame), *Edit* / *Delete* (custom frames only).
 
 * Three panes: add elements and layer list (left) · canvas (centre) · properties of the selected photo slot, layer or the
   frame (right). Undo / redo (Ctrl+Z / Ctrl+Y), duplicate (Ctrl+D), Delete, arrow-key nudging (Shift = 0.1 in), zoom, grid,

@@ -281,11 +281,22 @@ func designs() []design {
 	}
 }
 
-// primary layout: what guests see first (a four-photo 2×6 strip).
-const primaryLayout = "strip4"
+// defaultOffered is the minimal set a new installation shows to guests: the undecorated
+// Plain frame for each photo count (4, 3, 2 and 1 photos, and the 6-photo sheet). Every
+// other design stays in Studio → Frames, switched off until the operator enables it.
+func defaultOffered(design, layout string) bool {
+	if design != "plain" {
+		return false
+	}
+	switch layout {
+	case "strip4", "strip3", "strip2", "single", "sheet6":
+		return true
+	}
+	return false
+}
 
 // DefaultFrameID is the frame preselected for a new installation.
-const DefaultFrameID = "rose-pink.strip4"
+const DefaultFrameID = "plain.strip4"
 
 // Designs returns the catalogue: every design on every layout.
 func designCatalogue() []Template {
@@ -305,7 +316,7 @@ func designCatalogue() []Template {
 			t := Template{
 				ID: d.ID + "." + l.ID, Name: d.Name, Kind: l.Kind, Category: d.Category, Description: l.Label + ": " + d.Desc,
 				Order: di*100 + li, Revision: 1, Builtin: true, Caption: d.FooterText != "", Design: d.ID, LayoutID: l.ID,
-				Enabled:  l.ID == primaryLayout || d.ID == "plain",
+				Enabled:  defaultOffered(d.ID, l.ID),
 				Geometry: Geometry{WidthIn: l.W, HeightIn: l.H, DPI: 300, Slots: append([]Slot(nil), l.Slots...)},
 				Style:    style,
 			}

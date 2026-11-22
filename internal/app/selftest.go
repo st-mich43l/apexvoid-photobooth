@@ -128,6 +128,9 @@ func evidenceDir(args []string) string {
 func selfTestFrameFlow(svc *Service, wait func(capture.State) bool, dir string, wantDPI int) (map[string]any, error) {
 	out := map[string]any{"ok": false}
 	_ = svc.ResetShooting()
+	if err := svc.SetFrameEnabled("rose-pink.strip4", true); err != nil { // decorated designs are off by default
+		return out, err
+	}
 	if err := svc.StartPreview(); err != nil {
 		return out, err
 	}
