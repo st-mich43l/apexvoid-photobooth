@@ -33,7 +33,7 @@ describe("ShootFlow with a pre-selected frame", () => {
   it("starts the session with the chosen frame and no separate photo-count control", () => {
     render(<ShootFlow variant="booth" frame={{ ...FRAME, variantId: "rose", caption: "Hi" }} />);
     expect(screen.queryByRole("radiogroup", { name: "Number of photographs" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /TAP TO START/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start shooting/ }));
     expect(h.api.startShooting).toHaveBeenCalledWith("four", "rose", "Hi");
   });
 
@@ -241,11 +241,11 @@ describe("UX-1: guest flow safety and clarity", () => {
 
     it("cannot start a session or retake while reconnecting", () => {
       render(<ShootFlow variant="booth" frame={FRAME} />);
-      expect((screen.getByRole("button", { name: /TAP TO START/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole("button", { name: /Start shooting/ }) as HTMLButtonElement).disabled).toBe(true);
       cleanup();
       h.S.shoot = snap("REVIEW", { taken: taken(2), shots: 2 });
       render(<ShootFlow variant="booth" frame={FRAME} />);
-      for (const b of screen.getAllByRole("button", { name: "Retake" })) expect((b as HTMLButtonElement).disabled).toBe(true);
+      for (const b of screen.getAllByRole("button", { name: /Retake/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
     });
 
     it("Studio keeps the operator informed that photos already taken are kept", () => {
@@ -275,7 +275,7 @@ describe("UX-1: guest flow safety and clarity", () => {
   it("a failed action in Booth is explained kindly, without the raw message", async () => {
     h.api.startShooting.mockRejectedValue(Object.assign(new Error("Cannot write to C:\\Docs: access is denied"), { action: "Choose another media folder." }));
     render(<ShootFlow variant="booth" frame={FRAME} />);
-    fireEvent.click(screen.getByRole("button", { name: /TAP TO START/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Start shooting/ }));
     await screen.findByText(/That didn’t work/);
     expect(document.body.textContent).not.toMatch(/access is denied/);
   });

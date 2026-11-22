@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { FrameSelection } from "./FrameSelection";
 import { photosLabel } from "./frameInfo";
+import { GuestShoot, PhotoSteps } from "./guest/GuestShoot";
 import { LeaveDialog } from "./LeaveDialog";
 import { ResultPrint } from "./ResultPrint";
 import { sessionGate } from "./sessionGate";
@@ -10,16 +11,7 @@ import { useApp } from "./state";
 import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
 import type { FrameChoice } from "./types";
 
-/** "Photo 2 of 4" with one dot per photo: taken, being taken now, still to come. */
-export function PhotoSteps({ total, taken, current }: { total: number; taken: number; current: number | null }) {
-  const n = current != null ? current + 1 : Math.min(taken, total);
-  return (
-    <div className="steps" role="progressbar" aria-label="Photo progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={n}>
-      <ol>{Array.from({ length: total }, (_, i) => <li key={i} className={current === i ? "now" : i < taken ? "done" : ""} aria-hidden="true" />)}</ol>
-      <span>{current != null ? `Photo ${n} of ${total}` : `${Math.min(taken, total)} of ${total} photos`}</span>
-    </div>
-  );
-}
+export { PhotoSteps };
 
 /** True after `flag` has been continuously set for `ms` (used to add "ask the host" to a long reconnect). */
 function useAfter(flag: boolean, ms: number): boolean {
@@ -40,7 +32,7 @@ function useAfter(flag: boolean, ms: number): boolean {
  *  serialised, idempotent reset, and abandoning an unfinished session asks first. */
 export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone }:
   { variant: "studio" | "booth"; frame: FrameChoice; onChangeFrame?: (current: FrameChoice) => void; onDone?: () => void }) {
-  const { shoot, camera, mediaUrl, frameUrl, toast } = useApp();
+  const { shoot, camera, mediaUrl, frameUrl, toast, settings } = useApp();
   const [frame, setFrame] = useState(initialFrame);
   const [changing, setChanging] = useState(false);
   const [composed, setComposed] = useState<{ session: string; mediaId: string } | null>(null);
@@ -114,9 +106,39 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   };
   const startOver = async () => { await sessionGate.reset(); setAbandon(false); };
 
+  const dialogs = (
+    <>
+      {abandon && (
+        <LeaveDialog state={s.state} taken={s.taken.length} busy={false} confirmLabel="Start over" onKeep={() => setAbandon(false)} onLeave={() => { void startOver(); }} />
+      )}
+      {changing && (
+        <div className="design-picker" role="dialog" aria-modal="true" aria-label="Change design">
+          <FrameSelection variant={variant} takenPhotos={s.taken.length} initial={{ id: frame.id, variantId: frame.variantId, caption: frame.caption }}
+            title="Change the design" backLabel="Keep this design" confirmLabel="Use this design" busy={busy} onConfirm={applyDesign} onBack={() => setChanging(false)} />
+        </div>
+      )}
+    </>
+  );
+
+  if (booth) {
+    return (
+      <div className="shoot booth g-screen">
+        <GuestShoot s={s} camera={camera} frame={frame} countdownSeconds={settings?.countdownSeconds} busy={busy} error={!!error} onClearError={clear} slow={slow}
+          mediaUrl={mediaUrl} frameUrl={frameUrl} resultId={resultId} finishing={finishing}
+          print={resultId ? <ResultPrint mediaId={resultId} booth /> : null}
+          onStart={() => run(() => api.startShooting(frame.id, frame.variantId, frame.caption))}
+          onChangeFrame={onChangeFrame ? () => onChangeFrame(frame) : undefined}
+          onRetake={(slot) => run(() => api.retake(slot))} onAccept={() => run(() => api.accept())} onCancel={() => setAbandon(true)}
+          onChangeDesign={() => setChanging(true)} onFinish={finish}
+          onRetryPreview={() => { clear(); started.current = false; run(() => api.startPreview()); }} onReset={() => { void sessionGate.reset(); }} />
+        {dialogs}
+      </div>
+    );
+  }
+
   return (
-    <div className={`shoot ${booth ? "booth" : ""}`}>
-      {!booth && <SimulatedRibbon />}
+    <div className="shoot">
+      <SimulatedRibbon />
       <SourceChip />
       {camera.reconnecting && (booth
         ? <div className="reconnect-card" role="status"><div className="spinner" /><div><strong>Reconnecting the camera…</strong><span>Your photos are safe. This usually takes a few seconds.{slow ? " Still working — please ask the host if this takes much longer." : ""}</span></div></div>
@@ -217,15 +239,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
         <div className="center-msg"><p>Session cancelled.</p><button className="primary big" onClick={() => { void sessionGate.reset(); }}>Start again</button></div>
       )}
 
-      {abandon && (
-        <LeaveDialog state={s.state} taken={s.taken.length} busy={false} confirmLabel="Start over" onKeep={() => setAbandon(false)} onLeave={() => { void startOver(); }} />
-      )}
-      {changing && (
-        <div className="design-picker" role="dialog" aria-modal="true" aria-label="Change design">
-          <FrameSelection variant={variant} takenPhotos={s.taken.length} initial={{ id: frame.id, variantId: frame.variantId, caption: frame.caption }}
-            title="Change the design" backLabel="Keep this design" confirmLabel="Use this design" busy={busy} onConfirm={applyDesign} onBack={() => setChanging(false)} />
-        </div>
-      )}
+      {dialogs}
     </div>
   );
 }
