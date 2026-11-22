@@ -5,6 +5,7 @@ import { useApp } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
 import { FrameBuilder } from "../builder/FrameBuilder";
 import { ImageImport } from "../builder/Panels";
+import { Icon } from "../icons";
 import { Confirm } from "../ui";
 import type { AssetInfo, Frame, FrameDef } from "../types";
 
@@ -79,7 +80,7 @@ export function Frames() {
       <div className="frames-toolbar">
         <div className="make-grid" aria-label="Add a frame">
           <section className="make-card" aria-label="Create a frame">
-            <span className="make-icon" aria-hidden="true">✦</span>
+            <span className="make-icon" aria-hidden="true"><Icon name="sparkle" size={24} /></span>
             <div className="make-text">
               <h3>Design your own</h3>
               <p>Start from a layout, then place photos, shapes and text in the builder.</p>
@@ -92,7 +93,7 @@ export function Frames() {
             </div>
           </section>
           <section className="make-card make-import" aria-label="Import a PNG frame">
-            <span className="make-icon" aria-hidden="true">⇪</span>
+            <span className="make-icon" aria-hidden="true"><Icon name="upload" size={24} /></span>
             <div className="make-text">
               <h3>Already have a PNG?</h3>
               <p>Drop in a frame picture with transparent windows. Photo slots are placed for you.</p>

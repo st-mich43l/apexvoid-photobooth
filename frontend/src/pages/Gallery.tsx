@@ -49,7 +49,7 @@ export function Gallery() {
         </div>
       </header>
       <ErrorNote error={error} onClose={clear} />
-      {loaded && shown.length === 0 && <p className="muted">No media yet. Start a photo session or record a video.</p>}
+      {loaded && shown.length === 0 && <p className="muted empty-state">No media yet. Start a photo session or record a video.</p>}
       {groups.map(([sid, ms]) => {
         const s = sessions[sid];
         return (

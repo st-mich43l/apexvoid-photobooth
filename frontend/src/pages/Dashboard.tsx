@@ -63,7 +63,7 @@ export function Dashboard({ go }: { go: (p: string) => void }) {
       </div>
 
       <h2>Recent</h2>
-      {recent.length === 0 ? <p className="muted">Nothing captured yet.</p> : (
+      {recent.length === 0 ? <p className="muted empty-state">Nothing captured yet.</p> : (
         <div className="strip-row">
           {recent.map((m) => (
             <button key={m.id} className="thumb-btn" onClick={() => go("gallery")} aria-label={`${m.kind} ${m.id}`}>
