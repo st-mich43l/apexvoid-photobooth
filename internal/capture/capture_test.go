@@ -301,15 +301,109 @@ func TestCaptureErrorLeavesSessionFailedButPhotosKept(t *testing.T) {
 	e.preview()
 	_ = e.eng.Start(cfg(3))
 	e.waitState(capture.Capturing)
-	// fail the next shot after the first succeeded
-	e.drv.Last().FailNextCapture(camera.Errf(camera.CodeDisconnected, "replug", nil, "gone"))
+	// fail the next shot (not a lost camera) after the first succeeded
+	e.drv.Last().FailNextCapture(camera.Errf(camera.CodeCaptureFailed, "retry", nil, "autofocus failed"))
 	s := e.waitState(capture.Error)
 	sess, _ := e.store.Session(s.SessionID)
 	if sess.Status != sessions.StatusFailed {
 		t.Fatalf("session %+v", sess)
 	}
+	if len(s.Taken) == 0 {
+		t.Fatalf("photos taken before the failure must be kept: %+v", s)
+	}
 	if err := e.eng.Reset(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLostCameraDuringAShotResumesTheSameSessionAndFrame(t *testing.T) {
+	var begun []string
+	e := newEnv(t, 0)
+	e.eng = capture.New(capture.Options{
+		Camera: e.mgr, Store: e.store, Tick: 5 * time.Millisecond, CaptureRetries: 0, ReconnectWait: 5 * time.Second,
+		IsSimulated:  func() bool { return true },
+		BeginSession: func(id string, c capture.Config) error { begun = append(begun, id+"|"+c.FrameID); return nil },
+	})
+	e.preview()
+	c := capture.Config{Shots: 3, Countdown: 1, TemplateID: "t", FrameID: "rose-pink.strip3"}
+	if err := e.eng.Start(c); err != nil {
+		t.Fatal(err)
+	}
+	// the first shot succeeds, then the camera drops during the second
+	deadline := time.Now().Add(5 * time.Second)
+	for len(e.eng.Snapshot().Taken) < 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	e.drv.SetPresent(false)
+	e.drv.Last().FailNextCapture(camera.Errf(camera.CodeDisconnected, "replug", nil, "gone"))
+	deadline = time.Now().Add(5 * time.Second)
+	var warned bool
+	for time.Now().Before(deadline) {
+		if s := e.eng.Snapshot(); s.Warning != "" && s.State == capture.Capturing {
+			warned = true
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !warned {
+		t.Fatalf("the operator/guest must be told the camera is being waited for: %+v", e.eng.Snapshot())
+	}
+	e.drv.SetPresent(true) // plugged back in; the manager reconnects by itself
+	s := e.waitState(capture.Review)
+	if len(s.Taken) != 3 || s.Warning != "" {
+		t.Fatalf("the session must finish with all photos: %+v", s)
+	}
+	if len(begun) != 1 || begun[0] != s.SessionID+"|rose-pink.strip3" {
+		t.Fatalf("the frame must be frozen once and kept: %v", begun)
+	}
+	sess, _ := e.store.Session(s.SessionID)
+	if sess.Status == sessions.StatusFailed {
+		t.Fatalf("session %+v", sess)
+	}
+}
+
+func TestCameraThatNeverComesBackFailsTheSessionButKeepsThePhotos(t *testing.T) {
+	e := newEnv(t, 0)
+	e.eng = capture.New(capture.Options{
+		Camera: e.mgr, Store: e.store, Tick: 5 * time.Millisecond, ReconnectWait: 150 * time.Millisecond,
+		IsSimulated: func() bool { return true },
+	})
+	e.preview()
+	_ = e.eng.Start(capture.Config{Shots: 3, Countdown: 1, TemplateID: "t"})
+	deadline := time.Now().Add(5 * time.Second)
+	for len(e.eng.Snapshot().Taken) < 1 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	e.drv.SetPresent(false)
+	e.drv.Last().FailNextCapture(camera.Errf(camera.CodeDisconnected, "replug", nil, "gone"))
+	s := e.waitState(capture.Error)
+	if s.ErrorAction == "" || len(s.Taken) == 0 {
+		t.Fatalf("%+v", s)
+	}
+	sess, _ := e.store.Session(s.SessionID)
+	if sess.Status != sessions.StatusFailed {
+		t.Fatalf("session %+v", sess)
+	}
+}
+
+func TestFailedRetakeAfterCameraLossKeepsThePreviousPhoto(t *testing.T) {
+	e := newEnv(t, 0)
+	e.eng = capture.New(capture.Options{
+		Camera: e.mgr, Store: e.store, Tick: 5 * time.Millisecond, ReconnectWait: 100 * time.Millisecond,
+		IsSimulated: func() bool { return true },
+	})
+	e.preview()
+	_ = e.eng.Start(cfg(2))
+	s := e.waitState(capture.Review)
+	old := s.Taken[0].MediaID
+	e.drv.SetPresent(false)
+	e.drv.Last().FailNextCapture(camera.Errf(camera.CodeDisconnected, "replug", nil, "gone"))
+	if err := e.eng.Retake(0); err != nil {
+		t.Fatal(err)
+	}
+	s = e.waitState(capture.Review)
+	if len(s.Taken) != 2 || s.Taken[0].MediaID != old || s.Warning == "" {
+		t.Fatalf("the earlier valid photo must be kept: %+v", s)
 	}
 }
 

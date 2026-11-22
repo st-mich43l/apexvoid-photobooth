@@ -24,6 +24,7 @@ type Status struct {
 	Reconnecting bool           `json:"reconnecting"`
 	LastError    string         `json:"lastError,omitempty"`
 	LastAction   string         `json:"lastAction,omitempty"`
+	LastCode     string         `json:"lastCode,omitempty"` // machine-readable class of LastError (see the Code* constants)
 	Drivers      []DriverStatus `json:"drivers"`
 }
 
@@ -511,6 +512,7 @@ func (m *Manager) Status() Status {
 	if lerr != nil {
 		st.LastError = lerr.Error()
 		st.LastAction = ActionOf(lerr)
+		st.LastCode = CodeOf(lerr)
 		if cam == nil && !rec {
 			st.State = StateError
 		}
