@@ -152,7 +152,7 @@ func TestDeleteMovesFrameAsideAndDoesNotTouchSnapshots(t *testing.T) {
 	d.Enabled = true
 	saved, _ := l.SaveCustom(d, nil)
 	snapDir := filepath.Join(t.TempDir(), "001")
-	if _, err := l.TakeSnapshot(snapDir, saved.ID, "", "", time.Now()); err != nil {
+	if _, err := l.TakeSnapshot(snapDir, saved.ID, "", "", time.Now(), 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.DeleteCustom(saved.ID); err != nil {
@@ -279,7 +279,7 @@ func TestTransparentOverlayEndToEndThroughImportSaveAndSnapshot(t *testing.T) {
 	}
 	// a session snapshot carries the overlay: it still renders after the frame is deleted and the staging is gone
 	snapDir := filepath.Join(t.TempDir(), "001")
-	if _, err := l.TakeSnapshot(snapDir, saved.ID, "", "", time.Now()); err != nil {
+	if _, err := l.TakeSnapshot(snapDir, saved.ID, "", "", time.Now(), 0); err != nil {
 		t.Fatal(err)
 	}
 	_ = l.DeleteCustom(saved.ID)
