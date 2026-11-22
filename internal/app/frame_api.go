@@ -39,7 +39,11 @@ type FramesResult struct {
 	Default    string      `json:"default"` // preselected frame id
 }
 
-func viewOf(t templates.Template) FrameView {
+// viewOf describes a frame for the UI. dpi (0 = none) is the output resolution that applies to built-in frames.
+func viewOf(t templates.Template, dpi int) FrameView {
+	if t.Builtin && dpi > 0 {
+		t.DPI = dpi
+	}
 	w, h := t.PixelSize()
 	return FrameView{Template: t, Photos: t.Photos(), Format: t.Format(), PixelW: w, PixelH: h}
 }
@@ -52,11 +56,12 @@ func (s *Service) ListFrames(includeDisabled bool) FramesResult {
 		res.Errors = []string{}
 	}
 	seen := map[string]bool{}
+	dpi := s.settings.Get().OutputDPI
 	for _, t := range s.tpl.All() {
 		if t.Legacy || (!includeDisabled && !t.Enabled) {
 			continue
 		}
-		res.Frames = append(res.Frames, viewOf(t))
+		res.Frames = append(res.Frames, viewOf(t, dpi))
 		seen[t.Category] = true
 	}
 	for _, c := range templates.Categories {
@@ -231,7 +236,7 @@ func (s *Service) freezeFrame(sessionID, frameID, variantID, caption string) (te
 	if t, err := time.Parse(time.RFC3339Nano, sess.CreatedAt); err == nil {
 		date = t.Local()
 	}
-	snap, err := s.tpl.TakeSnapshot(snapDir, frameID, variantID, caption, date)
+	snap, err := s.tpl.TakeSnapshot(snapDir, frameID, variantID, caption, date, s.settings.Get().OutputDPI)
 	if err != nil {
 		return templates.Snapshot{}, err
 	}

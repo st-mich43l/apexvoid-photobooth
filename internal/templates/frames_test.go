@@ -286,14 +286,14 @@ func TestSnapshotIsImmutableAndSurvivesFrameDeletion(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "mine.json"), []byte(`{"id":"mine","name":"Mine","widthIn":2,"heightIn":2,"dpi":100,"background":"#123456","overlay":"ov.png","slots":[{"x":0.2,"y":0.2,"w":1.6,"h":1.6,"photo":0}],"variants":[{"id":"alt","name":"Alt","background":"#654321"}]}`), 0o644)
 	lib := Load(dir)
 	snapDir := filepath.Join(t.TempDir(), "frames", "001")
-	snap, err := lib.TakeSnapshot(snapDir, "mine", "alt", "ignored: caption not enabled", time.Now())
+	snap, err := lib.TakeSnapshot(snapDir, "mine", "alt", "ignored: caption not enabled", time.Now(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if snap.Frame.Background != "#654321" || snap.Caption != "" {
 		t.Fatalf("snapshot must hold the resolved variant: %+v", snap)
 	}
-	if _, err := lib.TakeSnapshot(snapDir, "mine", "", "", time.Now()); err == nil {
+	if _, err := lib.TakeSnapshot(snapDir, "mine", "", "", time.Now(), 0); err == nil {
 		t.Fatal("an existing snapshot must never be overwritten")
 	}
 	// the operator deletes the frame and its artwork

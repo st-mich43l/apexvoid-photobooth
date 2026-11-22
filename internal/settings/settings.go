@@ -41,12 +41,14 @@ type Settings struct {
 	CountdownSeconds int    `json:"countdownSeconds"`
 	Shots            int    `json:"shots"`      // legacy: the frame now decides the photo count (1, 2, 3, 4 or 6)
 	TemplateID       string `json:"templateId"` // the frame preselected on the frame-selection screen
-	AutoReconnect    bool   `json:"autoReconnect"`
-	EnableMock       bool   `json:"enableMock"`  // development: expose the simulated camera
-	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
-	CanonSDKDir      string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
-	PrinterName      string `json:"printerName"`
-	PrintPaper       string `json:"printPaper"` // default paper size name (as reported by the printer)
+	// OutputDPI is the print resolution of built-in frames: 300 (standard) or 600 (high). Custom frames keep the DPI set in the Frame Builder.
+	OutputDPI     int    `json:"outputDpi"`
+	AutoReconnect bool   `json:"autoReconnect"`
+	EnableMock    bool   `json:"enableMock"`  // development: expose the simulated camera
+	FFmpegPath    string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
+	CanonSDKDir   string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
+	PrinterName   string `json:"printerName"`
+	PrintPaper    string `json:"printPaper"` // default paper size name (as reported by the printer)
 	// Preferred sources, separate for Photo and Video mode. Restored at start-up;
 	// when one is missing the operator is asked before another source is used.
 	PhotoCamera camera.Preferred `json:"photoCamera"`
@@ -62,13 +64,19 @@ type Settings struct {
 // Default returns factory settings.
 func Default() Settings {
 	return Settings{
-		CountdownSeconds: 3, Shots: 4, TemplateID: "rose-pink.strip4", AutoReconnect: true,
+		CountdownSeconds: 3, Shots: 4, TemplateID: "rose-pink.strip4", OutputDPI: 300, AutoReconnect: true,
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
 }
 
 // Validate normalises and checks values.
 func (s *Settings) Validate() error {
+	if s.OutputDPI == 0 { // settings written before this option existed
+		s.OutputDPI = 300
+	}
+	if s.OutputDPI != 300 && s.OutputDPI != 600 {
+		return errors.New("print resolution must be 300 or 600 dpi")
+	}
 	if s.CountdownSeconds < 1 || s.CountdownSeconds > 10 {
 		return errors.New("countdown must be 1-10 seconds")
 	}

@@ -28,6 +28,13 @@ export function SettingsPage() {
         <div className="form">
           <label>Countdown (seconds)<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
           <p className="muted small">The number of photographs comes from the frame each guest chooses (Frames page), so there is no separate setting.</p>
+          <label>Print resolution of the built-in frames
+            <select aria-label="Print resolution" value={draft.outputDpi || 300} onChange={(e) => set("outputDpi", Number(e.target.value))}>
+              <option value={300}>300 dpi — standard (2×6 strip = 600×1800 px)</option>
+              <option value={600}>600 dpi — high (2×6 strip = 1200×3600 px; larger files, slower)</option>
+            </select>
+          </label>
+          <p className="muted small">Applies to the next photo session. Custom frames keep the resolution set in the Frame Builder. Finished sessions are never changed.</p>
           <label className="check"><input type="checkbox" checked={draft.autoReconnect} onChange={(e) => set("autoReconnect", e.target.checked)} /> Reconnect the camera automatically after a USB drop</label>
         </div>
       </section>
