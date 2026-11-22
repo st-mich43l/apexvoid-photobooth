@@ -2,10 +2,29 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes } from "../format";
 import { useApp } from "../state";
-import { Badge } from "../ui";
+import { Icon } from "../icons";
 import type { Media, PrintersResult } from "../types";
 
-export function Dashboard({ go }: { go: (p: string) => void }) {
+type Tone = "ok" | "warn" | "err";
+
+function StatCard({ icon, label, tone, status, value, sub, action, onAction, children }:
+  { icon: string; label: string; tone: Tone; status: string; value: string; sub?: string; action: string; onAction: () => void; children?: React.ReactNode }) {
+  return (
+    <section className={`stat-card ${tone}`} aria-label={label}>
+      <div className="stat-top">
+        <span className="stat-icon"><Icon name={icon} size={22} /></span>
+        <span className="stat-label">{label}</span>
+        <span className="stat-status"><i className="dot" />{status}</span>
+      </div>
+      <div className="stat-value">{value}</div>
+      {sub && <p className="stat-sub">{sub}</p>}
+      {children}
+      <button className="stat-link" onClick={onAction}>{action}<span aria-hidden="true">→</span></button>
+    </section>
+  );
+}
+
+export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: () => void }) {
   const { camera, boot, settings, mediaUrl, libraryVersion } = useApp();
   const [recent, setRecent] = useState<Media[]>([]);
   const [lib, setLib] = useState(boot.library);
@@ -17,53 +36,57 @@ export function Dashboard({ go }: { go: (p: string) => void }) {
   }, [libraryVersion]);
   useEffect(() => { api.listPrinters().then(setPrinters).catch(() => setPrinters(null)); }, []);
 
-  const connected = camera.device && camera.state !== "error" && !camera.reconnecting;
+  const connected = !!camera.device && camera.state !== "error" && !camera.reconnecting;
   const printer = printers?.printers.find((p) => p.name === settings.printerName);
+  const lowDisk = lib.freeBytes >= 0 && lib.freeBytes < 2 * 1024 ** 3;
+  const interrupted = lib.interrupted.length;
+
+  const camTone: Tone = connected ? "ok" : camera.reconnecting ? "warn" : "err";
+  const camStatus = connected ? (camera.device!.simulated ? "Simulated" : "Connected") : camera.reconnecting ? "Reconnecting" : "Not connected";
+  const prTone: Tone = printer ? (printer.status === "ready" ? "ok" : "warn") : "warn";
 
   return (
-    <div className="page">
-      <h1>Dashboard</h1>
-      <div className="grid cards">
-        <section className="card">
-          <h3>Camera</h3>
-          {connected ? (
-            <>
-              <p className="big-line">{camera.device!.name}</p>
-              <p><Badge kind={camera.device!.simulated ? "sim" : "ok"}>{camera.device!.simulated ? "SIMULATED" : camera.state}</Badge>{" "}
-                <span className="muted">{camera.device!.driver}</span></p>
-            </>
-          ) : camera.reconnecting ? <p><Badge kind="warn">disconnected — reconnecting</Badge></p>
-            : <p><Badge kind="err">not connected</Badge></p>}
-          {camera.lastError && <p className="muted small">{camera.lastError}{camera.lastAction ? ` — ${camera.lastAction}` : ""}</p>}
-          <button onClick={() => go("camera")}>Camera settings</button>
-        </section>
+    <div className="page dash">
+      <header className="dash-hero">
+        <div className="hero-copy">
+          <span className="eyebrow">Studio</span>
+          <h1>{connected ? "Ready to shoot" : "Almost ready"}</h1>
+          <p>{connected ? "Guests pick a frame, the camera counts down, and the strip is ready to print."
+            : "Connect a camera first. Booth Mode needs one before guests can shoot."}</p>
+          <div className="hero-actions">
+            {onBooth && <button className="primary alt cta" onClick={onBooth}><Icon name="play" size={18} />Open Booth Mode</button>}
+            <button onClick={() => go("photo")}><Icon name="photo" size={18} />Photo session</button>
+            <button onClick={() => go("video")}><Icon name="video" size={18} />Record video</button>
+          </div>
+        </div>
+        <dl className="hero-stats" aria-label="Library totals">
+          <div><dd>{lib.photos}</dd><dt>Photos</dt></div>
+          <div><dd>{lib.videos}</dd><dt>Videos</dt></div>
+          <div><dd>{lib.sessions}</dd><dt>Sessions</dt></div>
+        </dl>
+      </header>
 
-        <section className="card">
-          <h3>Printer</h3>
-          {printer ? <p><span className="big-line">{printer.name}</span> <Badge kind={printer.status === "ready" ? "ok" : "warn"}>{printer.status}</Badge></p>
-            : <p className="muted">{settings.printerName ? `${settings.printerName} not found` : "No printer selected"}</p>}
-          <p className="muted small">Jobs go through the Windows spooler; physical output is only as verified as the hardware checklist says.</p>
-          <button onClick={() => go("printer")}>Printer</button>
-        </section>
-
-        <section className="card">
-          <h3>Library</h3>
-          <p className="big-line">{lib.photos} photos · {lib.videos} videos</p>
-          <p className="muted">{lib.sessions} sessions · {bytes(lib.freeBytes)} free</p>
-          {lib.interrupted.length > 0 && <p><Badge kind="warn">{lib.interrupted.length} session(s) were interrupted — originals recovered</Badge></p>}
-          {lib.freeBytes >= 0 && lib.freeBytes < 2 * 1024 ** 3 && <p><Badge kind="err">Low disk space</Badge></p>}
-          <button onClick={() => go("gallery")}>Open gallery</button>
-        </section>
-
-        <section className="card actions">
-          <h3>Shoot</h3>
-          <button className="primary" onClick={() => go("photo")}>Photo session</button>
-          <button className="primary alt" onClick={() => go("video")}>Record video</button>
-        </section>
+      <div className="stat-grid">
+        <StatCard icon="camera" label="Camera" tone={camTone} status={camStatus}
+          value={connected ? camera.device!.name : camera.reconnecting ? "Reconnecting…" : "No camera"}
+          sub={connected ? camera.device!.driver : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : "Plug in a webcam or camera and open Camera settings."}
+          action="Camera settings" onAction={() => go("camera")} />
+        <StatCard icon="printer" label="Printer" tone={prTone}
+          status={printer ? (printer.status === "ready" ? "Ready" : printer.status) : "Not set"}
+          value={printer ? printer.name : settings.printerName ? `${settings.printerName} not found` : "No printer selected"}
+          sub="Jobs go through the Windows spooler."
+          action={printer ? "Printer settings" : "Choose a printer"} onAction={() => go("printer")} />
+        <StatCard icon="storage" label="Storage" tone={lowDisk ? "err" : interrupted ? "warn" : "ok"}
+          status={lowDisk ? "Low space" : interrupted ? "Check sessions" : "Healthy"}
+          value={lib.freeBytes >= 0 ? `${bytes(lib.freeBytes)} free` : "Unknown"}
+          sub={interrupted ? `${interrupted} interrupted session(s) — originals recovered` : `${lib.photos} photos · ${lib.videos} videos saved`}
+          action="Open gallery" onAction={() => go("gallery")} />
       </div>
 
-      <h2>Recent</h2>
-      {recent.length === 0 ? <p className="muted empty-state">Nothing captured yet.</p> : (
+      <div className="section-head"><h2>Recent</h2>{recent.length > 0 && <button className="ghost" onClick={() => go("gallery")}>View all →</button>}</div>
+      {recent.length === 0 ? (
+        <div className="empty-state"><Icon name="photo" size={28} /><b>No photos yet</b><span>Sessions you shoot will show up here.</span></div>
+      ) : (
         <div className="strip-row">
           {recent.map((m) => (
             <button key={m.id} className="thumb-btn" onClick={() => go("gallery")} aria-label={`${m.kind} ${m.id}`}>
@@ -73,7 +96,7 @@ export function Dashboard({ go }: { go: (p: string) => void }) {
           ))}
         </div>
       )}
-      <p className="muted small">Media folder: {boot.dataDir}</p>
+      <p className="muted small path-line">Media folder: {boot.dataDir}</p>
     </div>
   );
 }

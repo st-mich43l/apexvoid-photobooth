@@ -47,7 +47,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
         {location.warning && <div className="note warn banner" role="alert"><div>{location.warning}</div></div>}
         {location.restartRequired && <div className="note warn banner" role="alert"><div><strong>Restart required.</strong> The library was copied to {location.defaultPath}. Close and reopen the app; capturing is paused until then.</div></div>}
         {location.migrationPending && !migrateOpen && <div className="note warn banner"><div>Your library is still in the old folder.</div><button onClick={() => setMigrateOpen(true)}>Move to Documents…</button></div>}
-        {page === "dashboard" && <Dashboard go={setPage} />}
+        {page === "dashboard" && <Dashboard go={setPage} onBooth={onBooth} />}
         {page === "camera" && <CameraPage />}
         {page === "photo" && <PhotoPage />}
         {page === "video" && <VideoPage />}

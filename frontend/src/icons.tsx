@@ -11,6 +11,7 @@ const PATHS: Record<string, ReactNode> = {
   printer: <><path d="M7 9V4.5h10V9" /><rect x="3.5" y="9" width="17" height="8" rx="2.4" /><rect x="7" y="14" width="10" height="6" rx="1.4" /><circle cx="17.2" cy="11.8" r=".7" /></>,
   settings: <><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2.2" /><circle cx="9" cy="17" r="2.2" /></>,
   diagnostics: <path d="M3.5 12h4l2.2-6 4.2 12 2.4-6h4.2" />,
+  storage: <><path d="M5.5 14 7.6 5.9A2 2 0 0 1 9.5 4.5h5a2 2 0 0 1 1.9 1.4L18.5 14" /><rect x="3.5" y="14" width="17" height="6" rx="2.2" /><circle cx="17" cy="17" r=".8" /></>,
   sparkle: <path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9zM18.5 15.5l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z" />,
   upload: <><path d="M12 15.5V4.5M7.6 8.6 12 4.2l4.4 4.4" /><path d="M4.5 14.5v3A2.5 2.5 0 0 0 7 20h10a2.5 2.5 0 0 0 2.5-2.5v-3" /></>,
   play: <path d="M8 5.6v12.8a.9.9 0 0 0 1.4.8l10-6.4a.9.9 0 0 0 0-1.5l-10-6.4A.9.9 0 0 0 8 5.6z" />,
