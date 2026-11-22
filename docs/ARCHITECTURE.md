@@ -85,7 +85,7 @@ internal/video        FFmpeg discovery/preview/recording pipeline, probe, thumbn
 internal/sessions     session lifecycle + media repository (originals never overwritten)
 internal/storage      layout, SQLite, atomic writes
 internal/media        EXIF orientation, thumbnails, non-destructive edits
-internal/templates    layouts at exact size/DPI, overlays
+internal/templates    frames: layout geometry + style, the single renderer, snapshots (docs/FRAMES.md)
 internal/printing     printer discovery, paper validation, job tracking, bounded reprint
 internal/settings     JSON settings
 frontend/             React UI: Studio (operator) and Booth (guest)

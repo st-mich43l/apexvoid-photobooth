@@ -77,6 +77,19 @@ var migrations = []string{
 	CREATE INDEX print_jobs_status ON print_jobs(status);
 	CREATE INDEX print_jobs_request ON print_jobs(request_id);
 	CREATE INDEX print_jobs_created ON print_jobs(created_at);`,
+
+	// v3: the frame chosen for a session (immutable snapshot folder) and the frame that produced each composed image
+	`ALTER TABLE sessions ADD COLUMN frame_id TEXT NOT NULL DEFAULT '';
+	ALTER TABLE sessions ADD COLUMN frame_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE sessions ADD COLUMN variant_id TEXT NOT NULL DEFAULT '';
+	ALTER TABLE sessions ADD COLUMN frame_rev INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE sessions ADD COLUMN caption TEXT NOT NULL DEFAULT '';
+	ALTER TABLE sessions ADD COLUMN frame_dir TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media ADD COLUMN frame_id TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media ADD COLUMN frame_name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media ADD COLUMN variant_id TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media ADD COLUMN frame_rev INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE media ADD COLUMN frame_dir TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) the library database and migrates it.

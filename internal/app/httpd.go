@@ -38,6 +38,7 @@ func startMediaServer(s *Service) (*mediaServer, error) {
 	mux.HandleFunc("/preview.mjpg", m.auth(m.preview))
 	mux.HandleFunc("/snapshot.jpg", m.auth(m.snapshot))
 	mux.HandleFunc("/media/", m.auth(m.file))
+	mux.HandleFunc("/frame/", m.auth(m.frame))
 	m.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = m.srv.Serve(ln) }()
 	return m, nil
@@ -123,4 +124,26 @@ func (m *mediaServer) file(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "private, max-age=60")
 	http.ServeFile(w, r, p) // handles Range for <video>
+}
+
+// frame serves /frame/<id>/<variant>?w=<px>&caption=<text>: a preview of a
+// frame rendered with sample photos. Use "-" for no colour variant.
+func (m *mediaServer) frame(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/frame/"), "/"), "/")
+	if len(parts) != 2 {
+		http.NotFound(w, r)
+		return
+	}
+	variant := parts[1]
+	if variant == "-" {
+		variant = ""
+	}
+	b, err := m.s.frameJPEG(parts[0], variant, r.URL.Query().Get("caption"), atoi(r.URL.Query().Get("w"), 300))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	_, _ = w.Write(b)
 }

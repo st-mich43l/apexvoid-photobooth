@@ -540,6 +540,12 @@ func TestDatabaseUpgradesFromVersion1(t *testing.T) {
 	root := t.TempDir()
 	db, _ := storage.Open(storage.Layout{Root: root})
 	_, _ = db.Exec(`DROP TABLE print_jobs`)
+	for _, c := range []string{"frame_id", "frame_name", "variant_id", "frame_rev", "caption", "frame_dir"} { // undo the v3 columns
+		_, _ = db.Exec(`ALTER TABLE sessions DROP COLUMN ` + c)
+	}
+	for _, c := range []string{"frame_id", "frame_name", "variant_id", "frame_rev", "frame_dir"} {
+		_, _ = db.Exec(`ALTER TABLE media DROP COLUMN ` + c)
+	}
 	_, _ = db.Exec(`PRAGMA user_version=1`)
 	db.Close()
 	db2, err := storage.Open(storage.Layout{Root: root})

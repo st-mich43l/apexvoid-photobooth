@@ -39,8 +39,8 @@ type CameraMode struct {
 type Settings struct {
 	MediaDir         string `json:"mediaDir"` // empty = default data directory
 	CountdownSeconds int    `json:"countdownSeconds"`
-	Shots            int    `json:"shots"` // 1, 2, 4 or 6
-	TemplateID       string `json:"templateId"`
+	Shots            int    `json:"shots"`      // legacy: the frame now decides the photo count (1, 2, 3, 4 or 6)
+	TemplateID       string `json:"templateId"` // the frame preselected on the frame-selection screen
 	AutoReconnect    bool   `json:"autoReconnect"`
 	EnableMock       bool   `json:"enableMock"`  // development: expose the simulated camera
 	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
@@ -62,7 +62,7 @@ type Settings struct {
 // Default returns factory settings.
 func Default() Settings {
 	return Settings{
-		CountdownSeconds: 3, Shots: 4, TemplateID: "strip-2x6-4", AutoReconnect: true,
+		CountdownSeconds: 3, Shots: 4, TemplateID: "rose-pink.strip4", AutoReconnect: true,
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
 }
@@ -73,9 +73,9 @@ func (s *Settings) Validate() error {
 		return errors.New("countdown must be 1-10 seconds")
 	}
 	switch s.Shots {
-	case 1, 2, 4, 6:
+	case 1, 2, 3, 4, 6:
 	default:
-		return errors.New("number of photographs must be 1, 2, 4 or 6")
+		return errors.New("number of photographs must be 1, 2, 3, 4 or 6")
 	}
 	if s.Video.Width < 160 || s.Video.Height < 120 || s.Video.FPS < 1 || s.Video.FPS > 120 {
 		return errors.New("invalid video resolution or frame rate")

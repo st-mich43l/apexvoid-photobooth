@@ -72,7 +72,7 @@ func shootStrip(t *testing.T, s *Service, shots int) capture.Snapshot {
 	t.Helper()
 	connectMock(t, s)
 	_ = s.StartPreview()
-	if err := s.StartShooting(shots); err != nil {
+	if err := s.StartShooting(frameFor(shots), "", ""); err != nil {
 		t.Fatal(err)
 	}
 	waitShoot(t, s, capture.Review)
@@ -96,7 +96,7 @@ func TestPrintingAComposedStripSubmitsTheRenderedStripNotAnOriginal(t *testing.T
 	sn := shootStrip(t, s, 4)
 	fp := printerOf(t, s)
 
-	j, err := s.PrintMedia(opts("r1", sn.ResultID, "strip-2x6-4"))
+	j, err := s.PrintMedia(opts("r1", sn.ResultID, "plain.strip4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,11 +181,11 @@ func TestPrintFormats(t *testing.T) {
 		name, tpl, paper string
 		w, h             int
 	}{
-		{"2x6 strip", "strip-2x6-4", "4x6 in", 600, 1800},
-		{"two 2x6 strips on a 4x6 sheet", "strip-4x6-2up", "4x6 in", 1200, 1800},
+		{"2x6 strip", "plain.strip4", "4x6 in", 600, 1800},
+		{"two 2x6 strips on a 4x6 sheet", "plain.twoup4", "4x6 in", 1200, 1800},
 	}
 	for i, c := range cases {
-		m, err := s.ComposeSession(sn.SessionID, c.tpl)
+		m, err := s.ComposeSession(sn.SessionID, c.tpl, "", "", true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -221,7 +221,7 @@ func TestPrintRefusesALayoutThatDoesNotMatchTheImage(t *testing.T) {
 		t.Fatal("submitted despite the mismatch")
 	}
 	// a multi-photo layout cannot render one photo
-	if _, err := s.PrintMedia(opts("m2", sn.Taken[0].MediaID, "strip-2x6-4")); err == nil {
+	if _, err := s.PrintMedia(opts("m2", sn.Taken[0].MediaID, "plain.strip4")); err == nil {
 		t.Fatal("a 4-photo layout for one photo accepted")
 	}
 }
@@ -236,9 +236,9 @@ func TestPaperTooSmallForTheLayoutIsRefused(t *testing.T) {
 		t.Fatalf("a 7x5 layout on 4x6 paper must be refused (%v)", err)
 	}
 	// but a two-up 4x6 sheet fits 4x6 and 5x7 paper alike
-	m, _ := s.ComposeSession(sn.SessionID, "strip-4x6-2up")
+	m, _ := s.ComposeSession(sn.SessionID, "plain.twoup4", "", "", true)
 	for i, paper := range []string{"4x6 in", "5x7 in"} {
-		o := opts("ok"+string(rune('a'+i)), m.ID, "strip-4x6-2up")
+		o := opts("ok"+string(rune('a'+i)), m.ID, "plain.twoup4")
 		o.Paper = paper
 		o.Copies = i + 1 // different copies: not a duplicate of the previous job
 		if _, err := s.PrintMedia(o); err != nil {
@@ -251,7 +251,7 @@ func TestPreviewShowsTheRealPlacement(t *testing.T) {
 	s, _, _ := newTestApp(t)
 	sn := shootStrip(t, s, 4)
 	// 2x6 strip on 4x6 paper: centred, 1 inch (25.4 mm) side margins, true size
-	o := opts("", sn.ResultID, "strip-2x6-4")
+	o := opts("", sn.ResultID, "plain.strip4")
 	pv, err := s.PrintPreview(o)
 	if err != nil {
 		t.Fatal(err)
@@ -264,8 +264,8 @@ func TestPreviewShowsTheRealPlacement(t *testing.T) {
 	}
 	// a printer with a 3 mm unprintable border: margins can never be smaller
 	printerOf(t, s).margin = 3
-	m2, _ := s.ComposeSession(sn.SessionID, "strip-4x6-2up")
-	pv, err = s.PrintPreview(opts("", m2.ID, "strip-4x6-2up"))
+	m2, _ := s.ComposeSession(sn.SessionID, "plain.twoup4", "", "", true)
+	pv, err = s.PrintPreview(opts("", m2.ID, "plain.twoup4"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestPreviewShowsTheRealPlacement(t *testing.T) {
 		t.Fatalf("fit must stay inside the printable area: %+v", pv)
 	}
 	// "fill" crops instead
-	o = opts("", m2.ID, "strip-4x6-2up")
+	o = opts("", m2.ID, "plain.twoup4")
 	o.Fit = "fill"
 	pv, _ = s.PrintPreview(o)
 	if pv.Warning == "" {
@@ -297,15 +297,15 @@ func TestSameClickNeverPrintsTwiceAndQuickRepeatIsRefused(t *testing.T) {
 	s, _, _ := newTestApp(t)
 	sn := shootStrip(t, s, 4)
 	fp := printerOf(t, s)
-	a, err := s.PrintMedia(opts("click", sn.ResultID, "strip-2x6-4"))
+	a, err := s.PrintMedia(opts("click", sn.ResultID, "plain.strip4"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := s.PrintMedia(opts("click", sn.ResultID, "strip-2x6-4"))
+	b, err := s.PrintMedia(opts("click", sn.ResultID, "plain.strip4"))
 	if err != nil || b.ID != a.ID || fp.n() != 1 {
 		t.Fatalf("same request: %v %s %s n=%d", err, a.ID, b.ID, fp.n())
 	}
-	_, err = s.PrintMedia(opts("click2", sn.ResultID, "strip-2x6-4"))
+	_, err = s.PrintMedia(opts("click2", sn.ResultID, "plain.strip4"))
 	if ue, ok := err.(*UserError); !ok || !strings.Contains(ue.Msg, "identical print") || fp.n() != 1 {
 		t.Fatalf("an identical print seconds later must be refused: %v n=%d", err, fp.n())
 	}
@@ -318,7 +318,7 @@ func TestOfflinePrinterIsReportedAndNothingIsSubmitted(t *testing.T) {
 	fp.mu.Lock()
 	fp.status = "offline"
 	fp.mu.Unlock()
-	_, err := s.PrintMedia(opts("o1", sn.ResultID, "strip-2x6-4"))
+	_, err := s.PrintMedia(opts("o1", sn.ResultID, "plain.strip4"))
 	if ue, ok := err.(*UserError); !ok || !strings.Contains(ue.Msg, "offline") || ue.Action == "" || fp.n() != 0 {
 		t.Fatalf("%v n=%d", err, fp.n())
 	}
@@ -374,7 +374,7 @@ func TestJobStatesAreTrackedAndReprintNeedsConfirmation(t *testing.T) {
 	s, _, ev := newTestApp(t)
 	sn := shootStrip(t, s, 4)
 	fp := printerOf(t, s)
-	j, err := s.PrintMedia(opts("t1", sn.ResultID, "strip-2x6-4"))
+	j, err := s.PrintMedia(opts("t1", sn.ResultID, "plain.strip4"))
 	if err != nil || j.Status != printing.StatusQueued {
 		t.Fatalf("%v %+v", err, j)
 	}
@@ -424,7 +424,7 @@ func TestPrintHistorySurvivesRestartAndInterruptedJobsAreUnknown(t *testing.T) {
 	}
 	s1 := mk()
 	sn := shootStrip(t, s1, 4)
-	j, err := s1.PrintMedia(opts("h1", sn.ResultID, "strip-2x6-4"))
+	j, err := s1.PrintMedia(opts("h1", sn.ResultID, "plain.strip4"))
 	if err != nil {
 		t.Fatal(err)
 	}

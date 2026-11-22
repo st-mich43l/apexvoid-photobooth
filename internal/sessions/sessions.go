@@ -52,6 +52,19 @@ type Session struct {
 	Simulated    bool   `json:"simulated"`
 	Note         string `json:"note"`
 	MediaCount   int    `json:"mediaCount"`
+	// The frame chosen for the session (the immutable snapshot is in FrameDir).
+	FrameID   string `json:"frameId"`
+	FrameName string `json:"frameName"`
+	VariantID string `json:"variantId"`
+	FrameRev  int    `json:"frameRev"`
+	Caption   string `json:"caption"`
+	FrameDir  string `json:"frameDir"` // library-relative snapshot folder
+}
+
+// FrameRef identifies the frame (and snapshot) a session or export used.
+type FrameRef struct {
+	ID, Name, Variant, Caption, Dir string
+	Revision                        int
 }
 
 // Media is one stored file.
@@ -74,6 +87,12 @@ type Media struct {
 	Source     string `json:"source"`
 	Status     string `json:"status"`
 	CapturedAt string `json:"capturedAt"`
+	// the frame that produced a composed image ("" for photos and videos)
+	FrameID   string `json:"frameId"`
+	FrameName string `json:"frameName"`
+	VariantID string `json:"variantId"`
+	FrameRev  int    `json:"frameRev"`
+	FrameDir  string `json:"frameDir"`
 }
 
 // Store is the session/media repository.
@@ -212,12 +231,12 @@ func writeDerived(img image.Image, prevAbs, thumbAbs string) error {
 	return storage.WriteReplace(thumbAbs, th)
 }
 
-const mediaCols = `id,session_id,kind,slot,rel_path,thumb_rel,preview_rel,edited_rel,edits_json,width,height,size_bytes,sha256,duration_ms,simulated,source,status,captured_at`
+const mediaCols = `id,session_id,kind,slot,rel_path,thumb_rel,preview_rel,edited_rel,edits_json,width,height,size_bytes,sha256,duration_ms,simulated,source,status,captured_at,frame_id,frame_name,variant_id,frame_rev,frame_dir`
 
 func (s *Store) insertMedia(m Media) error {
-	_, err := s.db.Exec(`INSERT INTO media(`+mediaCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := s.db.Exec(`INSERT INTO media(`+mediaCols+`,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		m.ID, m.SessionID, m.Kind, m.Slot, m.RelPath, m.ThumbRel, m.PreviewRel, m.EditedRel, m.Edits, m.Width, m.Height, m.SizeBytes,
-		m.SHA256, m.DurationMs, b2i(m.Simulated), m.Source, m.Status, m.CapturedAt, s.ts())
+		m.SHA256, m.DurationMs, b2i(m.Simulated), m.Source, m.Status, m.CapturedAt, m.FrameID, m.FrameName, m.VariantID, m.FrameRev, m.FrameDir, s.ts())
 	return err
 }
 
@@ -227,7 +246,8 @@ func scanMedia(r scanner) (Media, error) {
 	var m Media
 	var sim int
 	err := r.Scan(&m.ID, &m.SessionID, &m.Kind, &m.Slot, &m.RelPath, &m.ThumbRel, &m.PreviewRel, &m.EditedRel, &m.Edits,
-		&m.Width, &m.Height, &m.SizeBytes, &m.SHA256, &m.DurationMs, &sim, &m.Source, &m.Status, &m.CapturedAt)
+		&m.Width, &m.Height, &m.SizeBytes, &m.SHA256, &m.DurationMs, &sim, &m.Source, &m.Status, &m.CapturedAt,
+		&m.FrameID, &m.FrameName, &m.VariantID, &m.FrameRev, &m.FrameDir)
 	m.Simulated = sim != 0
 	return m, err
 }
@@ -239,12 +259,14 @@ func (s *Store) Session(id string) (Session, error) {
 }
 
 const sessionSelect = `SELECT s.id,s.created_at,s.updated_at,s.status,s.mode,s.shots_planned,s.template_id,s.simulated,s.note,
+	s.frame_id,s.frame_name,s.variant_id,s.frame_rev,s.caption,s.frame_dir,
 	(SELECT COUNT(*) FROM media m WHERE m.session_id=s.id AND m.status IN ('active','partial')) FROM sessions s`
 
 func scanSession(r scanner) (Session, error) {
 	var x Session
 	var sim int
-	err := r.Scan(&x.ID, &x.CreatedAt, &x.UpdatedAt, &x.Status, &x.Mode, &x.ShotsPlanned, &x.TemplateID, &sim, &x.Note, &x.MediaCount)
+	err := r.Scan(&x.ID, &x.CreatedAt, &x.UpdatedAt, &x.Status, &x.Mode, &x.ShotsPlanned, &x.TemplateID, &sim, &x.Note,
+		&x.FrameID, &x.FrameName, &x.VariantID, &x.FrameRev, &x.Caption, &x.FrameDir, &x.MediaCount)
 	x.Simulated = sim != 0
 	return x, err
 }
@@ -366,6 +388,18 @@ func (s *Store) AddVideo(sessionID, id string, in VideoInput) (Media, error) {
 // AddExport stores a generated image (e.g. a composed photo strip) under
 // exports/ and records it as media of kind "strip".
 func (s *Store) AddExport(sessionID, kind, name string, data []byte, w, h int) (Media, error) {
+	return s.AddFrameExport(sessionID, kind, name, data, w, h, FrameRef{})
+}
+
+// SetFrame records the frame (and its snapshot folder) the session now uses.
+func (s *Store) SetFrame(sessionID string, f FrameRef) error {
+	_, err := s.db.Exec(`UPDATE sessions SET template_id=?,frame_id=?,frame_name=?,variant_id=?,frame_rev=?,caption=?,frame_dir=?,updated_at=? WHERE id=?`,
+		f.ID, f.ID, f.Name, f.Variant, f.Revision, f.Caption, f.Dir, s.ts(), sessionID)
+	return err
+}
+
+// AddFrameExport is AddExport that also records which frame produced the image.
+func (s *Store) AddFrameExport(sessionID, kind, name string, data []byte, w, h int, f FrameRef) (Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := "M" + randHex(6)
@@ -374,7 +408,8 @@ func (s *Store) AddExport(sessionID, kind, name string, data []byte, w, h int) (
 	if err := storage.WriteNew(abs, data); err != nil {
 		return Media{}, err
 	}
-	m := Media{ID: id, SessionID: sessionID, Kind: kind, Width: w, Height: h, SizeBytes: int64(len(data)), Status: MediaActive, CapturedAt: s.ts(), Source: "composed"}
+	m := Media{ID: id, SessionID: sessionID, Kind: kind, Width: w, Height: h, SizeBytes: int64(len(data)), Status: MediaActive, CapturedAt: s.ts(), Source: "composed",
+		FrameID: f.ID, FrameName: f.Name, VariantID: f.Variant, FrameRev: f.Revision, FrameDir: f.Dir}
 	sum := sha256.Sum256(data)
 	m.SHA256 = hex.EncodeToString(sum[:])
 	m.RelPath, _ = l.Rel(abs)

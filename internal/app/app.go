@@ -63,7 +63,8 @@ type Service struct {
 	httpd    *mediaServer
 
 	mu       sync.Mutex
-	tplID    string // template chosen for the running shoot
+	frames   frameCache // frame preview renders
+	frameMu  sync.Mutex // serialises frame snapshots
 	rec      recState
 	encoder  string
 	library  sessions.Report
@@ -143,9 +144,10 @@ func New(o Options) (*Service, error) {
 
 	s.eng = capture.New(capture.Options{
 		Camera: s.mgr, Store: s.store, Tick: o.Tick, CaptureRetries: 1,
-		IsSimulated: func() bool { st := s.mgr.Status(); return st.Device != nil && st.Device.Simulated },
-		Finalize:    s.finalizeStrip,
-		OnChange:    func(sn capture.Snapshot) { s.emit("capture:state", sn) },
+		IsSimulated:  func() bool { st := s.mgr.Status(); return st.Device != nil && st.Device.Simulated },
+		Finalize:     s.finalizeStrip,
+		BeginSession: s.beginSession,
+		OnChange:     func(sn capture.Snapshot) { s.emit("capture:state", sn) },
 	})
 	pd := o.PrintDriver
 	if pd == nil {

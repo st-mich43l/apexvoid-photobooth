@@ -64,7 +64,7 @@ func SelfTest(version string, args []string) int {
 	if err := svc.StartPreview(); err != nil {
 		return fail("preview", err)
 	}
-	if err := svc.StartShooting(1); err != nil {
+	if err := svc.StartShooting("plain.single", "", ""); err != nil {
 		return fail("shoot", err)
 	}
 	wait := func(want capture.State) bool {
