@@ -60,6 +60,7 @@ describe("ShootFlow with a pre-selected frame", () => {
 
     it("same photo count: switches the design of the session without any retake", async () => {
       await open();
+      h.api.cancelShooting.mockClear(); h.api.resetShooting.mockClear();   // (mounting directly in REVIEW counts as a leftover state; clear that call)
       fireEvent.click(screen.getByRole("radio", { name: /other4/ }));
       fireEvent.click(screen.getByRole("button", { name: "Use this design" }));
       await waitFor(() => expect(h.api.setSessionFrame).toHaveBeenCalledWith("S1", "other4", "", "", false));
@@ -134,6 +135,40 @@ describe("ShootFlow with a pre-selected frame", () => {
       fireEvent.click(screen.getByRole("button", { name: "Print…" }));
       expect(screen.getByTestId("print-panel")).toBeTruthy();
       expect(h.api.printResult).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("finishing and starting again", () => {
+    it("Finish returns to the caller at once, without waiting for the camera to stop", async () => {
+      h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
+      h.api.resetShooting.mockReturnValue(new Promise(() => {}));       // the camera takes forever to stop
+      const onDone = vi.fn();
+      render(<ShootFlow variant="booth" frame={FRAME} onDone={onDone} />);
+      fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+      expect(onDone).toHaveBeenCalledTimes(1);
+      expect(h.api.resetShooting).toHaveBeenCalled();
+    });
+
+    it("a reset that fails does not leave the guest on the result screen", () => {
+      h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
+      h.api.resetShooting.mockRejectedValue(new Error("boom"));
+      const onDone = vi.fn();
+      render(<ShootFlow variant="booth" frame={FRAME} onDone={onDone} />);
+      fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+      expect(onDone).toHaveBeenCalledTimes(1);
+    });
+
+    it("opening a new session while the old 'All done' state is still there clears it first", async () => {
+      h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "OLD" });
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      await waitFor(() => expect(h.api.resetShooting).toHaveBeenCalled());
+      expect(h.api.cancelShooting).toHaveBeenCalled();
+    });
+
+    it("a normal start (idle or preview) does not reset anything", () => {
+      h.S.shoot = snap("PREVIEW");
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      expect(h.api.resetShooting).not.toHaveBeenCalled();
     });
   });
 });

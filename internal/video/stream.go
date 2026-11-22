@@ -239,10 +239,14 @@ func (s *Stream) Stop() {
 		s.timer = nil
 	}
 	p := s.proc
+	grace := 8 * time.Second // a recording needs time to finalise its MP4
+	if s.recording == nil {
+		grace = 700 * time.Millisecond // preview only: nothing to finalise, so never make the guest wait
+	}
 	s.stopping = true
 	s.mu.Unlock()
 	if p != nil {
-		_ = p.Stop(8 * time.Second)
+		_ = p.Stop(grace)
 	}
 	s.mu.Lock()
 	s.proc, s.recording, s.stopping = nil, nil, false

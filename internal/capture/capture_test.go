@@ -359,3 +359,43 @@ func TestShutdownReleasesCameraAndMarksInterrupted(t *testing.T) {
 		t.Fatalf("session %+v", sess)
 	}
 }
+
+// The UI drops every snapshot whose version is lower than the newest it has seen. The version
+// must therefore never go back — in particular not when the engine is reset after a finished
+// session, otherwise the next session's screens are ignored and the guest stays on "All done".
+func TestSnapshotVersionNeverGoesBackAcrossSessionsAndResets(t *testing.T) {
+	e := newEnv(t, 0)
+	last := e.eng.Snapshot().Version
+	check := func(step string) {
+		t.Helper()
+		v := e.eng.Snapshot().Version
+		if v <= last {
+			t.Fatalf("%s: version %d is not newer than %d", step, v, last)
+		}
+		last = v
+	}
+	for i := 0; i < 3; i++ {
+		e.preview()
+		check("preview")
+		if err := e.eng.Start(cfg(2)); err != nil {
+			t.Fatal(err)
+		}
+		e.waitState(capture.Review)
+		check("review")
+		_ = e.eng.Accept()
+		e.waitState(capture.Completed)
+		check("completed")
+		if err := e.eng.Reset(); err != nil {
+			t.Fatal(err)
+		}
+		check("reset")
+	}
+	// cancel and reset paths too
+	e.preview()
+	_ = e.eng.Start(cfg(2))
+	e.waitState(capture.Review)
+	_ = e.eng.Cancel()
+	check("cancel")
+	_ = e.eng.Reset()
+	check("reset after cancel")
+}

@@ -19,6 +19,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   const [composed, setComposed] = useState<{ session: string; mediaId: string } | null>(null);
   const { busy, error, run, clear } = useAction();
   const booth = variant === "booth";
+  const stateRef0 = useRef(shoot.state); // the state this screen was opened in
 
   // enter: bring live view up as soon as a camera is connected
   const started = useRef(false);
@@ -28,6 +29,12 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
       run(() => api.startPreview()).finally(() => { started.current = false; });
     }
   }, [shoot.state, camera.device, camera.state, camera.reconnecting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // a new session never starts on top of the previous one's "All done" / error screen: clear what is left over
+  useEffect(() => {
+    const st = stateRef0.current;
+    if (st !== "IDLE" && st !== "PREVIEW") api.cancelShooting().catch(() => {}).finally(() => api.resetShooting().catch(() => {}));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // leave: release live view; abandon a half-finished session
   const stateRef = useRef(shoot.state);
@@ -145,7 +152,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           <div className="controls">
             <button disabled={busy} onClick={() => setChanging(true)}>Change design</button>
             {resultId && <ResultPrint mediaId={resultId} booth={booth} />}
-            <button className="primary big" onClick={() => { api.resetShooting().then(() => onDone?.()); }}>
+            <button className="primary big" onClick={() => { onDone?.(); api.resetShooting().catch(() => {}); }}>
               {booth ? "Finish" : "New session"}
             </button>
           </div>

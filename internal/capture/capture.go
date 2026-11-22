@@ -143,8 +143,12 @@ func (e *Engine) update(f func(s *Snapshot)) Snapshot {
 	e.emit.Lock()
 	defer e.emit.Unlock()
 	e.mu.Lock()
+	// Version only ever grows. Callers replace the whole snapshot (*s = Snapshot{...}), which would
+	// reset it to zero; the UI drops any update older than the newest one it has seen, so a reset
+	// version made it ignore every event of the next session.
+	v := e.s.Version
 	f(&e.s)
-	e.s.Version++
+	e.s.Version = v + 1
 	snap := clone(e.s)
 	e.mu.Unlock()
 	if e.o.OnChange != nil {
