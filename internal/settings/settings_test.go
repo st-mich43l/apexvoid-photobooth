@@ -54,3 +54,29 @@ func TestCorruptFileFallsBackToDefaults(t *testing.T) {
 		t.Fatal("corrupt file not preserved")
 	}
 }
+
+func TestOutputDPIDefaultsTo300ForOldSettingsAndOnlyAllows300Or600(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"countdownSeconds":3,"shots":4,"video":{"width":1280,"height":720,"fps":30,"maxSeconds":30}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(path)
+	if err != nil || m.Get().OutputDPI != 300 {
+		t.Fatalf("%v %d", err, m.Get().OutputDPI)
+	}
+	s := m.Get()
+	for _, bad := range []int{72, 150, 450, 1200} {
+		s.OutputDPI = bad
+		if err := m.Save(s); err == nil {
+			t.Fatalf("%d accepted", bad)
+		}
+	}
+	s.OutputDPI = 600
+	if err := m.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	m2, _ := Load(path)
+	if m2.Get().OutputDPI != 600 {
+		t.Fatal("not persisted")
+	}
+}

@@ -180,3 +180,61 @@ func TestHighDPIOutputIsExactAndCarriesItsDensity(t *testing.T) {
 		t.Fatalf("%d×%d", w2, h2)
 	}
 }
+
+func TestEveryLayoutAt600DPIIsExactAndMatchesThe300DPIRender(t *testing.T) {
+	want := map[string][2]int{"strip4": {1200, 3600}, "strip3": {1200, 3600}, "strip2": {1200, 3600}, "twoup4": {2400, 3600}, "sheet6": {2400, 3600}, "sheet4": {2400, 3600}, "sheet2": {2400, 3600}, "p57": {3000, 4200}, "single": {2400, 3600}}
+	l := Load(t.TempDir())
+	for lid, px := range want {
+		f := *l.Get("birthday." + lid) // birthday has patterns, text and rounded photos: the hardest case
+		f.DPI = 600
+		hi, err := Compose(f, SamplePhotos(f.Photos()), nil, RenderContext{Caption: "Hello", Date: goldenDate})
+		if err != nil {
+			t.Fatalf("%s: %v", lid, err)
+		}
+		if hi.Bounds().Dx() != px[0] || hi.Bounds().Dy() != px[1] {
+			t.Fatalf("%s at 600 dpi is %v, want %dx%d", lid, hi.Bounds(), px[0], px[1])
+		}
+		f.DPI = 300
+		lo, err := Compose(f, SamplePhotos(f.Photos()), nil, RenderContext{Caption: "Hello", Date: goldenDate})
+		if err != nil {
+			t.Fatal(err)
+		}
+		down := image.NewNRGBA(lo.Bounds())
+		scaleDown(down, hi)
+		if d := meanAbsDiff(lo, down); d > 6 {
+			t.Errorf("%s: the 600 dpi render differs from the 300 dpi one (mean %.1f/255): layout is not resolution independent", lid, d)
+		}
+	}
+}
+
+func TestSnapshotResolutionOverrideAppliesToBuiltInsOnly(t *testing.T) {
+	l := Load(t.TempDir())
+	snap, err := l.TakeSnapshot(filepath.Join(t.TempDir(), "001"), "rose-pink.strip4", "", "", time.Now(), 600)
+	if err != nil || snap.Frame.DPI != 600 {
+		t.Fatalf("%v %+v", err, snap.Frame.DPI)
+	}
+	d, _ := l.NewDraft("plain.strip4", "Mine")
+	saved, err := l.SaveCustom(d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap2, err := l.TakeSnapshot(filepath.Join(t.TempDir(), "001"), saved.ID, "", "", time.Now(), 600)
+	if err != nil || snap2.Frame.DPI != 300 {
+		t.Fatalf("a custom frame keeps its own dpi: %v %d", err, snap2.Frame.DPI)
+	}
+	if _, err := l.TakeSnapshot(filepath.Join(t.TempDir(), "001"), "rose-pink.strip4", "", "", time.Now(), 1200); err == nil {
+		t.Fatal("1200 dpi exceeds the supported range")
+	}
+}
+
+func TestSixHundredDPICanvasLimits(t *testing.T) {
+	f := *Load(t.TempDir()).Get("plain.p57")
+	f.DPI = 600
+	if err := f.Validate(); err != nil {
+		t.Fatalf("5x7 at 600 dpi (12.6 MP) must be allowed: %v", err)
+	}
+	f.WidthIn, f.HeightIn = 24, 36 // 14400×21600 px = 311 MP
+	if f.Validate() == nil {
+		t.Fatal("a canvas over 80 megapixels must be refused even at 600 dpi")
+	}
+}

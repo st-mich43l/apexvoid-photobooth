@@ -125,6 +125,8 @@ jobs:
           Write-Host "FFmpeg: $($ff.detail); encoder: $($enc.detail)"
           if (-not $r.frameFlow.ok) { throw "the frame flow (choose a frame, 4 photos, compose, two-up sheet) failed: $($r.frameFlow | ConvertTo-Json)" }
           Write-Host "Frame flow: strip $($r.frameFlow.stripPixels) @ $($r.frameFlow.dpi) dpi with $($r.frameFlow.frame)/$($r.frameFlow.variant); two-up sheet $($r.frameFlow.twoUpPixels)"
+          if (-not $r.frameFlow600.ok) { throw "the 600 dpi frame flow failed: $($r.frameFlow600 | ConvertTo-Json)" }
+          Write-Host "600 dpi: strip $($r.frameFlow600.stripPixels) @ $($r.frameFlow600.dpi) dpi; two-up sheet $($r.frameFlow600.twoUpPixels)"
           New-Item dist\ci-evidence -ItemType Directory -Force | Out-Null
           Copy-Item selftest-frame-*.jpg dist\ci-evidence\
       - name: "Camera probe on the runner (no camera attached; native enumeration must work and report everything as unverified)"

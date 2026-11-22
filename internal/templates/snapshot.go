@@ -39,7 +39,8 @@ const snapshotFile = "frame.json"
 
 // TakeSnapshot freezes frame id with the colour variant into dir (which must
 // not exist yet). It is atomic: a half-written snapshot is never visible.
-func (l *Library) TakeSnapshot(dir, id, variantID, caption string, date time.Time) (Snapshot, error) {
+// dpi (0 = the frame's own) overrides the resolution of built-in frames only; custom frames keep the DPI chosen in the builder.
+func (l *Library) TakeSnapshot(dir, id, variantID, caption string, date time.Time, dpi int) (Snapshot, error) {
 	base := l.Get(id)
 	if base == nil {
 		return Snapshot{}, fmt.Errorf("frame %q does not exist", id)
@@ -47,6 +48,9 @@ func (l *Library) TakeSnapshot(dir, id, variantID, caption string, date time.Tim
 	resolved, err := base.WithVariant(variantID)
 	if err != nil {
 		return Snapshot{}, err
+	}
+	if base.Builtin && dpi > 0 {
+		resolved.DPI = dpi
 	}
 	if err := resolved.Validate(); err != nil {
 		return Snapshot{}, fmt.Errorf("frame %q is not usable: %w", id, err)

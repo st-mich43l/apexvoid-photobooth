@@ -29,6 +29,7 @@ type fakePrinter struct {
 	files   [][]byte // content of each submitted file at submission time
 	state   printing.JobState
 	margin  float64 // unprintable border in mm
+	dpi     int     // printer resolution (0 = 300)
 }
 
 func newFakePrinter() *fakePrinter {
@@ -46,7 +47,11 @@ func (f *fakePrinter) Capabilities(context.Context, string) (printing.Caps, erro
 		Orientations: []printing.Orientation{printing.Portrait, printing.Landscape}, MaxCopies: 10, Resolutions: [][2]int{{300, 300}}}, nil
 }
 func (f *fakePrinter) Geometry(_ context.Context, _ string, p printing.Paper, o printing.Orientation) (printing.PageGeometry, error) {
-	return printing.GeometryFor(p, o, 300, f.margin), nil
+	d := f.dpi
+	if d == 0 {
+		d = 300
+	}
+	return printing.GeometryFor(p, o, d, f.margin), nil
 }
 func (f *fakePrinter) Submit(_ context.Context, r printing.SubmitRequest) (string, error) {
 	b, err := os.ReadFile(r.File)
