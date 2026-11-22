@@ -44,8 +44,8 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
   const lowDisk = lib.freeBytes >= 0 && lib.freeBytes < 2 * 1024 ** 3;
   const interrupted = lib.interrupted.length;
 
-  const camTone: Tone = connected ? "ok" : camera.reconnecting ? "warn" : "err";
-  const camStatus = connected ? (camera.device!.simulated ? "Simulated" : "Connected") : camera.reconnecting ? "Reconnecting" : "Not connected";
+  const camTone: Tone = connected ? (camera.device!.simulated ? "warn" : "ok") : camera.reconnecting ? "warn" : "err";
+  const camStatus = connected ? (camera.device!.simulated ? "Demo (simulated)" : "Connected") : camera.reconnecting ? "Reconnecting" : "Not connected";
   const prTone: Tone = printer ? (printer.status === "ready" ? "ok" : "warn") : settings.printerName ? "warn" : "ok";
 
   // where each readiness line is fixed
@@ -67,6 +67,7 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
           <p>{sub}</p>
           <div className="hero-actions">
             {onBooth && <button className="primary alt cta" onClick={onBooth}><Icon name="play" size={18} />Open Booth Mode</button>}
+            <button onClick={() => go("prepare")}><Icon name="prepare" size={18} />Prepare Booth</button>
             <button onClick={() => go("photo")}><Icon name="photo" size={18} />Photo session</button>
             <button onClick={() => go("video")}><Icon name="video" size={18} />Record video</button>
           </div>

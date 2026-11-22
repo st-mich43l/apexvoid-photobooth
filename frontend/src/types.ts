@@ -129,7 +129,8 @@ export interface PrintPreview {
   rotated: boolean; orientation: string; warning: string; assumedGeometry: boolean; imageInches: [number, number]; templateId: string; twoUpOffer: boolean; twoUp: boolean;
 }
 
-export interface Check { name: string; ok: boolean; detail: string; action?: string }
+export type CheckState = "ok" | "problem" | "warn" | "info";
+export interface Check { name: string; ok: boolean; detail: string; action?: string; state: CheckState; blocksGuests: boolean; scope: string }
 export interface Diagnostics {
   platform: string; checks: Check[]; drivers: DriverStatus[]; conflicts: string[]; library: LibrarySummary;
   logDir: string; network: string; movieFindings: string[];
@@ -154,8 +155,14 @@ export interface CanonStatus {
 }
 
 // ---- Booth readiness (internal/app/readiness_api.go) ----
-export type ReadinessStatus = "ready" | "setup_required" | "reconnecting" | "attention";
-export interface ReadinessItem { key: string; label: string; required: boolean; state: "ok" | "problem" | "warn" | "info"; detail?: string; action?: string }
+export type ReadinessStatus = "ready" | "setup_required" | "reconnecting" | "attention" | "demo";
+export type ReadinessGroup = "camera" | "storage" | "frames" | "printer" | "session";
+export type Verification = "verified" | "unverified" | "demo";
+export interface ReadinessItem { key: string; label: string; required: boolean; state: "ok" | "problem" | "warn" | "info"; detail?: string; action?: string; group?: ReadinessGroup; verification?: Verification }
 export interface BoothReadiness {
   status: ReadinessStatus; canStart: boolean; headline: string; detail?: string; guest: string; items: ReadinessItem[]; at: string;
+  /** a SIMULATED camera is the photo camera: usable, but not hardware verification */
+  demo?: boolean;
+  /** what guests are offered: digital_only | unverified (Windows reports the printer ready) | unavailable */
+  printing?: "digital_only" | "unverified" | "unavailable";
 }
