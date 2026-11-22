@@ -508,3 +508,7 @@ label.inline { display: flex; align-items: center; gap: 10px; cursor: pointer; f
   .page { padding: 8px 20px 48px; }
 }
 .tpl-preview img { background: transparent; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
+
+/* Booth Mode is photo-only: one large start card */
+.choices { grid-template-columns: minmax(0, 1fr); max-width: 640px; margin-left: auto; margin-right: auto; }
+.choice { min-height: clamp(240px, 42vmin, 460px); }
