@@ -1,6 +1,7 @@
 package edsdk
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,21 @@ import (
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 )
+
+// capItem is a transfer request the camera raised inside a capture window.
+type capItem struct {
+	item ref
+	seq  uint64
+}
+
+// Diag is a snapshot of driver-level counters for diagnostics.
+type Diag struct {
+	Health        Health `json:"sdk"`
+	Captures      uint64 `json:"captures"`         // photos delivered
+	LateTransfers uint64 `json:"lateTransfers"`    // transfer requests dropped because no capture was waiting for them
+	Invalid       uint64 `json:"invalidTransfers"` // downloads rejected as incomplete / not a JPEG
+	LastFile      string `json:"lastFile,omitempty"`
+}
 
 // Camera is one Canon body. Capabilities start "unverified" and are promoted
 // to "supported" (or demoted to "unsupported") only by what actually happened
@@ -22,8 +38,16 @@ type Camera struct {
 	drv  *Driver
 
 	frames *camera.FrameBuffer
-	events chan camera.Event
-	items  chan ref // DirItemRequestTransfer notifications
+
+	// events: every send and the final close happen under evMu so a state
+	// callback racing Disconnect can never send on a closed channel.
+	evMu     sync.Mutex
+	events   chan camera.Event
+	evClosed bool
+
+	items    chan capItem  // DirItemRequestTransfer notifications inside a capture window
+	gone     chan struct{} // closed once when the camera is lost or disconnected
+	goneOnce sync.Once
 
 	mu       sync.Mutex
 	cam      ref
@@ -36,10 +60,25 @@ type Camera struct {
 	lastEvf  uint32
 	notified bool
 
+	// capture association: only transfer requests that arrive while a capture
+	// window is open belong to a photograph; anything else is a late arrival
+	// (or a RAW companion) and is dropped, never attached to another shot.
+	capBusy      bool
+	winOpen      bool
+	winSeq       uint64
+	suspectUntil time.Time // a capture timed out: its photo may still arrive
+	lastFile     string
+	nCaptures    uint64
+	nLate        uint64
+	nInvalid     uint64
+
 	// FrameInterval paces live-view downloads (default ~30 fps).
 	FrameInterval time.Duration
 	// CaptureTimeout bounds the wait for the photo to arrive after the shutter.
 	CaptureTimeout time.Duration
+	// LateGrace is how long the next capture waits after a timed-out one so a
+	// delayed transfer of the first photo cannot be mistaken for the next.
+	LateGrace time.Duration
 	// KeepAliveInterval is how often the camera's auto power-off timer is
 	// extended while connected (default 30 s). The camera also announces
 	// "will soon shut down", which triggers an immediate extension.
@@ -53,8 +92,9 @@ type Camera struct {
 func newCamera(w *worker, a api, info camera.DeviceInfo, find conflictFinder, d *Driver) *Camera {
 	return &Camera{
 		w: w, a: a, info: info, find: find, drv: d,
-		frames: camera.NewFrameBuffer(), events: make(chan camera.Event, 4), items: make(chan ref, 16),
-		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second, KeepAliveInterval: 30 * time.Second, kick: make(chan struct{}, 1),
+		frames: camera.NewFrameBuffer(), events: make(chan camera.Event, 4), items: make(chan capItem, 16), gone: make(chan struct{}),
+		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second, LateGrace: 6 * time.Second,
+		KeepAliveInterval: 30 * time.Second, kick: make(chan struct{}, 1),
 		caps: camera.Capabilities{
 			LiveView: camera.Unverified, StillCapture: camera.Unverified, OriginalTransfer: camera.Unverified,
 			MovieRecord: camera.Unverified, MovieTransfer: camera.Unverified, StreamedVideo: camera.Unsupported,
@@ -79,9 +119,42 @@ func (c *Camera) Capabilities() camera.Capabilities {
 func (c *Camera) State() camera.State         { c.mu.Lock(); defer c.mu.Unlock(); return c.state }
 func (c *Camera) Events() <-chan camera.Event { return c.events }
 
+// Diagnostics returns driver counters and the SDK thread health.
+func (c *Camera) Diagnostics() Diag {
+	c.mu.Lock()
+	d := Diag{Captures: c.nCaptures, LateTransfers: c.nLate, Invalid: c.nInvalid, LastFile: c.lastFile}
+	c.mu.Unlock()
+	d.Health = c.w.Health()
+	return d
+}
+
 func (c *Camera) setCap(f func(*camera.Capabilities)) { c.mu.Lock(); f(&c.caps); c.mu.Unlock() }
 
-// emitLost reports a disconnect once.
+func (c *Camera) signalGone() { c.goneOnce.Do(func() { close(c.gone) }) }
+
+// sendEvent delivers ev unless the channel is already closed. It never blocks.
+func (c *Camera) sendEvent(ev camera.Event) {
+	c.evMu.Lock()
+	defer c.evMu.Unlock()
+	if c.evClosed {
+		return
+	}
+	select {
+	case c.events <- ev:
+	default:
+	}
+}
+
+func (c *Camera) closeEvents() {
+	c.evMu.Lock()
+	if !c.evClosed {
+		c.evClosed = true
+		close(c.events)
+	}
+	c.evMu.Unlock()
+}
+
+// emitLost reports a disconnect once and wakes anything waiting on the camera.
 func (c *Camera) emitLost(cause error) {
 	c.mu.Lock()
 	if c.closed || c.notified {
@@ -91,10 +164,8 @@ func (c *Camera) emitLost(cause error) {
 	c.notified = true
 	c.state = camera.StateError
 	c.mu.Unlock()
-	select {
-	case c.events <- camera.Event{Kind: camera.EventDisconnected, Err: cause}:
-	default:
-	}
+	c.signalGone()
+	c.sendEvent(camera.Event{Kind: camera.EventDisconnected, Err: cause})
 }
 
 // fail translates an SDK error and reports a disconnect if that is what it was.
@@ -108,6 +179,20 @@ func (c *Camera) fail(op string, err error) error {
 	return translate(op, err, c.find)
 }
 
+// closeNative closes a session and releases its handle. It runs to completion
+// (bounded) even if the caller was cancelled, and never leaves handlers behind.
+func (c *Camera) closeNative(ctx context.Context, r ref) error {
+	dctx, cancel := detached(ctx, 8*time.Second)
+	defer cancel()
+	_, err := call(dctx, c.w, "close session", func() (struct{}, error) {
+		c.a.ClearHandlers(r)
+		cerr := c.a.CloseSession(r) // a vanished camera makes this fail; the handle is still released
+		c.a.Release(r)
+		return struct{}{}, cerr
+	})
+	return err
+}
+
 func (c *Camera) Connect(ctx context.Context) error {
 	c.mu.Lock()
 	if c.closed || c.opened {
@@ -116,56 +201,73 @@ func (c *Camera) Connect(ctx context.Context) error {
 	}
 	c.mu.Unlock()
 
-	var found rawCamera
-	err := c.w.do(ctx, func() error {
+	// The native open runs to completion even if the caller cancels, so a
+	// half-opened session can never be abandoned; cancellation is honoured
+	// afterwards by closing what was opened.
+	dctx, cancel := detached(ctx, 20*time.Second)
+	defer cancel()
+	found, err := call(dctx, c.w, "open session", func() (ref, error) {
 		cams, err := c.a.CameraList()
 		if err != nil {
-			return err
+			return 0, err
 		}
-		var match *rawCamera
+		match := matchCamera(cams, c.info.ID)
 		for i := range cams {
-			if deviceID(cams[i], i) == c.info.ID {
-				match = &cams[i]
-			}
-		}
-		for i := range cams {
-			if match == nil || cams[i].Ref != match.Ref {
+			if match < 0 || i != match {
 				c.a.Release(cams[i].Ref)
 			}
 		}
-		if match == nil {
-			return &sdkError{Op: "find camera", Code: errDeviceNotFound}
+		if match < 0 {
+			return 0, &sdkError{Op: "find camera", Code: errDeviceNotFound}
 		}
-		found = *match
-		if err := c.a.OpenSession(found.Ref); err != nil {
-			c.a.Release(found.Ref)
-			return err
+		r := cams[match].Ref
+		fail := func(err error) (ref, error) {
+			c.a.ClearHandlers(r)
+			_ = c.a.CloseSession(r)
+			c.a.Release(r)
+			return 0, err
+		}
+		if err := c.a.OpenSession(r); err != nil {
+			c.a.Release(r)
+			return 0, err
 		}
 		// Send photos to the PC, not only to the card, and announce free space.
-		if err := c.a.SetU32(found.Ref, propSaveTo, saveToHost); err != nil {
-			_ = c.a.CloseSession(found.Ref)
-			c.a.Release(found.Ref)
-			return err
+		if err := c.a.SetU32(r, propSaveTo, saveToHost); err != nil {
+			return fail(err)
 		}
-		_ = c.a.AnnounceHostSpace(found.Ref) // required on some bodies, rejected on others: best effort
-		err = c.a.SetHandlers(found.Ref, c.onObject, c.onState)
-		if err != nil {
-			_ = c.a.CloseSession(found.Ref)
-			c.a.Release(found.Ref)
+		_ = c.a.AnnounceHostSpace(r) // required on some bodies, rejected on others: best effort
+		if err := c.a.SetHandlers(r, c.onObject, c.onState); err != nil {
+			return fail(err)
 		}
-		return err
+		return r, nil
 	})
 	if err != nil {
 		return c.fail("open camera session", err)
 	}
+	if ctx.Err() != nil {
+		_ = c.closeNative(ctx, found)
+		return ctx.Err()
+	}
 	c.mu.Lock()
-	c.cam, c.opened, c.state, c.notified = found.Ref, true, camera.StateConnected, false
-	kctx, cancel := context.WithCancel(context.Background())
-	c.stopKeep, c.keepDone = cancel, make(chan struct{})
+	c.cam, c.opened, c.state, c.notified = found, true, camera.StateConnected, false
+	kctx, kcancel := context.WithCancel(context.Background())
+	c.stopKeep, c.keepDone = kcancel, make(chan struct{})
 	done := c.keepDone
 	c.mu.Unlock()
-	go c.keepAlive(kctx, found.Ref, done)
+	go c.keepAlive(kctx, found, done)
 	return nil
+}
+
+// matchCamera finds info.ID in the SDK list using the same order-independent
+// identity as discovery.
+func matchCamera(cams []rawCamera, id string) int {
+	ids := stableIDs(cams)
+	for i := range cams {
+		if ids[i] == id {
+			return i
+		}
+	}
+	return -1
 }
 
 // keepAlive stops the body from powering itself off during an event: the
@@ -188,19 +290,37 @@ func (c *Camera) keepAlive(ctx context.Context, r ref, done chan struct{}) {
 		case <-c.kick:
 		}
 		cctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		_ = c.w.do(cctx, func() error { return c.a.SendCommand(r, cmdExtendShutdownTimer, 0) })
+		_ = c.w.doOp(cctx, "extend shutdown timer", func() error { return c.a.SendCommand(r, cmdExtendShutdownTimer, 0) })
 		cancel()
 	}
 }
 
-// onObject runs on the SDK thread during PumpEvents.
+// onObject runs on the SDK thread during PumpEvents. It must never block and
+// it owns every object reference it is handed: each one is either queued for
+// the capture that is waiting for it or released here.
 func (c *Camera) onObject(event uint32, item ref) {
-	if event == evObjectDirItemRequestTransfer {
-		select {
-		case c.items <- item:
-		default: // queue full: drop (and let the camera time out) rather than block the SDK thread
-			c.a.SkipItem(item)
-		}
+	if item == 0 {
+		return
+	}
+	if event != evObjectDirItemRequestTransfer {
+		// "Object without matching event fire must be released" (Canon samples).
+		c.a.Release(item)
+		return
+	}
+	c.mu.Lock()
+	open, seq := c.winOpen, c.winSeq
+	if !open {
+		c.nLate++
+	}
+	c.mu.Unlock()
+	if !open {
+		c.a.SkipItem(item) // late arrival or RAW companion: acknowledge and drop
+		return
+	}
+	select {
+	case c.items <- capItem{item: item, seq: seq}:
+	default: // queue full: drop rather than block the SDK thread
+		c.a.SkipItem(item)
 	}
 }
 
@@ -228,6 +348,29 @@ func (c *Camera) ref() (ref, error) {
 	return c.cam, nil
 }
 
+// armLiveView switches the live-view output to the PC. Mirrorless bodies such
+// as the R50 may drop it after a capture, so it is also used to re-arm.
+func (c *Camera) armLiveView(ctx context.Context, r ref) error {
+	cur, err := call(ctx, c.w, "arm live view", func() (uint32, error) {
+		if mode, merr := c.a.GetU32(r, propEvfMode); merr == nil && mode == 0 {
+			_ = c.a.SetU32(r, propEvfMode, 1) // DSLRs need it; bodies that always run live view reject it
+		}
+		cur, gerr := c.a.GetU32(r, propEvfOutputDevice)
+		if gerr != nil {
+			cur = 0 // some bodies refuse the read until live view is on
+		}
+		return cur, c.a.SetU32(r, propEvfOutputDevice, cur|evfOutputPC)
+	})
+	if err == nil {
+		c.mu.Lock()
+		if cur&evfOutputPC == 0 { // remember what the camera had so Stop restores it
+			c.lastEvf = cur
+		}
+		c.mu.Unlock()
+	}
+	return err
+}
+
 func (c *Camera) StartLiveView(ctx context.Context) error {
 	r, err := c.ref()
 	if err != nil {
@@ -239,15 +382,7 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 		return nil
 	}
 	c.mu.Unlock()
-	err = c.w.do(ctx, func() error {
-		cur, err := c.a.GetU32(r, propEvfOutputDevice)
-		if err != nil {
-			cur = 0 // some bodies refuse the read until live view is on
-		}
-		c.lastEvf = cur
-		return c.a.SetU32(r, propEvfOutputDevice, cur|evfOutputPC)
-	})
-	if err != nil {
+	if err := c.armLiveView(ctx, r); err != nil {
 		if code, ok := sdkCode(err); ok && (code == errNotSupported || code == errUnimplemented) {
 			c.setCap(func(k *camera.Capabilities) { k.LiveView = camera.Unsupported })
 		}
@@ -256,20 +391,26 @@ func (c *Camera) StartLiveView(ctx context.Context) error {
 	lctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	c.mu.Lock()
+	if c.liveStop != nil || c.closed { // raced with another start or Disconnect
+		c.mu.Unlock()
+		cancel()
+		return nil
+	}
 	c.liveStop, c.liveDone, c.state = cancel, done, camera.StateLiveView
 	c.mu.Unlock()
 	go c.liveLoop(lctx, r, done)
 	return nil
 }
 
+func isJPEGStream(b []byte) bool { return len(b) > 4 && b[0] == 0xFF && b[1] == 0xD8 }
+
 func (c *Camera) liveLoop(ctx context.Context, r ref, done chan struct{}) {
 	defer close(done)
 	failures := 0
 	for ctx.Err() == nil {
-		var jpg []byte
-		err := c.w.do(ctx, func() (e error) { jpg, e = c.a.DownloadEvf(r); return })
+		jpg, err := call(ctx, c.w, "download live-view frame", func() ([]byte, error) { return c.a.DownloadEvf(r) })
 		switch {
-		case err == nil && len(jpg) > 0:
+		case err == nil && isJPEGStream(jpg):
 			failures = 0
 			c.frames.Publish(jpg)
 			c.setCap(func(k *camera.Capabilities) { k.LiveView = camera.Supported })
@@ -277,23 +418,28 @@ func (c *Camera) liveLoop(ctx context.Context, r ref, done chan struct{}) {
 			return
 		default:
 			code, _ := sdkCode(err)
-			if code == errObjectNotReady || err == nil { // live view still warming up
+			switch {
+			case err == nil || code == errObjectNotReady: // live view warming up, or dropped after a shot
 				failures++
-			} else if isDisconnect(code) {
+			case isDisconnect(code):
 				c.emitLost(err)
 				return
-			} else {
+			default:
 				failures += 5
+			}
+			// A body can silently turn the PC output off (after a shot, on a mode change):
+			// ask for it again now and then instead of giving up.
+			if failures > 0 && failures%20 == 0 {
+				rctx, rc := context.WithTimeout(ctx, 3*time.Second)
+				_ = c.armLiveView(rctx, r)
+				rc()
 			}
 			if failures > 150 { // ~5 s without a frame
 				c.mu.Lock()
 				c.state = camera.StateConnected
 				c.liveStop = nil
 				c.mu.Unlock()
-				select {
-				case c.events <- camera.Event{Kind: camera.EventError, Err: translate("live view", err, c.find)}:
-				default:
-				}
+				c.sendEvent(camera.Event{Kind: camera.EventError, Err: translate("live view", err, c.find)})
 				return
 			}
 		}
@@ -309,7 +455,7 @@ func (c *Camera) StopLiveView() error {
 	c.mu.Lock()
 	stop, done := c.liveStop, c.liveDone
 	c.liveStop, c.liveDone = nil, nil
-	r, opened, closed := c.cam, c.opened, c.closed
+	r, opened, closed, last := c.cam, c.opened, c.closed, c.lastEvf
 	if c.state == camera.StateLiveView {
 		c.state = camera.StateConnected
 	}
@@ -323,7 +469,7 @@ func (c *Camera) StopLiveView() error {
 	if opened && !closed {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = c.w.do(ctx, func() error { return c.a.SetU32(r, propEvfOutputDevice, c.lastEvf&^evfOutputPC) })
+		_ = c.w.doOp(ctx, "stop live view", func() error { return c.a.SetU32(r, propEvfOutputDevice, last&^evfOutputPC) })
 	}
 	return nil
 }
@@ -332,20 +478,73 @@ func (c *Camera) WaitFrame(ctx context.Context, after uint64) (camera.Frame, err
 	return c.frames.Wait(ctx, after)
 }
 
+// openWindow starts a capture window: from now on transfer requests belong to
+// this capture. Anything queued earlier is stale and is acknowledged away.
+func (c *Camera) openWindow() uint64 {
+	c.drainItems()
+	c.mu.Lock()
+	c.winSeq++
+	c.winOpen = true
+	seq := c.winSeq
+	c.mu.Unlock()
+	return seq
+}
+
+// closeWindow ends the capture window and releases every item still queued.
+func (c *Camera) closeWindow() {
+	c.mu.Lock()
+	c.winOpen = false
+	c.mu.Unlock()
+	c.drainItems()
+}
+
+// drainItems acknowledges and releases every queued transfer request. Items
+// already pulled off the queue are owned by the caller, so this only ever
+// touches references nobody else holds.
 func (c *Camera) drainItems() {
 	for {
 		select {
 		case it := <-c.items:
-			_ = c.w.do(context.Background(), func() error { c.a.SkipItem(it); return nil })
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = c.w.doOp(ctx, "skip transfer", func() error { c.a.SkipItem(it.item); return nil })
+			cancel()
 		default:
 			return
 		}
 	}
 }
 
+// settle waits out the late-transfer grace after a timed-out capture, with the
+// window closed, so a delayed photo of the failed attempt is dropped instead of
+// being mistaken for the next one.
+func (c *Camera) settle(ctx context.Context) error {
+	c.mu.Lock()
+	wait := time.Until(c.suspectUntil)
+	c.mu.Unlock()
+	if wait <= 0 {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.gone:
+		return nil
+	case <-time.After(wait):
+	}
+	c.mu.Lock()
+	c.suspectUntil = time.Time{}
+	c.mu.Unlock()
+	return nil
+}
+
+func lostErr() error {
+	return camera.Errf(camera.CodeDisconnected, "Check the USB cable and that the camera is on. The app reconnects automatically.", nil, "the camera was disconnected during the capture")
+}
+
 // Capture triggers the shutter and returns the JPEG original transferred to
 // the PC. RAW companions of a RAW+JPEG shot are discarded; a RAW-only setting
-// is reported as an error because nothing viewable would arrive.
+// is reported as an error because nothing viewable would arrive. A capture
+// succeeds only once a complete JPEG has been received.
 func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 	r, err := c.ref()
 	if err != nil {
@@ -354,26 +553,41 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 	if err := ctx.Err(); err != nil {
 		return camera.Photo{}, err
 	}
-	c.drainItems()
+	c.mu.Lock()
+	if c.capBusy {
+		c.mu.Unlock()
+		return camera.Photo{}, camera.Errf(camera.CodeBusyOperation, "Wait for the current capture to finish.", nil, "a capture is already in progress on this camera")
+	}
+	c.capBusy = true
+	c.mu.Unlock()
+	defer func() { c.mu.Lock(); c.capBusy = false; c.mu.Unlock() }()
+
+	if err := c.settle(ctx); err != nil {
+		return camera.Photo{}, err
+	}
+	c.openWindow()
+	defer c.closeWindow()
 
 	// 1. release the shutter (retry while the camera is still focusing/busy)
 	var shotErr error
 	for attempt := 0; attempt < 6; attempt++ {
-		shotErr = c.w.do(ctx, func() error {
+		_, shotErr = call(ctx, c.w, "release shutter", func() (struct{}, error) {
 			err := c.a.SendCommand(r, cmdTakePicture, 0)
 			if code, ok := sdkCode(err); ok && (code == errNotSupported || code == errUnimplemented) {
 				// some bodies only accept the shutter-button command
 				if err2 := c.a.SendCommand(r, cmdPressShutter, shutterCompletelyNonAF); err2 != nil {
-					return err2
+					return struct{}{}, err2
 				}
-				return c.a.SendCommand(r, cmdPressShutter, shutterOff)
+				return struct{}{}, c.a.SendCommand(r, cmdPressShutter, shutterOff)
 			}
-			return err
+			return struct{}{}, err
 		})
 		if code, ok := sdkCode(shotErr); ok && code == errObjectNotReady {
 			select {
 			case <-ctx.Done():
 				return camera.Photo{}, ctx.Err()
+			case <-c.gone:
+				return camera.Photo{}, lostErr()
 			case <-time.After(300 * time.Millisecond):
 			}
 			continue
@@ -387,7 +601,7 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		return camera.Photo{}, c.fail("take picture", shotErr)
 	}
 
-	// 2. wait for the camera to offer the file, download the JPEG
+	// 2. wait for the camera to offer the file, download and check the JPEG
 	deadline := time.NewTimer(c.CaptureTimeout)
 	defer deadline.Stop()
 	sawRAW := false
@@ -395,7 +609,12 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		select {
 		case <-ctx.Done():
 			return camera.Photo{}, ctx.Err()
+		case <-c.gone:
+			return camera.Photo{}, lostErr()
 		case <-deadline.C:
+			c.mu.Lock()
+			c.suspectUntil = time.Now().Add(c.LateGrace)
+			c.mu.Unlock()
 			msg := "the camera did not deliver the photo in time"
 			act := "Check that the camera is in Photo mode with a card or SaveTo-PC enabled, then retry."
 			if sawRAW {
@@ -403,35 +622,109 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 			}
 			return camera.Photo{}, camera.Errf(camera.CodeTimeout, act, nil, "%s", msg)
 		case it := <-c.items:
-			var name string
-			var data []byte
-			err := c.w.do(ctx, func() error {
-				n, size, err := c.a.DirItem(it)
-				if err != nil {
-					c.a.SkipItem(it)
-					return err
-				}
-				name = n
-				if !isJPEG(n) {
-					c.a.SkipItem(it) // RAW companion: acknowledge and ignore
-					return nil
-				}
-				data, err = c.a.Download(it, size)
-				return err
-			})
+			photo, done, err := c.receive(ctx, it)
 			if err != nil {
-				return camera.Photo{}, c.fail("download photo", err)
+				return camera.Photo{}, err
 			}
-			if data == nil {
-				sawRAW = true
+			if !done { // RAW companion or a duplicate: keep waiting for the JPEG
+				sawRAW = sawRAW || photo.Filename != ""
 				continue
 			}
-			c.setCap(func(k *camera.Capabilities) {
-				k.StillCapture, k.OriginalTransfer = camera.Supported, camera.Supported
-			})
-			return camera.Photo{Data: data, Filename: name, Source: "Canon EDSDK original (" + c.info.Name + ")"}, nil
+			c.setCap(func(k *camera.Capabilities) { k.StillCapture, k.OriginalTransfer = camera.Supported, camera.Supported })
+			c.afterCapture(ctx, r)
+			return photo, nil
 		}
 	}
+}
+
+// receive handles one queued transfer request. The item is always completed
+// (downloaded or skipped) even if ctx has been cancelled, so no native
+// reference is left behind. done=false means "not the photo": the returned
+// Photo.Filename then names a skipped RAW companion.
+func (c *Camera) receive(ctx context.Context, it capItem) (camera.Photo, bool, error) {
+	dctx, cancel := detached(ctx, 30*time.Second)
+	defer cancel()
+	type got struct {
+		name string
+		data []byte
+		raw  bool
+		dup  bool
+		size uint64
+	}
+	g, err := call(dctx, c.w, "download photo", func() (got, error) {
+		n, size, err := c.a.DirItem(it.item)
+		if err != nil {
+			c.a.SkipItem(it.item)
+			return got{}, err
+		}
+		c.mu.Lock()
+		dup := n == c.lastFile
+		c.mu.Unlock()
+		if !isJPEG(n) || dup {
+			c.a.SkipItem(it.item) // RAW companion / repeated delivery: acknowledge and ignore
+			return got{name: n, raw: !isJPEG(n), dup: dup}, nil
+		}
+		data, err := c.a.Download(it.item, size)
+		return got{name: n, data: data, size: size}, err
+	})
+	if err != nil {
+		return camera.Photo{}, false, c.fail("download photo", err)
+	}
+	if g.raw {
+		return camera.Photo{Filename: g.name}, false, nil
+	}
+	if g.dup {
+		return camera.Photo{}, false, nil
+	}
+	if verr := validateJPEG(g.data, g.size); verr != nil {
+		c.mu.Lock()
+		c.nInvalid++
+		c.mu.Unlock()
+		return camera.Photo{}, false, camera.Errf(camera.CodeCaptureFailed, "The transfer was incomplete. Retry the shot; check the USB cable if it repeats.", verr, "the photo %s was not received completely", g.name)
+	}
+	c.mu.Lock()
+	c.lastFile = g.name
+	c.nCaptures++
+	c.suspectUntil = time.Time{}
+	c.mu.Unlock()
+	return camera.Photo{Data: g.data, Filename: g.name, Source: "Canon EDSDK original (" + c.info.Name + ")"}, true, nil
+}
+
+// afterCapture puts live view back after a shot if it was running: some bodies
+// drop the PC output while exposing.
+func (c *Camera) afterCapture(ctx context.Context, r ref) {
+	c.mu.Lock()
+	live := c.liveStop != nil
+	c.mu.Unlock()
+	if !live {
+		return
+	}
+	dctx, cancel := detached(ctx, 3*time.Second)
+	defer cancel()
+	_ = c.armLiveView(dctx, r)
+}
+
+// validateJPEG checks that the transferred bytes are a complete JPEG: the size
+// the camera announced, the start-of-image marker and the end-of-image marker.
+// The original bytes are never modified.
+func validateJPEG(data []byte, size uint64) error {
+	if len(data) == 0 {
+		return errors.New("no data")
+	}
+	if size > 0 && uint64(len(data)) != size {
+		return fmt.Errorf("received %d of %d bytes", len(data), size)
+	}
+	if !isJPEGStream(data) {
+		return errors.New("not a JPEG (no start-of-image marker)")
+	}
+	tail := data
+	if len(tail) > 64 {
+		tail = tail[len(tail)-64:]
+	}
+	if !bytes.Contains(tail, []byte{0xFF, 0xD9}) {
+		return errors.New("JPEG is truncated (no end-of-image marker)")
+	}
+	return nil
 }
 
 func isJPEG(name string) bool {
@@ -461,16 +754,10 @@ func (c *Camera) Disconnect() error {
 	c.opened = false
 	c.state = camera.StateDisconnected
 	c.mu.Unlock()
+	c.signalGone() // a capture waiting for the camera stops at once
 	var err error
 	if opened {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		err = c.w.do(ctx, func() error {
-			// a vanished camera makes CloseSession fail; the handle is still released
-			cerr := c.a.CloseSession(r)
-			c.a.Release(r)
-			return cerr
-		})
+		err = c.closeNative(context.Background(), r)
 		if errors.Is(err, errWorkerClosed) {
 			err = nil
 		}
@@ -479,17 +766,21 @@ func (c *Camera) Disconnect() error {
 		}
 	}
 	c.drainItemsQuiet()
-	close(c.events)
+	c.closeEvents()
 	if err != nil {
 		return fmt.Errorf("closing camera session: %w", err)
 	}
 	return nil
 }
 
+// drainItemsQuiet releases queued items on shutdown when the SDK thread may be gone.
 func (c *Camera) drainItemsQuiet() {
 	for {
 		select {
-		case <-c.items:
+		case it := <-c.items:
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			_ = c.w.doOp(ctx, "skip transfer", func() error { c.a.SkipItem(it.item); return nil })
+			cancel()
 		default:
 			return
 		}

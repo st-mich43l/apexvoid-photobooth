@@ -63,6 +63,8 @@ type DeviceInfo struct {
 	Simulated bool   `json:"simulated"` // true only for the mock driver
 	Kind      string `json:"kind"`
 	Vendor    string `json:"vendor,omitempty"`
+	// Interface names how the device is attached and which stack drives it, e.g. "USB (Canon EDSDK)".
+	Interface string `json:"interface,omitempty"`
 	USBID     string `json:"usbId,omitempty"` // "vid:pid" lower-case hex, when known
 	Modes     []Mode `json:"modes,omitempty"` // supported resolutions / frame rates (UVC)
 	// DuplicateOf is set when this entry is the same physical device as

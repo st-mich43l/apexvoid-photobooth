@@ -3,9 +3,12 @@
 package edsdk
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -26,13 +29,63 @@ func exeDir() string {
 	return ""
 }
 
+// SDKStatus statically inspects the Canon SDK folder (no DLL is loaded).
+func SDKStatus(configured string) SDKReport { return Inspect(configured, exeDir()) }
+
 func sdkAvailable(dir string) error {
-	if _, err := locateSDK(dir, exeDir()); err != nil {
-		return camera.Errf(camera.CodeSDKMissing,
-			"Canon's EDSDK is proprietary and not bundled. Download it from Canon (developer registration), then copy the x64 EDSDK.dll and EdsImage.dll (and the Dll folder contents) next to the application or into ./sdk/canon, or set the folder in Settings.",
-			err, "Canon EDSDK not found or not usable")
+	r := Inspect(dir, exeDir())
+	if r.OK() {
+		return nil
 	}
-	return nil
+	code := camera.CodeSDKMissing
+	if r.Kind == SDKWrongArch || r.Kind == SDKMissingExport {
+		code = camera.CodeUnsupported
+	}
+	return camera.Errf(code, r.Action, errors.New(r.Problem), "Canon EDSDK is not usable: %s", sdkKindText(r.Kind))
+}
+
+func sdkKindText(k string) string {
+	switch k {
+	case SDKNotFound:
+		return "not found"
+	case SDKWrongArch:
+		return "wrong architecture"
+	case SDKInvalid:
+		return "invalid DLL"
+	case SDKMissingDependency:
+		return "a dependent DLL is missing"
+	case SDKMissingExport:
+		return "incompatible version"
+	}
+	return k
+}
+
+// resolveDependency reports whether a DLL the SDK imports can be found: beside
+// the SDK, in the Windows system/Windows directories, in the application
+// directory or on PATH. API-set names are provided by the OS.
+func resolveDependency(name, dir string) bool {
+	l := strings.ToLower(name)
+	if strings.HasPrefix(l, "api-ms-win-") || strings.HasPrefix(l, "ext-ms-") {
+		return true
+	}
+	var dirs []string
+	dirs = append(dirs, dir, exeDir())
+	if sys, err := windows.GetSystemDirectory(); err == nil {
+		dirs = append(dirs, sys)
+	}
+	if wd, err := windows.GetWindowsDirectory(); err == nil {
+		dirs = append(dirs, wd)
+	}
+	dirs = append(dirs, filepath.SplitList(os.Getenv("PATH"))...)
+	for _, d := range dirs {
+		if d == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(d, name)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func loadDLL(dir string) (api, error) {
@@ -94,41 +147,69 @@ var (
 	procDispatch    = user32.NewProc("DispatchMessageW")
 )
 
-// callbacks are created once per process (syscall.NewCallback slots are limited).
+// Callbacks are created once per process (syscall.NewCallback slots are
+// limited). The camera reference travels through the SDK as the callback
+// "context" so every event is routed to the camera it belongs to; events for a
+// camera that has been closed are dropped and their object references released.
 var (
+	handlerMu sync.Mutex
+	handlerBy = map[uintptr]handlers{}
+	apiForCB  *dllAPI // the one live SDK instance (touched on the SDK thread only after Init)
+
 	objectCB = syscall.NewCallback(func(event, object, context uintptr) uintptr {
-		if h := loadHandlers(); h.onObject != nil {
+		handlerMu.Lock()
+		h, ok := handlerBy[context]
+		handlerMu.Unlock()
+		switch {
+		case ok && h.onObject != nil:
 			h.onObject(uint32(event), ref(object))
+		case object != 0 && apiForCB != nil:
+			// nobody owns this camera any more: release what the SDK handed us
+			if uint32(event) == evObjectDirItemRequestTransfer {
+				apiForCB.SkipItem(ref(object))
+			} else {
+				apiForCB.Release(ref(object))
+			}
 		}
 		return 0
 	})
 	stateCB = syscall.NewCallback(func(event, data, context uintptr) uintptr {
-		if h := loadHandlers(); h.onState != nil {
+		handlerMu.Lock()
+		h, ok := handlerBy[context]
+		handlerMu.Unlock()
+		if ok && h.onState != nil {
 			h.onState(uint32(event), uint32(data))
 		}
 		return 0
 	})
 )
 
-func (d *dllAPI) Init() error {
+func (d *dllAPI) Init() (err error) {
 	// EDSDK needs a COM apartment on the thread that initialises it.
 	_ = windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED)
-	h, err := windows.LoadLibraryEx(d.path, 0, windows.LOAD_WITH_ALTERED_SEARCH_PATH)
-	if err != nil {
-		return fmt.Errorf("load %s: %w", d.path, err)
+	// Any failure below undoes what was done so far: the worker only calls
+	// Terminate after a successful Init, so a half-initialised SDK must not
+	// leave the DLL loaded or the COM apartment open.
+	defer func() {
+		if err != nil {
+			if d.lib != 0 {
+				_ = windows.FreeLibrary(d.lib)
+				d.lib = 0
+			}
+			d.procs = nil
+			windows.CoUninitialize()
+		}
+	}()
+	h, lerr := windows.LoadLibraryEx(d.path, 0, windows.LOAD_WITH_ALTERED_SEARCH_PATH)
+	if lerr != nil {
+		return fmt.Errorf("load %s: %w", d.path, lerr)
 	}
 	d.lib = h
 	d.procs = map[string]uintptr{}
-	for _, n := range []string{
-		"EdsInitializeSDK", "EdsTerminateSDK", "EdsGetCameraList", "EdsGetChildCount", "EdsGetChildAtIndex", "EdsGetDeviceInfo",
-		"EdsOpenSession", "EdsCloseSession", "EdsSendCommand", "EdsSetCapacity", "EdsSetPropertyData", "EdsGetPropertyData",
-		"EdsCreateMemoryStream", "EdsGetPointer", "EdsGetLength", "EdsCreateEvfImageRef", "EdsDownloadEvfImage",
-		"EdsGetDirectoryItemInfo", "EdsDownload", "EdsDownloadComplete", "EdsDownloadCancel", "EdsRelease", "EdsGetEvent",
-		"EdsSetObjectEventHandler", "EdsSetCameraStateEventHandler",
-	} {
-		a, err := windows.GetProcAddress(h, n)
-		if err != nil {
-			return fmt.Errorf("EDSDK.dll does not export %s (wrong SDK version?): %w", n, err)
+	for _, n := range requiredExports {
+		a, perr := windows.GetProcAddress(h, n)
+		if perr != nil {
+			return fmt.Errorf("EDSDK.dll does not export %s (wrong SDK version?): %w", n, perr)
 		}
 		d.procs[n] = a
 	}
@@ -301,11 +382,28 @@ func (d *dllAPI) SkipItem(item ref) {
 }
 
 func (d *dllAPI) SetHandlers(c ref, onObject func(uint32, ref), onState func(uint32, uint32)) error {
-	storeHandlers(handlers{onObject: onObject, onState: onState})
-	if err := d.chk("EdsSetObjectEventHandler", d.call("EdsSetObjectEventHandler", uintptr(c), evAllObject, objectCB, 0)); err != nil {
+	apiForCB = d
+	handlerMu.Lock()
+	handlerBy[uintptr(c)] = handlers{onObject: onObject, onState: onState}
+	handlerMu.Unlock()
+	if err := d.chk("EdsSetObjectEventHandler", d.call("EdsSetObjectEventHandler", uintptr(c), evAllObject, objectCB, uintptr(c))); err != nil {
+		d.ClearHandlers(c)
 		return err
 	}
-	return d.chk("EdsSetCameraStateEventHandler", d.call("EdsSetCameraStateEventHandler", uintptr(c), evAllState, stateCB, 0))
+	if err := d.chk("EdsSetCameraStateEventHandler", d.call("EdsSetCameraStateEventHandler", uintptr(c), evAllState, stateCB, uintptr(c))); err != nil {
+		d.ClearHandlers(c)
+		return err
+	}
+	return nil
+}
+
+// ClearHandlers stops routing events to the camera. The SDK keeps its own
+// registration until the camera reference is released, so late events still
+// reach the callbacks above and are released there.
+func (d *dllAPI) ClearHandlers(c ref) {
+	handlerMu.Lock()
+	delete(handlerBy, uintptr(c))
+	handlerMu.Unlock()
 }
 
 type winMsg struct {
