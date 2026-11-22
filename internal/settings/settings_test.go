@@ -80,3 +80,21 @@ func TestOutputDPIDefaultsTo300ForOldSettingsAndOnlyAllows300Or600(t *testing.T)
 		t.Fatal("not persisted")
 	}
 }
+
+func TestPreviewMirrorIsOffByDefaultAndPersists(t *testing.T) {
+	if Default().PreviewMirror {
+		t.Fatal("the preview must not be mirrored unless the operator asks for it")
+	}
+	m, err := Load(filepath.Join(t.TempDir(), "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := m.Get()
+	s.PreviewMirror = true
+	if err := m.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	if !m.Get().PreviewMirror {
+		t.Fatal("not saved")
+	}
+}

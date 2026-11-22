@@ -3,13 +3,10 @@ package edsdk
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -37,7 +34,8 @@ type fakeAPI struct {
 	items    map[ref]fileItem
 	evfOn    bool
 	saveTo   uint32
-	captured []string // file names produced per shot
+	captured []string // file extensions produced per shot (RAW+JPEG by default); numbering increments like a real body
+	shotNo   int
 	// fault injection
 	openErr     error
 	takeErrs    []error // consumed one per TakePicture
@@ -49,6 +47,24 @@ type fakeAPI struct {
 	unplugged   bool
 	violations  []string
 	extends     int
+	// fault injection / scenario control
+	cams        []rawCamera // nil = one Canon EOS R50 on "USB-FAKE"
+	initErr     error
+	holdShots   bool     // the shutter works but the camera sends nothing until releaseHeld()
+	held        []func() // events of held shots
+	truncate    bool     // Download returns half the file
+	downloadErr error
+	evfErr      error
+	sessions    int // currently open sessions
+	opens       int
+	evfModeSet  int
+	evfArms     int
+	order       []int // permutation applied to the camera list (device-order changes)
+	portOf      map[ref]string
+	openedPort  string
+	openDelay   time.Duration
+	termBlock   chan struct{} // Terminate blocks until closed (a stuck SDK)
+	terminated  int
 }
 
 func (f *fakeAPI) extendCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.extends }
@@ -59,7 +75,7 @@ type fileItem struct {
 }
 
 func newFake() *fakeAPI {
-	return &fakeAPI{live: map[ref]string{}, items: map[ref]fileItem{}, next: 100, captured: []string{"IMG_0001.CR3", "IMG_0001.JPG"}}
+	return &fakeAPI{live: map[ref]string{}, items: map[ref]fileItem{}, next: 100, captured: []string{".CR3", ".JPG"}}
 }
 
 func goid() string {
@@ -91,26 +107,62 @@ func jpegBytes(w, h int, seed byte) []byte {
 	return b.Bytes()
 }
 
-func (f *fakeAPI) Init() error { defer f.enter("Init")(); return nil }
-func (f *fakeAPI) Terminate()  { defer f.enter("Terminate")() }
+func (f *fakeAPI) Init() error { defer f.enter("Init")(); return f.initErr }
+func (f *fakeAPI) Terminate() {
+	defer f.enter("Terminate")()
+	f.terminated++
+	if f.termBlock != nil {
+		<-f.termBlock
+	}
+}
 func (f *fakeAPI) CameraList() ([]rawCamera, error) {
 	defer f.enter("CameraList")()
 	if f.unplugged {
 		return nil, nil
 	}
-	return []rawCamera{{Ref: f.newRef("camera"), Name: "Canon EOS R50", Port: "USB-FAKE"}}, nil
+	src := f.cams
+	if src == nil {
+		src = []rawCamera{{Name: "Canon EOS R50", Port: "USB-FAKE"}}
+	}
+	idx := make([]int, len(src))
+	for i := range idx {
+		idx[i] = i
+	}
+	if len(f.order) == len(src) {
+		idx = f.order
+	}
+	out := make([]rawCamera, 0, len(src))
+	for _, i := range idx {
+		c := src[i]
+		c.Ref = f.newRef("camera")
+		if f.portOf == nil {
+			f.portOf = map[ref]string{}
+		}
+		f.portOf[c.Ref] = c.Port
+		out = append(out, c)
+	}
+	return out, nil
 }
 func (f *fakeAPI) OpenSession(c ref) error {
 	defer f.enter("OpenSession")()
 	if f.openErr != nil {
 		return f.openErr
 	}
+	if f.openDelay > 0 {
+		time.Sleep(f.openDelay)
+	}
 	f.cam = c
+	f.openedPort = f.portOf[c]
+	f.sessions++
+	f.opens++
 	return nil
 }
 func (f *fakeAPI) CloseSession(c ref) error {
 	defer f.enter("CloseSession")()
 	f.closed = true
+	if f.sessions > 0 {
+		f.sessions--
+	}
 	if f.unplugged {
 		return &sdkError{Op: "EdsCloseSession", Code: errDeviceNotFound}
 	}
@@ -146,16 +198,33 @@ func (f *fakeAPI) SendCommand(c ref, cmd, param uint32) error {
 	return nil
 }
 func (f *fakeAPI) shoot() {
-	for _, n := range f.captured {
-		n := n
-		f.pending = append(f.pending, func() {
+	f.shotNo++
+	for _, ext := range f.captured {
+		n := fmt.Sprintf("IMG_%04d%s", f.shotNo, ext)
+		ev := func() {
 			it := f.newRef("item")
 			f.items[it] = fileItem{name: n, data: jpegBytes(120, 80, 9)}
 			if f.onObject != nil {
 				f.onObject(evObjectDirItemRequestTransfer, it)
+			} else { // no owner any more: the SDK still hands us a reference, which must be released
+				delete(f.items, it)
+				delete(f.live, it)
 			}
-		})
+		}
+		if f.holdShots {
+			f.held = append(f.held, ev)
+		} else {
+			f.pending = append(f.pending, ev)
+		}
 	}
+}
+
+// releaseHeld delivers the events of held shots (a delayed transfer).
+func (f *fakeAPI) releaseHeld() {
+	f.mu.Lock()
+	f.pending = append(f.pending, f.held...)
+	f.held = nil
+	f.mu.Unlock()
 }
 func (f *fakeAPI) SetU32(r ref, prop, v uint32) error {
 	defer f.enter("SetU32")()
@@ -164,6 +233,11 @@ func (f *fakeAPI) SetU32(r ref, prop, v uint32) error {
 		f.saveTo = v
 	case propEvfOutputDevice:
 		f.evfOn = v&evfOutputPC != 0
+		if f.evfOn {
+			f.evfArms++
+		}
+	case propEvfMode:
+		f.evfModeSet++
 	}
 	return nil
 }
@@ -177,6 +251,9 @@ func (f *fakeAPI) DownloadEvf(c ref) ([]byte, error) {
 	if f.unplugged {
 		return nil, &sdkError{Op: "EdsDownloadEvfImage", Code: errDeviceNotFound}
 	}
+	if f.evfErr != nil {
+		return nil, f.evfErr
+	}
 	if !f.evfOn {
 		return nil, &sdkError{Op: "EdsDownloadEvfImage", Code: errObjectNotReady}
 	}
@@ -189,10 +266,18 @@ func (f *fakeAPI) DirItem(it ref) (string, uint64, error) {
 }
 func (f *fakeAPI) Download(it ref, size uint64) ([]byte, error) {
 	defer f.enter("Download")()
+	if f.downloadErr != nil {
+		delete(f.items, it)
+		delete(f.live, it)
+		return nil, f.downloadErr
+	}
 	f.downloaded++
 	d := f.items[it].data
 	delete(f.items, it)
 	delete(f.live, it)
+	if f.truncate {
+		return d[:len(d)/2], nil
+	}
 	return d, nil
 }
 func (f *fakeAPI) SkipItem(it ref) {
@@ -206,6 +291,10 @@ func (f *fakeAPI) SetHandlers(c ref, o func(uint32, ref), s func(uint32, uint32)
 	f.onObject, f.onState = o, s
 	return nil
 }
+func (f *fakeAPI) ClearHandlers(c ref) {
+	defer f.enter("ClearHandlers")()
+	f.onObject, f.onState = nil, nil
+}
 func (f *fakeAPI) PumpEvents() {
 	f.mu.Lock()
 	if id := goid(); f.gid != "" && f.gid != id {
@@ -218,6 +307,8 @@ func (f *fakeAPI) PumpEvents() {
 		p()
 	}
 }
+
+func (f *fakeAPI) replug() { f.mu.Lock(); f.unplugged = false; f.mu.Unlock() }
 
 // unplug schedules the state-event the real SDK sends on USB removal.
 func (f *fakeAPI) unplug() {
@@ -305,7 +396,7 @@ func TestPhotoIsJPEGAndRAWCompanionIsSkipped(t *testing.T) {
 
 func TestRAWOnlyReportsActionableTimeout(t *testing.T) {
 	f := newFake()
-	f.captured = []string{"IMG_0001.CR3"}
+	f.captured = []string{".CR3"}
 	_, c := connect(t, f)
 	_, err := c.Capture(context.Background())
 	if camera.CodeOf(err) != camera.CodeTimeout || !strings.Contains(camera.ActionOf(err), "JPEG") {
@@ -444,42 +535,6 @@ func TestErrorTranslationIsActionable(t *testing.T) {
 	}
 	if got := matchOwners([]string{"chrome.exe", "eos utility 3.EXE"}); len(got) != 1 {
 		t.Errorf("case-insensitive match failed: %v", got)
-	}
-}
-
-// minimal PE header with the given machine type
-func writePE(t *testing.T, path string, machine uint16) {
-	t.Helper()
-	b := make([]byte, 0x100)
-	b[0], b[1] = 'M', 'Z'
-	binary.LittleEndian.PutUint32(b[0x3C:], 0x80)
-	copy(b[0x80:], "PE\x00\x00")
-	binary.LittleEndian.PutUint16(b[0x84:], machine)
-	if err := os.WriteFile(path, b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestLocateSDK(t *testing.T) {
-	dir := t.TempDir()
-	if _, err := locateSDK("", dir); err == nil {
-		t.Fatal("empty dir must report SDK missing")
-	}
-	sub := filepath.Join(dir, "sdk", "canon")
-	_ = os.MkdirAll(sub, 0o755)
-	writePE(t, filepath.Join(sub, "EDSDK.dll"), 0x014c) // 32-bit
-	_ = os.WriteFile(filepath.Join(sub, "EdsImage.dll"), []byte("x"), 0o644)
-	if _, err := locateSDK("", dir); err == nil || !strings.Contains(err.Error(), "64-bit") {
-		t.Fatalf("32-bit DLL must be rejected with a clear reason: %v", err)
-	}
-	writePE(t, filepath.Join(sub, "EDSDK.dll"), 0x8664)
-	p, err := locateSDK("", dir)
-	if err != nil || filepath.Base(p) != "EDSDK.dll" {
-		t.Fatalf("%v %v", p, err)
-	}
-	_ = os.Remove(filepath.Join(sub, "EdsImage.dll"))
-	if _, err := locateSDK("", dir); err == nil || !strings.Contains(err.Error(), "EdsImage.dll") {
-		t.Fatalf("missing EdsImage.dll: %v", err)
 	}
 }
 

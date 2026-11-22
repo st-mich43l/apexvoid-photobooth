@@ -27,7 +27,7 @@ export interface Capabilities {
 export interface DriverStatus { name: string; available: boolean; problem?: string }
 export interface CameraStatus {
   device?: DeviceInfo; state: CamState; capabilities?: Capabilities; liveView: boolean;
-  mode?: Mode; reconnecting: boolean; lastError?: string; lastAction?: string; drivers: DriverStatus[];
+  mode?: Mode; reconnecting: boolean; lastError?: string; lastAction?: string; lastCode?: string; drivers: DriverStatus[];
 }
 
 export type ShootStateName = "IDLE" | "PREVIEW" | "COUNTDOWN" | "CAPTURING" | "REVIEW" | "SAVING" | "COMPLETED" | "ERROR" | "CANCELLED";
@@ -44,7 +44,7 @@ export interface VideoState {
 
 export interface VideoSettings { device: string; audioInput: string; width: number; height: number; fps: number; maxSeconds: number }
 export interface Settings {
-  mediaDir: string; countdownSeconds: number; shots: number; templateId: string; outputDpi: number; autoReconnect: boolean;
+  mediaDir: string; countdownSeconds: number; shots: number; templateId: string; outputDpi: number; previewMirror: boolean; autoReconnect: boolean;
   enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; printPaper: string; video: VideoSettings;
   kioskPinSet: boolean; // the PIN record itself never reaches the UI
   photoCamera: Preferred; videoCamera: Preferred; cameraModes: Record<string, SavedMode> | null;
@@ -135,3 +135,20 @@ export interface Diagnostics {
   logDir: string; network: string; movieFindings: string[];
 }
 export interface Report { checked: number; missing: string[]; recovered: string[]; interrupted: string[]; corrupt: string[] }
+
+// ---- Canon camera setup (internal/app/canon_api.go) ----
+export type ReadyState = "ok" | "problem" | "not_tried";
+export interface Readiness { key: string; label: string; state: ReadyState; detail?: string; action?: string }
+export interface CanonStatus {
+  platform: string;
+  sdk: { kind: string; problem?: string; action?: string; path?: string; machine?: string; missingImports?: string[]; missingExports?: string[] };
+  driver?: { running: boolean; busy: boolean; op?: string; runningMs: number; stuck: boolean; abandoned: number; completed: number };
+  detected: DeviceInfo[];
+  conflicts: string[];
+  active?: { name: string; interface: string; port?: string; usbId?: string; state: CamState; liveView: boolean; capabilities: Capabilities;
+    counters?: { captures: number; lateTransfers: number; invalidTransfers: number; lastFile?: string } };
+  items: Readiness[];
+  recommendation?: string;
+  guide: string[];
+  verification: string;
+}

@@ -45,7 +45,7 @@ export function SimulatedRibbon() {
 
 /** Live view: an <img> on the loopback MJPEG stream, re-opened after drops. */
 export function LivePreview({ className = "" }: { className?: string }) {
-  const { camera, previewUrl } = useApp();
+  const { camera, previewUrl, settings } = useApp();
   const [failed, setFailed] = useState(0);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -61,7 +61,7 @@ export function LivePreview({ className = "" }: { className?: string }) {
     );
   }
   return (
-    <div className={`preview ${className}`}>
+    <div className={`preview ${settings?.previewMirror ? "mirrored" : ""} ${className}`}>
       <img
         key={`${previewUrl}-${failed}`}
         src={previewUrl}

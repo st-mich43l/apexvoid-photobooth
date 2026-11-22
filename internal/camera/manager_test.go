@@ -209,3 +209,31 @@ func TestPreferredMatching(t *testing.T) {
 		}
 	}
 }
+
+func TestPreferredMatchNeverGuessesBetweenLookAlikes(t *testing.T) {
+	a := camera.DeviceInfo{ID: "canon-edsdk:A", Name: "Canon EOS R50", Driver: "canon-edsdk", USBID: "04a9:32b3"}
+	b := camera.DeviceInfo{ID: "canon-edsdk:B", Name: "Canon EOS R50", Driver: "canon-edsdk", USBID: "04a9:32b3"}
+	pref := camera.Preferred{ID: "canon-edsdk:gone", Name: a.Name, Driver: a.Driver, USBID: a.USBID}
+	// the remembered body is gone and two identical bodies remain: no guess
+	if _, ok := pref.Match([]camera.DeviceInfo{a, b}); ok {
+		t.Fatal("two identical bodies share name and USB id; neither may be chosen")
+	}
+	// exactly one candidate: found again, e.g. after moving to another USB port
+	if got, ok := pref.Match([]camera.DeviceInfo{b}); !ok || got.ID != b.ID {
+		t.Fatalf("%v %v", got, ok)
+	}
+	// the exact id always wins
+	pref.ID = a.ID
+	if got, ok := pref.Match([]camera.DeviceInfo{b, a}); !ok || got.ID != a.ID {
+		t.Fatalf("%v %v", got, ok)
+	}
+	// look-alikes were present when it was lost: only the identical id may return
+	pref = camera.Preferred{ID: "canon-edsdk:gone", Name: a.Name, Driver: a.Driver, USBID: a.USBID, ExactOnly: true}
+	if _, ok := pref.Match([]camera.DeviceInfo{b}); ok {
+		t.Fatal("ExactOnly must not fall back to the name or USB id")
+	}
+	pref.ID = b.ID
+	if _, ok := pref.Match([]camera.DeviceInfo{b}); !ok {
+		t.Fatal("ExactOnly still matches the same id")
+	}
+}

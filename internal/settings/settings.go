@@ -42,7 +42,9 @@ type Settings struct {
 	Shots            int    `json:"shots"`      // legacy: the frame now decides the photo count (1, 2, 3, 4 or 6)
 	TemplateID       string `json:"templateId"` // the frame preselected on the frame-selection screen
 	// OutputDPI is the print resolution of built-in frames: 300 (standard) or 600 (high). Custom frames keep the DPI set in the Frame Builder.
-	OutputDPI     int    `json:"outputDpi"`
+	OutputDPI int `json:"outputDpi"`
+	// PreviewMirror flips the live preview horizontally (like a mirror) for guests. It is display only: photos are never mirrored.
+	PreviewMirror bool   `json:"previewMirror"`
 	AutoReconnect bool   `json:"autoReconnect"`
 	EnableMock    bool   `json:"enableMock"`  // development: expose the simulated camera
 	FFmpegPath    string `json:"ffmpegPath"`  // empty = beside the exe, then PATH

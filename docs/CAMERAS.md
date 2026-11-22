@@ -35,9 +35,64 @@ Values: `supported`, `unsupported`, `unverified` (API exists, has not succeeded 
 ### How it works
 Photos are sent straight to the PC (`SaveTo = Host`, `EdsSetCapacity`). Shutter: `TakePicture`, falling back to the
 shutter-button command if the body reports "not supported". The JPEG arrives via the object event
-`DirItemRequestTransfer`; a RAW companion is acknowledged and discarded. Live view: `Evf_OutputDevice |= PC`
-and `EdsDownloadEvfImage` at ~30 fps. USB loss: state event `Shutdown` or `DEVICE_NOT_FOUND`/`COMM_DISCONNECTED`
-→ the manager releases handles and reconnects automatically (restoring live view).
+`DirItemRequestTransfer`; a RAW companion is acknowledged and discarded. Live view: `Evf_Mode` (best effort) and
+`Evf_OutputDevice |= PC`, then `EdsDownloadEvfImage` at up to ~30 fps (the real rate depends on the body and USB link
+and is **not** promised). USB loss: state event `Shutdown` or `DEVICE_NOT_FOUND`/`COMM_DISCONNECTED` → the manager
+releases handles and reconnects automatically (restoring live view).
+
+### Reliability design (Phase C)
+* **One SDK thread.** Every EDSDK call and the callback pump run on one locked OS thread, one call at a time. Results
+  travel back through channels, never through variables shared with a caller that may have given up.
+* **Capture windows.** A transfer request belongs to a photograph only if it arrives while that capture is waiting
+  for it. Anything else — a RAW companion that arrives after the JPEG, a photo that arrives after a timeout, a repeated
+  file name — is acknowledged and dropped (and counted), so a **late transfer can never be attached to another shot**.
+  After a timeout the next capture waits a short grace period (`LateGrace`, 6 s) with its window closed before it
+  fires the shutter. *Residual risk:* a transfer delayed by more than the grace period *and* arriving inside a later
+  capture window cannot be told apart by the SDK; this has not been observed and cannot be tested without hardware.
+* **A capture succeeds only when a complete original has been received**: the announced size, the JPEG start and end
+  markers, then the application's own decode check before it is written (atomically, unchanged) to the session. The
+  shutter command returning success proves nothing.
+* **No leaked native references.** Every transfer item is downloaded or skipped even if the caller cancelled; a
+  half-opened session is closed when the caller cancels `Connect`; unknown object events are released; handlers are
+  unregistered on disconnect (the Windows build routes callbacks by camera reference, so events of a closed camera never
+  reach another one).
+* **Bounded and observable shutdown.** `Close` waits at most 10 s for the SDK thread and then reports which call was
+  blocking. Diagnostics show the SDK call in progress and flag one running longer than 20 s as stuck.
+* **Disconnects wake waiting captures** at once; a disconnect racing a state callback can no longer panic.
+* **Stable identity.** The camera id comes from the USB port path the SDK reports (never from list position), so
+  reordering or hot-plugging another body does not change it. Reconnect accepts the same id, or the same model on the
+  same USB id / a unique name when there were no look-alikes — **it never adopts another body** (two identical R50s are
+  never guessed between). The camera serial number is *not* read (it needs an open session).
+* **Mid-session recovery.** If the cable drops during a shot, the session, the frame snapshot and the photos already
+  taken are kept; the engine waits (60 s) for the manager to reconnect, then repeats that slot from its countdown.
+  A failed retake keeps the previous photo.
+* **Static SDK check.** Before loading anything the app reads `EDSDK.dll`'s PE headers: architecture (x64), imported
+  DLLs that cannot be found, and the 25 entry points it calls. Missing, wrong-architecture, damaged, incomplete and
+  incompatible installs are reported separately, with what to do. If the SDK is unusable only the Canon source is
+  unavailable; webcams keep working.
+* **Mirror preview** (Settings): flips the displayed live view only; originals are never mirrored.
+
+### Diagnostics and readiness
+Studio → Camera → *Canon camera setup* lists, in order: SDK files, SDK initialised, other programs owning the camera,
+camera detected, camera connected, live view, still capture, original transfer and the last error (classified as SDK
+missing / busy / unsupported / disconnected / timeout / capture failed), a *Next step*, and the R50 Windows setup
+guide. A line says **working** only if it succeeded on the connected camera in this session; otherwise it says
+**not tried yet** or **problem**. Per-session counters (photos received, late transfers ignored, incomplete transfers
+rejected) are shown too.
+
+### Validation levels (what each kind of evidence means)
+| level | meaning |
+|---|---|
+| Automated test passed | the logic behaves as intended against a **simulated** EDSDK (`go test ./internal/camera/edsdk`, also under `-race`) |
+| Windows build verified | the application compiles for Windows x64 and its self-tests run on a CI runner **without a camera or Canon SDK** |
+| Real hardware verified | a person ran `photobooth.exe --canon-validate --interactive` (or docs/HARDWARE_TESTS.md) with a real EOS R50 and recorded the result |
+| Not tested | everything else |
+
+`photobooth.exe --canon-validate [report.json] [--interactive] [--sessions N]` runs the 12 acceptance scenarios against
+the connected camera with a throw-away library (the operator's media is never read or deleted) and writes a JSON report
+and the evidence files. Each scenario is `PASS`, `FAIL` or `UNVERIFIED`; steps that need a person (unplug the cable,
+start EOS Utility) are `UNVERIFIED` unless `--interactive` is given and answered. The script's own logic is tested against the simulated camera; that
+says nothing about a real body.
 
 ### Video on the R50 — findings
 | question | answer |
@@ -50,8 +105,10 @@ The UI never claims EDSDK recording works: starting a recording on the Canon ada
 UVC alternative.
 
 > Constant values and struct layouts in `internal/camera/edsdk/types.go` were written from Canon's public
-> headers from memory and **must be compared with `EDSDKTypes.h` / `EDSDKErrors.h` of your SDK version** during
-> hardware validation (HARDWARE_TESTS.md step 2). Struct *sizes* are unit-tested.
+> headers and **must be compared with `EDSDKTypes.h` / `EDSDKErrors.h` of the SDK version you install**
+> (`EDSDK_HEADERS=<folder> go test ./internal/camera/edsdk -run Headers -v`). The headers are proprietary and not in
+> this repository, so CI cannot do it. Struct *sizes* are unit-tested. The audit that preceded Phase C is in
+> docs/CANON_AUDIT.md.
 
 ## Camera sources (Phase 2)
 
