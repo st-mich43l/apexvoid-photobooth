@@ -27,9 +27,7 @@ export function SettingsPage() {
       <section className="card"><h3>Photo sessions</h3>
         <div className="form">
           <label>Countdown (seconds)<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
-          <label>Photographs per session
-            <select value={draft.shots} onChange={(e) => set("shots", Number(e.target.value))}>{[1, 2, 4, 6].map((n) => <option key={n}>{n}</option>)}</select>
-          </label>
+          <p className="muted small">The number of photographs comes from the frame each guest chooses (Frames page), so there is no separate setting.</p>
           <label className="check"><input type="checkbox" checked={draft.autoReconnect} onChange={(e) => set("autoReconnect", e.target.checked)} /> Reconnect the camera automatically after a USB drop</label>
         </div>
       </section>

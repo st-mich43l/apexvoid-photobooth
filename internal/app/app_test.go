@@ -118,10 +118,13 @@ func TestFullPhotoWorkflowWithSimulatedCamera(t *testing.T) {
 	if err := s.StartPreview(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.StartShooting(3); err == nil {
-		t.Fatal("3 photographs must be rejected")
+	if err := s.StartShooting("no-such-frame", "", ""); err == nil {
+		t.Fatal("an unknown frame must be rejected")
 	}
-	if err := s.StartShooting(2); err != nil {
+	if err := s.StartShooting("white-minimal.strip3", "", ""); err == nil {
+		t.Fatal("a frame the operator has not enabled must be rejected")
+	}
+	if err := s.StartShooting(frameFor(2), "", ""); err != nil {
 		t.Fatal(err)
 	}
 	sn := waitShoot(t, s, capture.Review)
@@ -212,7 +215,7 @@ func TestFullPhotoWorkflowWithSimulatedCamera(t *testing.T) {
 	if err := s.StartPreview(); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.StartShooting(1); err != nil {
+	if err := s.StartShooting(frameFor(1), "", ""); err != nil {
 		t.Fatal(err)
 	}
 	waitShoot(t, s, capture.Review)
@@ -290,7 +293,7 @@ func TestInterruptedSessionIsRecoveredOnNextStart(t *testing.T) {
 	s1 := mk()
 	connectMock(t, s1)
 	_ = s1.StartPreview()
-	_ = s1.StartShooting(1)
+	_ = s1.StartShooting(frameFor(1), "", "")
 	waitShoot(t, s1, capture.Review)
 	// simulate a crash: close the DB without Shutdown's session bookkeeping
 	s1.httpd.Close()
@@ -309,7 +312,7 @@ func TestLoopbackServerRequiresTokenAndServesMediaWithRange(t *testing.T) {
 	s, _, _ := newTestApp(t)
 	connectMock(t, s)
 	_ = s.StartPreview()
-	_ = s.StartShooting(1)
+	_ = s.StartShooting(frameFor(1), "", "")
 	sn := waitShoot(t, s, capture.Review)
 	base, tok := s.httpd.base, s.httpd.token
 
@@ -363,13 +366,13 @@ func TestTemplatesAndPrinting(t *testing.T) {
 	if len(tr.Templates) < 5 {
 		t.Fatalf("%+v", tr)
 	}
-	prev, err := s.PreviewTemplate("strip-2x6-4")
+	prev, err := s.PreviewTemplate("rose-pink.strip4")
 	if err != nil || !strings.HasPrefix(prev, "data:image/jpeg;base64,") {
 		t.Fatalf("%v", err)
 	}
 	connectMock(t, s)
 	_ = s.StartPreview()
-	_ = s.StartShooting(4)
+	_ = s.StartShooting(frameFor(4), "", "")
 	waitShoot(t, s, capture.Review)
 	_ = s.AcceptPhotos()
 	waitShoot(t, s, capture.Completed)
@@ -379,18 +382,18 @@ func TestComposeSessionWithDifferentLayout(t *testing.T) {
 	s, _, _ := newTestApp(t)
 	connectMock(t, s)
 	_ = s.StartPreview()
-	_ = s.StartShooting(4)
+	_ = s.StartShooting(frameFor(4), "", "")
 	sn := waitShoot(t, s, capture.Review)
 	_ = s.AcceptPhotos()
 	waitShoot(t, s, capture.Completed)
-	m, err := s.ComposeSession(sn.SessionID, "strip-4x6-2up")
+	m, err := s.ComposeSession(sn.SessionID, "plain.twoup4", "", "", true)
 	if err != nil || m.Width != 1200 || m.Height != 1800 {
 		t.Fatalf("%v %+v", err, m)
 	}
-	if _, err := s.ComposeSession(sn.SessionID, "single-4x6"); err != nil {
+	if _, err := s.ComposeSession(sn.SessionID, "plain.single", "", "", true); err != nil {
 		t.Fatal(err) // fewer slots than photos is fine
 	}
-	if _, err := s.ComposeSession(sn.SessionID, "sheet-4x6-6"); err == nil {
+	if _, err := s.ComposeSession(sn.SessionID, "plain.sheet6", "", "", true); err == nil {
 		t.Fatal("6-photo layout with 4 photos must fail")
 	}
 }
@@ -405,4 +408,9 @@ func TestSelfTestRunsWholeStackOffline(t *testing.T) {
 	if !strings.Contains(string(b), `"ok": true`) {
 		t.Fatalf("%s", b)
 	}
+}
+
+// frameFor is the always-enabled Plain frame that takes n photos.
+func frameFor(n int) string {
+	return map[int]string{1: "plain.single", 2: "plain.strip2", 3: "plain.strip3", 4: "plain.strip4", 6: "plain.sheet6"}[n]
 }

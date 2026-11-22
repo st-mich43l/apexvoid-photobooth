@@ -69,11 +69,13 @@ export interface BootInfo {
 export interface Session {
   id: string; createdAt: string; updatedAt: string; status: string; mode: "photo" | "video"; shotsPlanned: number;
   templateId: string; simulated: boolean; note: string; mediaCount: number;
+  frameId: string; frameName: string; variantId: string; frameRev: number; caption: string; frameDir: string;
 }
 export interface Media {
   id: string; sessionId: string; kind: "photo" | "video" | "strip" | "print"; slot: number; relPath: string; thumbRel: string;
   previewRel: string; editedRel: string; edits: string; width: number; height: number; sizeBytes: number; sha256: string;
   durationMs: number; simulated: boolean; source: string; status: string; capturedAt: string;
+  frameId: string; frameName: string; variantId: string; frameRev: number; frameDir: string;
 }
 
 export interface Rect { x: number; y: number; w: number; h: number }
@@ -87,6 +89,17 @@ export interface Template {
   id: string; name: string; kind: string; widthIn: number; heightIn: number; dpi: number; background: string;
   borderIn: number; borderColor: string; overlay: string; slots: Slot[];
 }
+export interface Variant { id: string; name: string; background?: string; borderColor?: string; accent?: string; textColor?: string }
+/** A frame: layout (photo slots) + style, as listed by the backend. */
+export interface Frame {
+  id: string; name: string; kind: string; category: string; description?: string; order: number; revision: number;
+  enabled: boolean; builtin?: boolean; legacy?: boolean; captionEnabled?: boolean; design?: string; layoutId?: string;
+  widthIn: number; heightIn: number; dpi: number; slots: Slot[]; background: string; accent?: string; variants?: Variant[];
+  photos: number; format: string; pixelW: number; pixelH: number;
+}
+export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
+/** What the guest picked: stays with the session from the first shot to the printed result. */
+export interface FrameChoice { id: string; name: string; variantId: string; caption: string; photos: number; format: string }
 export interface TemplatesResult { templates: Template[]; errors: string[]; dir: string }
 
 export interface Printer { name: string; default: boolean; status: "ready" | "offline" | "error" | "unknown"; detail?: string; port?: string; driver?: string }

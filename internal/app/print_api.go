@@ -166,7 +166,7 @@ func (s *Service) printSource(mediaID, templateID, paper string, save bool) (*pr
 			t = alt
 		}
 	}
-	out, w, h, err := templates.Render(*t, []image.Image{src}, s.db.Layout.TemplatesDir())
+	out, w, h, err := templates.Render(*t, []image.Image{src}, s.tpl.Assets(t.ID), templates.RenderContext{})
 	if err != nil {
 		return nil, userErr(err)
 	}

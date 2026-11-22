@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExitDialog } from "./ExitDialog";
+import { FrameSelection } from "./FrameSelection";
 import { enterFullscreen } from "./fullscreen";
 import { ShootFlow } from "./ShootFlow";
 import { SimulatedRibbon } from "./ui";
 import { useApp } from "./state";
 import { VideoFlow } from "./VideoFlow";
+import type { FrameChoice } from "./types";
 import { usePrepareMode } from "./usePrepareMode";
 
-type Screen = "welcome" | "photo" | "video";
+type Screen = "welcome" | "frames" | "photo" | "video";
 
 /** Booth Mode — the fullscreen guest interface. Touch-first, large targets,
  *  portrait and landscape. The operator leaves through the visible "Exit Booth"
@@ -16,11 +18,19 @@ type Screen = "welcome" | "photo" | "video";
 export function Booth({ onExited }: { onExited: () => void }) {
   const { camera, settings } = useApp();
   // #booth/photo and #booth/video deep-link into a flow (support, screenshots)
-  const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "photo" : window.location.hash === "#booth/video" ? "video" : "welcome"));
+  const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "frames" : window.location.hash === "#booth/video" ? "video" : "welcome"));
   const [asking, setAsking] = useState(false);
   const [fsError, setFsError] = useState("");
   const { prepare, dialog: modeDialog, error: modeError } = usePrepareMode();
-  const choose = async (m: "photo" | "video") => { if (await prepare(m)) setScreen(m); };
+  // the frame is chosen first (no camera, no live view, no session yet); the video flow is unchanged
+  const [frame, setFrame] = useState<FrameChoice | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const choosePhoto = () => setScreen("frames");
+  const chooseVideo = async () => { if (await prepare("video")) setScreen("video"); };
+  const confirmFrame = async (c: FrameChoice) => {
+    setPreparing(true);
+    try { if (await prepare("photo")) { setFrame(c); setScreen("photo"); } } finally { setPreparing(false); }
+  };
   const idle = useRef<number | undefined>(undefined);
 
   const goFullscreen = useCallback(() => {
@@ -73,14 +83,21 @@ export function Booth({ onExited }: { onExited: () => void }) {
           {!ready && <div className="note warn">The camera is not ready yet. Please ask the host.</div>}
           {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
           <div className="choices">
-            <button className="choice photo" onClick={() => choose("photo")}><span aria-hidden>📷</span>Photo<small>{settings.shots} shots</small></button>
-            <button className="choice video" onClick={() => choose("video")}><span aria-hidden>🎬</span>Video<small>up to {settings.video.maxSeconds}s</small></button>
+            <button className="choice photo" onClick={choosePhoto}><span aria-hidden>📷</span>Photo<small>choose a frame</small></button>
+            <button className="choice video" onClick={chooseVideo}><span aria-hidden>🎬</span>Video<small>up to {settings.video.maxSeconds}s</small></button>
           </div>
         </div>
       )}
-      {screen === "photo" && <ShootFlow variant="booth" onDone={() => setScreen("welcome")} />}
+      {screen === "frames" && (
+        <>
+          {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
+          <FrameSelection variant="booth" busy={preparing} initial={frame ? { id: frame.id, variantId: frame.variantId, caption: frame.caption } : undefined}
+            onConfirm={confirmFrame} onBack={() => setScreen("welcome")} backLabel="Home" />
+        </>
+      )}
+      {screen === "photo" && frame && <ShootFlow variant="booth" frame={frame} onChangeFrame={() => setScreen("frames")} onDone={() => { setFrame(null); setScreen("welcome"); }} />}
       {screen === "video" && <VideoFlow variant="booth" onDone={() => setScreen("welcome")} />}
-      {screen !== "welcome" && <button className="home-btn" onClick={() => setScreen("welcome")}>← Home</button>}
+      {screen !== "welcome" && screen !== "frames" && <button className="home-btn" onClick={() => setScreen("welcome")}>← Home</button>}
       {modeDialog}
       {asking && <ExitDialog onClose={() => setAsking(false)} onExited={onExited} />}
     </div>
