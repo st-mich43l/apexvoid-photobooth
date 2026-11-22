@@ -11,6 +11,10 @@ interface Props {
   /** The draft to edit (a saved frame, or a fresh copy from NewFrameDraft). */
   initial: FrameDef;
   isNew: boolean;
+  /** What an import did (windows found, size guesses): shown above the canvas until dismissed. */
+  notes?: string[];
+  /** Info about images the draft already uses (so the panel can show sizes and warnings). */
+  knownAssets?: AssetInfo[];
   onClose: () => void;
   onSaved: (f: Frame) => void;
 }
@@ -20,7 +24,7 @@ const typing = (t: EventTarget | null) => t instanceof HTMLElement && (["INPUT",
 const readAsDataUrl = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("The file could not be read.")); r.readAsDataURL(f); });
 
 /** Studio Frame Builder: layers on the left, the canvas in the middle, properties on the right. */
-export function FrameBuilder({ initial, isNew, onClose, onSaved }: Props) {
+export function FrameBuilder({ initial, isNew, notes, knownAssets, onClose, onSaved }: Props) {
   const [hist, setHist] = useState(() => newHistory(initial));
   const draft = hist.present;
   const [sel, setSel] = useState<Selection>({ type: "frame" });
@@ -35,7 +39,8 @@ export function FrameBuilder({ initial, isNew, onClose, onSaved }: Props) {
   const [error, setError] = useState<AppError | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [assets, setAssets] = useState<Record<string, AssetInfo>>({});
+  const [assets, setAssets] = useState<Record<string, AssetInfo>>(() => Object.fromEntries((knownAssets ?? []).map((a) => [a.name, a])));
+  const [openNotes, setOpenNotes] = useState(notes ?? []);
   const [full, setFull] = useState("");
   const [fullOpen, setFullOpen] = useState(false);
   const [askClose, setAskClose] = useState(false);
@@ -154,6 +159,12 @@ export function FrameBuilder({ initial, isNew, onClose, onSaved }: Props) {
         <button className="primary" onClick={() => save(false)} disabled={saving} aria-label="Save frame">{saving ? "Saving…" : "Save"}</button>
       </header>
       <div className="fb-notes">
+        {openNotes.length > 0 && (
+          <div className="note info fb-import-notes" role="status" aria-label="Import result">
+            <div>{openNotes.map((n, i) => <div key={i}>{n}</div>)}</div>
+            <button className="ghost" onClick={() => setOpenNotes([])} aria-label="Dismiss import notes">✕</button>
+          </div>
+        )}
         <ErrorNote error={error} onClose={() => setError(null)} />
         {previewError && <div className="note warn" role="status"><div>Preview: {previewError}</div></div>}
       </div>

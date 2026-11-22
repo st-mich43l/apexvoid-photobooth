@@ -106,6 +106,7 @@ export interface FrameDef {
 }
 /** A frame as listed to the UI: the definition plus derived facts. */
 export interface Frame extends FrameDef { photos: number; format: string; pixelW: number; pixelH: number }
+export interface PNGFrameImport { draft: FrameDef; asset: AssetInfo; windows: number; mode: "windows" | "background"; notes: string[] }
 export interface AssetInfo { name: string; format: string; width: number; height: number; hasAlpha: boolean; bytes: number }
 export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
 /** What the guest picked: stays with the session from the first shot to the printed result. */

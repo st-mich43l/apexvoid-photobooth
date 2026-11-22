@@ -64,7 +64,7 @@ type Settings struct {
 // Default returns factory settings.
 func Default() Settings {
 	return Settings{
-		CountdownSeconds: 3, Shots: 4, TemplateID: "rose-pink.strip4", OutputDPI: 300, AutoReconnect: true,
+		CountdownSeconds: 3, Shots: 4, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
 }
