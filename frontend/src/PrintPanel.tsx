@@ -15,6 +15,7 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
   const [orientation, setOrientation] = useState("auto");
   const [fit, setFit] = useState("fit");
   const [copies, setCopies] = useState(1);
+  const [twoUp, setTwoUp] = useState<boolean | null>(null); // null = follow the offer for this paper
   const [preview, setPreview] = useState<PrintPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
   const { busy, error, run, clear } = useAction();
@@ -29,14 +30,19 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
     api.printerCapabilities(printer).then((c) => { setCaps(c); setPaper((p) => pickPaper(c.papers, p)); }).catch(() => setCaps(null));
   }, [printer]);
 
-  const opts = (): import("./types").PrintOptions => ({ requestId: requestId.current, mediaId, templateId: templateId ?? "", printer, paper, orientation, fit, copies });
+  const opts = (): import("./types").PrintOptions => ({ requestId: requestId.current, mediaId, templateId: templateId ?? "", printer, paper, orientation, fit, copies, twoUp: twoUp ?? false });
   useEffect(() => {
     if (!printer || !paper) { setPreview(null); return; }
     let alive = true;
     setPreviewError("");
-    api.printPreview({ ...opts(), requestId: "" }).then((p) => alive && setPreview(p)).catch((e) => { if (alive) { setPreview(null); setPreviewError(e.message + (e.action ? ` ${e.action}` : "")); } });
+    api.printPreview({ ...opts(), requestId: "" }).then((p) => {
+      if (!alive) return;
+      if (twoUp === null && p.twoUpOffer && !p.twoUp) { setTwoUp(true); return; }   // a 2×6 strip on 4×6 paper: show the two-up sheet
+      setPreview(p);
+    }).catch((e) => { if (alive) { setPreview(null); setPreviewError(e.message + (e.action ? ` ${e.action}` : "")); } });
     return () => { alive = false; };
-  }, [mediaId, templateId, printer, paper, orientation, fit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mediaId, templateId, printer, paper, orientation, fit, twoUp]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setTwoUp(null); }, [mediaId, paper]);
 
   const p = pr?.printers.find((x) => x.name === printer);
   const unavailable = p && p.status !== "ready";
@@ -71,6 +77,9 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
               <option value="actual">True size, centred</option>
             </select>
           </label>
+          {(preview?.twoUpOffer || twoUp) && (
+            <label className="check"><input type="checkbox" checked={!!twoUp} onChange={(e) => setTwoUp(e.target.checked)} /> Two strips side by side on this sheet (cut it in half)</label>
+          )}
           <label>Copies
             <input type="number" min={1} max={caps?.maxCopies ?? 10} value={copies} onChange={(e) => setCopies(Math.max(1, Number(e.target.value) || 1))} />
           </label>

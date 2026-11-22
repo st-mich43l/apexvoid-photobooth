@@ -108,6 +108,35 @@ Database v3 adds the frame columns to `sessions` and `media` (empty for older ro
 * Imported but unsaved images wait in `templates/.staging/` and are purged after 24 hours.
 * Guests never reach the builder: Booth Mode only lists enabled frames and starts sessions.
 
-## Not in this stage
+## Printing frames
 
-Printing a 2×6 snapshot as a two-up 4×6 sheet, print-from-snapshot and the Windows artifact evidence are F3.3.
+* **What is printed is the finished composition**: `PrintMedia` / `PrintResult` read the stored result image (the file the
+  guest approved). Nothing is re-rendered from the frame, so a frame that was edited or deleted afterwards cannot change
+  a print; a **reprint** sends exactly the file of the original job (`TestReprintUsesTheFinalizedFileNotAnEditedFrame`).
+  A finished strip is also checked against the pixel size of its own frame snapshot before printing.
+* **Two-up for 2×6 strips.** The display strip (600×1800 px) is a different thing from the physical print. When the paper
+  fits two strips side by side (4×6, 5×7) the Printer page and the Gallery offer *Two strips side by side on this sheet
+  (cut it in half)* — on by default for a strip on 4×6 — and the preview shows the real 1200×1800 sheet before anything is
+  sent. The two halves are the approved strip copied pixel for pixel (`templates.TwoUpSheet`; no resampling) at the same
+  DPI (300). The sheet is stored as a `print` image that records the frame that made it. Only narrow strips qualify
+  (width ≤ 40 % of height); a 4×6 sheet frame is refused. Designs that already contain two strips (`twoup4`) are a
+  different, design-level choice and are printed as they are.
+* **Booth**: after the photos, the result screen has *Print* (one tap, using the printer and paper the operator chose in
+  Studio → Printer; hidden when none is set). A 2×6 strip on 4×6 paper is printed two-up automatically. The message says
+  *sent to the printer* — a job in the queue is not proof that paper came out (see `docs/PRINTING.md`). The same tap never
+  prints twice (request id + duplicate window).
+* Dimensions, DPI metadata, cropping and margins come from the existing page planner; the preview is computed from the
+  printer's real printable area when the driver reports it.
+
+## Tests that guard rendering
+
+`internal/templates/golden_test.go` renders eight built-in frames and a custom frame with a transparent overlay, an image
+layer and a caption at 100 DPI and compares them with `testdata/golden/*.png` (mean difference < 0.5/255). Regenerate on
+purpose with `UPDATE_GOLDEN=1 go test -run Golden ./internal/templates` and review the pictures. Other tests: preview ≈ 300-DPI
+output, 600-DPI size and density, two-up pixel copy, snapshot independence, interrupted composition. The Windows CI job also runs
+the whole frame flow (choose a frame → four photos → composition → two-up sheet) through the real service and publishes
+`selftest-frame-strip-2x6.jpg` / `selftest-frame-twoup-4x6.jpg` in `ci-evidence/`.
+
+## Limits
+
+Latin-only fonts; no layer rotation; the builder has only been exercised in jsdom and a browser harness, never in WebView2.
