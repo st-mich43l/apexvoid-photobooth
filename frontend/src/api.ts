@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, CanonStatus, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
+  Session, Settings, ShootSnapshot, CanonStatus, BoothReadiness, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -98,6 +98,10 @@ export const api = {
   reprint: (id: string, confirmed: boolean) => wrap(call<PrintJob>("Reprint", id, confirmed)),
 
   getSettings: () => wrap(call<Settings>("GetSettings")),
+  /** Changes only the named settings (the backend merges them into its current copy). */
+  patchSettings: (p: Partial<Settings>) => wrap(call<{ restartRequired: boolean; settings?: Settings }>("PatchSettings", p)),
+  boothReadiness: () => wrap(call<BoothReadiness>("BoothReadiness")),
+  recoverShooting: () => wrap(call<void>("RecoverShooting")),
   saveSettings: (s: Settings) => wrap(call<{ restartRequired: boolean }>("SaveSettings", s)),
   diagnostics: () => wrap(call<Diagnostics>("RunDiagnostics")),
 };

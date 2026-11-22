@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
-  api: { listPrinters: vi.fn(), printerCapabilities: vi.fn(), printJobs: vi.fn(), listMedia: vi.fn(), saveSettings: vi.fn(), testPrint: vi.fn(), reprint: vi.fn(), printPreview: vi.fn(), printMedia: vi.fn() },
+  api: { listPrinters: vi.fn(), printerCapabilities: vi.fn(), printJobs: vi.fn(), listMedia: vi.fn(), patchSettings: vi.fn(), testPrint: vi.fn(), reprint: vi.fn(), printPreview: vi.fn(), printMedia: vi.fn() },
 }));
 vi.mock("./state", () => ({ useApp: () => h.S }));
 vi.mock("./api", () => ({ api: h.api, on: () => () => {}, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: "" }) }));
@@ -27,7 +27,7 @@ beforeEach(() => {
     { ...jobBase, id: "P1", status: "printing", detail: "Printing." },
     { ...jobBase, id: "PT", kind: "test", status: "completed", detail: "ok" },
   ]);
-  h.api.saveSettings.mockResolvedValue({ restartRequired: false });
+  h.api.patchSettings.mockResolvedValue({ restartRequired: false });
 });
 afterEach(cleanup);
 
@@ -79,7 +79,7 @@ describe("Printer page", () => {
     render(<PrinterPage />);
     await screen.findByText("Spare");
     fireEvent.click(screen.getAllByRole("button", { name: "Use this printer" })[1] as HTMLButtonElement);
-    await waitFor(() => expect(h.api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ printerName: "Spare" })));
+    await waitFor(() => expect(h.api.patchSettings).toHaveBeenCalledWith({ printerName: "Spare" }));
   });
 
   it("offers a preview/print panel for recent images", async () => {

@@ -21,6 +21,9 @@ func (s *Service) StartShooting(frameID, variantID, caption string) error {
 	if err := s.guardWrite(); err != nil {
 		return err
 	}
+	if err := s.startCheck(); err != nil {
+		return err
+	}
 	t, err := s.validateChoice(frameID, variantID)
 	if err != nil {
 		return err

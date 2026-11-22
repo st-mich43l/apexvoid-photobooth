@@ -3,7 +3,7 @@ import { api } from "../api";
 import { bytes } from "../format";
 import { useApp } from "../state";
 import { Icon } from "../icons";
-import type { Media, PrintersResult } from "../types";
+import type { Media, PrintersResult, ReadinessItem } from "../types";
 
 type Tone = "ok" | "warn" | "err";
 
@@ -25,7 +25,7 @@ function StatCard({ icon, label, tone, status, value, sub, action, onAction, chi
 }
 
 export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: () => void }) {
-  const { camera, boot, settings, mediaUrl, libraryVersion } = useApp();
+  const { camera, boot, settings, mediaUrl, libraryVersion, readiness, refreshReadiness } = useApp();
   const [recent, setRecent] = useState<Media[]>([]);
   const [lib, setLib] = useState(boot.library);
   const [printers, setPrinters] = useState<PrintersResult | null>(null);
@@ -34,7 +34,10 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
     api.listMedia("", 8, 0).then(setRecent).catch(() => {});
     api.librarySummary().then(setLib).catch(() => {});
   }, [libraryVersion]);
-  useEffect(() => { api.listPrinters().then(setPrinters).catch(() => setPrinters(null)); }, []);
+  // the printer list is asked again now and then (and on demand): a printer switched off after the page opened must show
+  const loadPrinters = () => api.listPrinters().then(setPrinters).catch(() => setPrinters(null));
+  useEffect(() => { loadPrinters(); const t = window.setInterval(loadPrinters, 10_000); return () => window.clearInterval(t); }, []);
+  useEffect(() => { refreshReadiness?.(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const connected = !!camera.device && camera.state !== "error" && !camera.reconnecting;
   const printer = printers?.printers.find((p) => p.name === settings.printerName);
@@ -43,16 +46,25 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
 
   const camTone: Tone = connected ? "ok" : camera.reconnecting ? "warn" : "err";
   const camStatus = connected ? (camera.device!.simulated ? "Simulated" : "Connected") : camera.reconnecting ? "Reconnecting" : "Not connected";
-  const prTone: Tone = printer ? (printer.status === "ready" ? "ok" : "warn") : "warn";
+  const prTone: Tone = printer ? (printer.status === "ready" ? "ok" : "warn") : settings.printerName ? "warn" : "ok";
+
+  // where each readiness line is fixed
+  const FIX: Record<string, [string, string]> = {
+    camera: ["camera", "Camera setup"], capture: ["camera", "Camera setup"], storage: ["settings", "Library settings"], library: ["settings", "Library settings"],
+    space: ["settings", "Library settings"], frames: ["frames", "Frames"], printer: ["printer", "Printer setup"], session: ["photo", "Open the session"], interrupted: ["gallery", "Open Gallery"],
+  };
+  const todo: ReadinessItem[] = (readiness?.items ?? []).filter((it) => it.state === "problem" || it.state === "warn");
+  const status = readiness?.status ?? (connected ? "ready" : "setup_required");
+  const headline = readiness?.headline ?? (connected ? "Ready for guests" : "Setup required");
+  const sub = readiness?.detail || (connected ? "Guests pick a frame, the camera counts down, and the strip is ready to print." : "Connect a camera first. Booth Mode needs one before guests can shoot.");
 
   return (
     <div className="page dash">
-      <header className="dash-hero">
+      <header className={`dash-hero status-${status}`}>
         <div className="hero-copy">
-          <span className="eyebrow">Studio</span>
-          <h1>{connected ? "Ready to shoot" : "Almost ready"}</h1>
-          <p>{connected ? "Guests pick a frame, the camera counts down, and the strip is ready to print."
-            : "Connect a camera first. Booth Mode needs one before guests can shoot."}</p>
+          <span className="eyebrow">Studio · operator</span>
+          <h1 aria-live="polite">{headline}</h1>
+          <p>{sub}</p>
           <div className="hero-actions">
             {onBooth && <button className="primary alt cta" onClick={onBooth}><Icon name="play" size={18} />Open Booth Mode</button>}
             <button onClick={() => go("photo")}><Icon name="photo" size={18} />Photo session</button>
@@ -66,15 +78,30 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
         </dl>
       </header>
 
+      {todo.length > 0 && (
+        <section className="todo" aria-label="Needs attention">
+          <h2>Needs attention</h2>
+          <ul>
+            {todo.map((it) => (
+              <li key={it.key} className={it.state}>
+                <span className="todo-dot" aria-hidden="true" />
+                <div><strong>{it.label}</strong><span>{it.detail}</span>{it.action && <em>{it.action}</em>}</div>
+                {FIX[it.key] && <button onClick={() => go(FIX[it.key][0])}>{FIX[it.key][1]}</button>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="stat-grid">
         <StatCard icon="camera" label="Camera" tone={camTone} status={camStatus}
           value={connected ? camera.device!.name : camera.reconnecting ? "Reconnecting…" : "No camera"}
           sub={connected ? camera.device!.driver : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : "Plug in a webcam or camera and open Camera settings."}
           action="Camera settings" onAction={() => go("camera")} />
         <StatCard icon="printer" label="Printer" tone={prTone}
-          status={printer ? (printer.status === "ready" ? "Ready" : printer.status) : "Not set"}
+          status={printer ? (printer.status === "ready" ? "Windows: ready" : printer.status) : settings.printerName ? "Not found" : "Digital only"}
           value={printer ? printer.name : settings.printerName ? `${settings.printerName} not found` : "No printer selected"}
-          sub="Jobs go through the Windows spooler."
+          sub={printer || settings.printerName ? "Prints go to the Windows queue. Whether paper comes out is not checked." : "Guests get digital photos. Choose a printer to offer prints."}
           action={printer ? "Printer settings" : "Choose a printer"} onAction={() => go("printer")} />
         <StatCard icon="storage" label="Storage" tone={lowDisk ? "err" : interrupted ? "warn" : "ok"}
           status={lowDisk ? "Low space" : interrupted ? "Check sessions" : "Healthy"}

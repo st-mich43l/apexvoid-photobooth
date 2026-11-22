@@ -5,7 +5,7 @@ import type { Settings, ShootSnapshot, VideoState } from "./types";
 // ---- mocks: state, api, window helpers and the heavy flows ----------------
 const h = vi.hoisted(() => ({
   S: {} as { video: VideoState; shoot: ShootSnapshot; settings: Settings; camera: object; toast?: unknown; frameUrl?: unknown },
-  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn(), prepareMode: vi.fn(), listFrames: vi.fn() },
+  api: { verifyKioskPin: vi.fn(), stopRecording: vi.fn(), cancelShooting: vi.fn(), recoverShooting: vi.fn(), prepareMode: vi.fn(), listFrames: vi.fn() },
   enter: vi.fn(), leave: vi.fn(),
 }));
 const { S, api, enter, leave } = h;
@@ -19,6 +19,7 @@ vi.mock("./ShootFlow", () => ({
 }));
 
 import { Booth } from "./Booth";
+import { sessionGate } from "./sessionGate";
 
 const frame = (id: string, photos: number) => ({ id, name: id === "rose.strip4" ? "Rose Pink" : "Mono", category: "Korean Pastel", photos, format: "2×6 strip", enabled: true, pixelW: 600, pixelH: 1800,
   variants: [{ id: "a", name: "A" }, { id: "b", name: "B", background: "#fff" }], widthIn: 2, heightIn: 6, dpi: 300, slots: [], background: "#fcc", kind: "strip", order: 1, revision: 1 });
@@ -26,6 +27,7 @@ const video = (o: Partial<VideoState> = {}): VideoState => ({ state: "idle", ses
 const shoot = (state: ShootSnapshot["state"]): ShootSnapshot => ({ state, version: 1, sessionId: "S", shots: 4, slot: 0, remaining: 0, taken: [], simulated: false });
 
 beforeEach(() => {
+  sessionGate._forget();
   S.video = video(); S.shoot = shoot("IDLE");
   S.settings = { shots: 4, templateId: "rose.strip4", video: { maxSeconds: 30 }, kioskPinSet: false } as unknown as Settings;
   S.frameUrl = (id: string) => `/frame/${id}`;
@@ -34,7 +36,7 @@ beforeEach(() => {
   S.camera = { device: { id: "c", name: "Cam", driver: "uvc", simulated: false }, state: "connected", reconnecting: false, liveView: true };
   enter.mockResolvedValue(undefined); leave.mockResolvedValue(undefined);
   api.prepareMode.mockResolvedValue({ mode: "photo", ready: true, switched: false, needsFallback: false, preferred: {}, message: "" });
-  api.verifyKioskPin.mockResolvedValue(undefined); api.stopRecording.mockResolvedValue(undefined); api.cancelShooting.mockResolvedValue(undefined);
+  api.verifyKioskPin.mockResolvedValue(undefined); api.stopRecording.mockResolvedValue(undefined); api.cancelShooting.mockResolvedValue(undefined); api.recoverShooting.mockResolvedValue(undefined);
   window.location.hash = "";
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); enter.mockReset(); leave.mockReset(); });
@@ -150,12 +152,12 @@ describe("Booth exit", () => {
 
   it("cancels an unfinished photo session but never deletes anything", async () => {
     S.shoot = shoot("REVIEW");
-    api.cancelShooting.mockImplementation(async () => { S.shoot = shoot("CANCELLED"); });
+    api.recoverShooting.mockImplementation(async () => { S.shoot = shoot("IDLE"); });
     render(<Booth onExited={() => {}} />);
     fireEvent.click(exitButton());
     expect(screen.getByText(/Photos already taken stay in the library/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Exit Booth" }));
-    await waitFor(() => expect(api.cancelShooting).toHaveBeenCalled());
+    await waitFor(() => expect(api.recoverShooting).toHaveBeenCalled());
   });
 
   it("reports a fullscreen restore failure and offers retry / continue", async () => {

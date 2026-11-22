@@ -72,15 +72,33 @@ export function LivePreview({ className = "" }: { className?: string }) {
   );
 }
 
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** A dialog that behaves like one: focus moves inside, Tab stays inside, Escape closes, and focus returns to where it was. */
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  const box = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const f = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const before = document.activeElement as HTMLElement | null;
+    const node = box.current;
+    // an element inside that asked for focus (autoFocus, the safe default button) keeps it; otherwise the first control
+    if (node && !node.contains(document.activeElement)) (node.querySelector<HTMLElement>("footer button, " + FOCUSABLE) ?? node).focus();
+    const f = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeRef.current(); return; }
+      if (e.key !== "Tab" || !node) return;
+      const items = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) { e.preventDefault(); return; }
+      const first = items[0], last = items[items.length - 1], cur = document.activeElement;
+      if (e.shiftKey && (cur === first || !node.contains(cur))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (cur === last || !node.contains(cur))) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener("keydown", f);
-    return () => window.removeEventListener("keydown", f);
-  }, [onClose]);
+    return () => { window.removeEventListener("keydown", f); if (before && document.contains(before)) before.focus(); };
+  }, []);
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={box} className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
         <header><h2>{title}</h2><button className="ghost" onClick={onClose} aria-label="Close">✕</button></header>
         {children}
       </div>
