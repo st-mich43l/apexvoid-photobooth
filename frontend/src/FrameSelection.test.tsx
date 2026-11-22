@@ -50,7 +50,7 @@ describe("FrameSelection", () => {
   it("a colour choice changes the preview and is part of the confirmed choice", async () => {
     const { onConfirm } = await open();
     fireEvent.click(screen.getByRole("radio", { name: "Blue" }));
-    expect((screen.getByAltText("four preview") as HTMLImageElement).getAttribute("src")).toContain("/f/four/y/640");
+    expect((screen.getByAltText("four preview") as HTMLImageElement).getAttribute("src")).toContain("/f/four/y/720");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(onConfirm.mock.calls[0][0]).toMatchObject({ id: "four", variantId: "y" });
   });
@@ -104,5 +104,49 @@ describe("FrameSelection", () => {
     render(<FrameSelection variant="studio" onConfirm={() => {}} />);
     await screen.findByRole("radio", { name: /four/ });
     expect(screen.queryByRole("button", { name: /Back/ })).toBeNull();
+  });
+
+  describe("guest gallery (UX-2)", () => {
+    it("shows the layout, a photo count and the colour choices on each card", async () => {
+      await open();
+      const card = screen.getByRole("radio", { name: /four/ });
+      expect(card.textContent).toMatch(/2×6/); expect(card.textContent).toMatch(/4 photos/);
+      expect(card.querySelectorAll(".g-colordots i")).toHaveLength(2);
+      expect(card.querySelector("img")?.getAttribute("loading")).toBe("lazy");
+    });
+    it("keeps the selection visible: details stay, and the chosen card is scrolled into view after filtering", async () => {
+      const spy = vi.fn(); Element.prototype.scrollIntoView = spy;
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "Special" }));
+      expect(screen.getByLabelText("Selected frame").textContent).toMatch(/four/); // filtered out of the grid, still summarised
+      fireEvent.click(screen.getByRole("button", { name: "Classic" }));
+      expect(spy).toHaveBeenCalled();
+    });
+    it("names the selected colour and labels the swatches", async () => {
+      await open();
+      expect(screen.getByRole("radio", { name: "Rose" }).getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(screen.getByRole("radio", { name: "Blue" }));
+      expect(document.querySelector(".g-swatch-name")?.textContent).toBe("Blue");
+    });
+    it("typing a caption switches to the keyboard-friendly layout and back", async () => {
+      await open();
+      fireEvent.click(screen.getByRole("radio", { name: /cap/ }));
+      const root = document.querySelector(".g-frames")!;
+      fireEvent.focus(screen.getByLabelText("Caption"));
+      expect(root.getAttribute("data-typing")).toBe("true");
+      fireEvent.keyDown(screen.getByLabelText("Caption"), { key: "Enter" });
+    });
+    it("Back stays available while frames load and when they fail", async () => {
+      h.api.listFrames.mockReturnValue(new Promise(() => {}));
+      const onBack = vi.fn();
+      render(<FrameSelection variant="booth" onConfirm={() => {}} onBack={onBack} backLabel="Home" />);
+      fireEvent.click(screen.getByRole("button", { name: /Home/ }));
+      expect(onBack).toHaveBeenCalled();
+    });
+    it("Continue is the single primary action and is disabled while busy", async () => {
+      await open({ busy: true });
+      expect((screen.getByRole("button", { name: /Please wait/ }) as HTMLButtonElement).disabled).toBe(true);
+      expect(document.querySelectorAll(".g-primary")).toHaveLength(1);
+    });
   });
 });

@@ -16,3 +16,4 @@ EdsImage.dll
 cmd/photobooth/frontend_dist/*
 !cmd/photobooth/frontend_dist/.gitkeep
 internal/video/embedded/
+frontend/dist-harness
