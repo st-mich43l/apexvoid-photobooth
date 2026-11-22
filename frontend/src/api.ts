@@ -104,6 +104,8 @@ export const api = {
   recoverShooting: () => wrap(call<void>("RecoverShooting")),
   saveSettings: (s: Settings) => wrap(call<{ restartRequired: boolean }>("SaveSettings", s)),
   diagnostics: () => wrap(call<Diagnostics>("RunDiagnostics")),
+  diagnosticSummary: () => wrap(call<string>("DiagnosticSummary")),
+  labelTestSession: (sessionId: string) => wrap(call<void>("LabelTestSession", sessionId)),
 };
 
 /** Subscribe to a Go-emitted event; returns the unsubscribe function. */

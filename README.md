@@ -28,6 +28,8 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | Windows x64 single-file exe (FFmpeg built in) | built by CI as the only artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
 
 Guest-experience audit and session-safety rules: [docs/UX1_AUDIT.md](docs/UX1_AUDIT.md) (manual WebView2 checks: section G of the hardware tests). Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
+
+Operator set-up (Prepare Booth, camera/printer set-up, readiness states, support summary): [docs/UX3_DESIGN.md](docs/UX3_DESIGN.md); the audit it started from: [docs/UX3_AUDIT.md](docs/UX3_AUDIT.md). Hardware/WebView2 checks there are marked UNVERIFIED until run.
 [docs/CAMERAS.md](docs/CAMERAS.md). Market review and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Install/build/test: [docs/INSTALL.md](docs/INSTALL.md).
 
