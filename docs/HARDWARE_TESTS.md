@@ -102,3 +102,4 @@ Record the printer model, driver, paper and result in the table below; any step 
 | F7 | Print the strip on a 4×6 printer (Printer page / Booth *Print*) | Preview shows two strips on a 4×6 sheet; the paper has two identical strips, cuttable in half, correct size and margins | ☐ |
 | F8 | Edit then delete the frame used for a finished session, reprint | The reprint is identical to the first print | ☐ |
 | F9 | Touch the builder with a finger (drag a slot, resize with a handle) | Works; note any problem | ☐ |
+| F10 | Settings → Print resolution 600 dpi, shoot, print the strip on the real printer (driver set to its highest quality) | File is 1200×3600 px; paper is 2×6 in with sharp detail; compare with a 300 dpi print | ☐ |

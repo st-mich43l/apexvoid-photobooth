@@ -128,6 +128,23 @@ Database v3 adds the frame columns to `sessions` and `media` (empty for older ro
 * Dimensions, DPI metadata, cropping and margins come from the existing page planner; the preview is computed from the
   printer's real printable area when the driver reports it.
 
+## Print resolution (300 / 600 DPI)
+
+* **Settings → Photo sessions → Print resolution** chooses 300 dpi (standard) or 600 dpi (high) for the **built-in** frames.
+  It is applied when a session starts and written into that session's snapshot, so changing it later never alters a finished
+  session or a reprint. Custom frames keep the DPI set in the Frame Builder (150 / 200 / 300 / 600).
+* Frames are described in inches, so every layout, border, pattern and caption scales exactly: at 600 dpi a 2×6 strip is
+  1200×3600 px, a 4×6 sheet or two-up is 2400×3600, 5×7 is 3000×4200, and the JPEG carries 600 dpi in its header. The
+  print planner uses the file's dpi and the printer's real resolution, so true-size placement is the same on a 300 and a
+  600 dpi printer; two-up sheets of 600 dpi strips are 2400×3600 at 600 dpi.
+* Cost: a 600 dpi render takes about a second for 5×7 on a development PC and files are about four times larger. The
+  canvas limit (80 megapixels) and the 72–600 dpi range still apply.
+* Tests: exact pixel size for all nine layouts, 600 dpi render ≈ 300 dpi render, density in the JPEG, snapshot keeps the
+  session's resolution, custom frames unaffected by the setting, printing at 300 and 600 dpi printers, two-up at 600 dpi,
+  and the Windows CI job runs the whole frame flow at both resolutions.
+* **Not verified**: a physical printer at 600 dpi. Whether a driver really prints 600 dpi depends on the printer and its
+  driver settings; the app only guarantees the file and the placement.
+
 ## Tests that guard rendering
 
 `internal/templates/golden_test.go` renders eight built-in frames and a custom frame with a transparent overlay, an image

@@ -102,7 +102,7 @@ func (s *Service) SaveFrame(t templates.Template) (FrameView, error) {
 	}
 	s.frames.purge()
 	s.log.Info("frame saved", "id", saved.ID, "revision", saved.Revision)
-	return viewOf(saved), nil
+	return viewOf(saved, 0), nil
 }
 
 // DeleteFrame removes a custom frame. Existing sessions keep rendering, and no
