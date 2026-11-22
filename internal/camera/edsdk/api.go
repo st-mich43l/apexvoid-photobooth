@@ -34,6 +34,9 @@ type api interface {
 	SkipItem(item ref)
 	// SetHandlers registers callbacks (invoked on the SDK thread during PumpEvents).
 	SetHandlers(c ref, onObject func(event uint32, item ref), onState func(event, data uint32)) error
+	// ClearHandlers unregisters them; events for the camera that arrive later are dropped
+	// (their object references released) instead of being routed to another camera.
+	ClearHandlers(c ref)
 	// PumpEvents runs EdsGetEvent and the Windows message loop once.
 	PumpEvents()
 }

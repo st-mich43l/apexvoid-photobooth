@@ -41,6 +41,7 @@ type Manager struct {
 	cancelRec context.CancelFunc
 	onChange  func(Status)
 	shooting  sync.Mutex // held for the whole duration of a capture
+	seen      []DeviceInfo // the most recent discovery, to know whether the camera had look-alikes
 
 	// ReconnectInterval is how often a lost camera is looked for again.
 	ReconnectInterval time.Duration
@@ -103,7 +104,24 @@ func (m *Manager) Discover(ctx context.Context) ([]DeviceInfo, error) {
 		return nil, firstErr
 	}
 	MarkDuplicates(all)
+	m.mu.Lock()
+	m.seen = append([]DeviceInfo(nil), all...)
+	m.mu.Unlock()
 	return all, nil
+}
+
+// lookAlikes counts the listed devices of the same backend and name as info
+// (including itself) in the most recent discovery.
+func (m *Manager) lookAlikes(info DeviceInfo) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, d := range m.seen {
+		if d.Driver == info.Driver && d.Name == info.Name {
+			n++
+		}
+	}
+	return n
 }
 
 // MarkDuplicates flags entries that are the same physical camera reached
@@ -148,6 +166,9 @@ type Preferred struct {
 	Name   string `json:"name"`
 	Driver string `json:"driver"`
 	USBID  string `json:"usbId"`
+	// ExactOnly disables the name/USB-id fallbacks: only the identical id matches.
+	// Set when the camera had look-alikes, so another body is never mistaken for it.
+	ExactOnly bool `json:"-"`
 }
 
 // Match finds the remembered camera among devs: exact ID first, then the same
@@ -162,11 +183,18 @@ func (p Preferred) Match(devs []DeviceInfo) (DeviceInfo, bool) {
 			return d, true
 		}
 	}
+	if p.ExactOnly {
+		return DeviceInfo{}, false
+	}
 	if p.USBID != "" {
+		var same []DeviceInfo
 		for _, d := range devs {
 			if d.Driver == p.Driver && d.USBID == p.USBID && d.DuplicateOf == "" {
-				return d, true
+				same = append(same, d)
 			}
+		}
+		if len(same) == 1 { // two identical bodies share a USB id: do not guess
+			return same[0], true
 		}
 	}
 	var hit []DeviceInfo
@@ -273,12 +301,13 @@ func (m *Manager) handleLost(cam Camera, cause error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelRec = cancel
 	m.mu.Unlock()
+	exact := m.lookAlikes(info) > 1
 	_ = cam.Disconnect() // release handles even though the device is gone
 	m.notify()
-	go m.reconnectLoop(ctx, info, wasLive)
+	go m.reconnectLoop(ctx, info, wasLive, exact)
 }
 
-func (m *Manager) reconnectLoop(ctx context.Context, info DeviceInfo, restoreLive bool) {
+func (m *Manager) reconnectLoop(ctx context.Context, info DeviceInfo, restoreLive, exactOnly bool) {
 	t := time.NewTicker(m.ReconnectInterval)
 	defer t.Stop()
 	for {
@@ -298,15 +327,15 @@ func (m *Manager) reconnectLoop(ctx context.Context, info DeviceInfo, restoreLiv
 		if err != nil {
 			continue
 		}
-		var found *DeviceInfo
-		for i := range devs {
-			if devs[i].ID == info.ID || (found == nil && devs[i].Name == info.Name) {
-				found = &devs[i]
-			}
-		}
-		if found == nil {
+		// Only the camera that was lost may come back: exact id, else the same
+		// model on the same USB id / a unique name. Two look-alikes never match,
+		// so an unrelated camera is never substituted.
+		MarkDuplicates(devs)
+		match, ok := Preferred{ID: info.ID, Name: info.Name, Driver: info.Driver, USBID: info.USBID, ExactOnly: exactOnly}.Match(devs)
+		if !ok {
 			continue
 		}
+		found := &match
 		if err := m.open(ctx, *found); err != nil {
 			m.setErr(err)
 			m.notify()
