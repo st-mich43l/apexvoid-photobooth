@@ -315,7 +315,7 @@ describe("readiness on the Welcome screen", () => {
     S.readiness = ready({ status: "ready", canStart: true, items: [{ key: "printer", label: "Printer", required: false, state: "info", detail: "No printer selected — guests get digital photos only." }] });
     mount();
     expect(welcomeButton().disabled).toBe(false);
-    expect(screen.getByText("Touch to start")).toBeTruthy();
+    expect(screen.getByText(/Pick a frame/)).toBeTruthy();
   });
 
   it("a session that is still being closed right after Finish is not shown to guests as a setup problem", () => {

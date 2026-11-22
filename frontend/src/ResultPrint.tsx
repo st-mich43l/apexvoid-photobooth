@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { api, toAppError } from "./api";
 import { newRequestId } from "./printInfo";
+import { Icon } from "./icons";
+import { GuestMessage } from "./guest/parts";
 import { useApp } from "./state";
 import { Modal } from "./ui";
 import { PrintPanel } from "./PrintPanel";
@@ -29,17 +31,19 @@ export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolea
     try {
       const j = await api.printResult(mediaId, reqId.current);
       reqId.current = newRequestId();
-      setState({ kind: "sent", msg: j.status === "failed" ? j.detail : "Sent to the printer. Please wait a moment." });
+      setState({ kind: "sent", msg: j.status === "failed" ? j.detail : "Sent to the printer. If nothing comes out, please ask the host." });
     } catch (e) {
       const err = toAppError(e);
       setState({ kind: "error", msg: err.action ? `${err.message} ${err.action}` : err.message });
     }
   };
   return (
-    <div className="result-print">
-      <button className="big" disabled={state.kind === "sending"} onClick={print}>{state.kind === "sending" ? "Sending…" : state.kind === "sent" ? "Print another copy" : "🖨 Print"}</button>
-      {state.kind === "sent" && <p className="muted" role="status">{state.msg}</p>}
-      {state.kind === "error" && <div className="note err" role="alert"><div>{state.msg}</div></div>}
+    <div className="g-print">
+      <button type="button" className="g-btn g-secondary" disabled={state.kind === "sending"} onClick={print}>
+        <Icon name="printer" size={24} /><span>{state.kind === "sending" ? "Sending…" : state.kind === "sent" ? "Print another copy" : "Print"}</span>
+      </button>
+      {state.kind === "sent" && <p className="g-print-note" role="status">{state.msg}</p>}
+      {state.kind === "error" && <GuestMessage kind="err">{state.msg}</GuestMessage>}
     </div>
   );
 }
