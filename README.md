@@ -27,7 +27,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
 | Windows x64 single-file exe (FFmpeg built in) | built by CI as the only artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
 
-Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
+Guest-experience audit and session-safety rules: [docs/UX1_AUDIT.md](docs/UX1_AUDIT.md) (manual WebView2 checks: section G of the hardware tests). Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
 [docs/CAMERAS.md](docs/CAMERAS.md). Market review and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Install/build/test: [docs/INSTALL.md](docs/INSTALL.md).
 

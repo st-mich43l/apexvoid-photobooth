@@ -63,7 +63,7 @@ export function Frames() {
   const duplicate = (f: Frame) => run(async () => setBuilding({ def: await api.newFrameDraft(f.id), isNew: true }));
   const remove = (f: Frame) => run(async () => { await api.deleteFrame(f.id); setRemoving(null); await load(); toast(`“${f.name}” deleted. Photos and earlier sessions are not affected.`); });
   const makeDefault = (f: Frame) => run(async () => {
-    const n = { ...settings, templateId: f.id }; await api.saveSettings(n); setSettings(n); toast(`“${f.name}” is preselected in Booth Mode`);
+    const r = await api.patchSettings({ templateId: f.id }); setSettings(r.settings ?? { ...settings, templateId: f.id }); toast(`“${f.name}” is preselected in Booth Mode`);
   });
 
   return (

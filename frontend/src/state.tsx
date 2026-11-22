@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, on, toAppError, AppError } from "./api";
-import type { BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
+import type { BoothReadiness, BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
 
 export interface Ctx {
   boot: BootInfo;
@@ -9,6 +9,9 @@ export interface Ctx {
   video: VideoState;
   settings: Settings;
   location: LibraryStatus;
+  /** Can a guest start a photo session? null until the first answer. Refreshed on every relevant change. */
+  readiness: BoothReadiness | null;
+  refreshReadiness: () => void;
   /** bumped whenever the library changes (new capture/recording/edit/delete) */
   libraryVersion: number;
   bumpLibrary: () => void;
@@ -38,6 +41,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettingsState] = useState<Settings | null>(null);
   const [location, setLocation] = useState<LibraryStatus | null>(null);
   const [libraryVersion, setLib] = useState(0);
+  const [readiness, setReadiness] = useState<BoothReadiness | null>(null);
+  const readyTimer = useRef<number | undefined>(undefined);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
   const [previewNonce, setPreviewNonce] = useState(0);
@@ -54,7 +59,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     load(0);
     const offs = [
-      on<CameraStatus>("camera:status", (s) => { setCamera(s); }),
+      // a snapshot that arrives after a newer one (events can be reordered) is dropped
+      on<CameraStatus>("camera:status", (s) => { setCamera((cur) => (cur && s.version != null && cur.version != null && s.version < cur.version ? cur : s)); }),
       on<ShootSnapshot>("capture:state", (s) => {
         setShoot((cur) => (cur && s.version < cur.version ? cur : s));
         if (s.state === "REVIEW" || s.state === "COMPLETED") setLib((v) => v + 1);
@@ -65,6 +71,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ];
     return () => { alive = false; offs.forEach((f) => f()); };
   }, []);
+
+  // Booth readiness: asked again whenever something it depends on changes, and now and then
+  const refreshReadiness = useCallback(() => {
+    window.clearTimeout(readyTimer.current);
+    readyTimer.current = window.setTimeout(() => { api.boothReadiness().then(setReadiness).catch(() => {}); }, 150);
+  }, []);
+  useEffect(() => { refreshReadiness(); }, [refreshReadiness, camera?.version, camera?.device?.id, camera?.state, camera?.reconnecting, shoot?.state, settings, libraryVersion, location]);
+  useEffect(() => { const t = window.setInterval(refreshReadiness, 10_000); return () => { window.clearInterval(t); window.clearTimeout(readyTimer.current); }; }, [refreshReadiness]);
 
   // a live-view <img> must be re-opened whenever the stream restarts
   const lv = camera?.liveView, st = camera?.state;
@@ -80,7 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!boot || !camera || !shoot || !video || !settings || !location) return null;
     const base = boot.mediaBase, tok = boot.mediaToken;
     return {
-      boot, camera, shoot, video, settings, location, libraryVersion,
+      boot, camera, shoot, video, settings, location, readiness, refreshReadiness, libraryVersion,
       bumpLibrary: () => setLib((v) => v + 1),
       mediaUrl: (id, kind, v) => `${base}/media/${id}/${kind}?t=${tok}${v ? `&v=${encodeURIComponent(v)}` : ""}`,
       frameUrl: (id, variantId, width, caption = "") => `${base}/frame/${encodeURIComponent(id)}/${variantId ? encodeURIComponent(variantId) : "-"}?t=${tok}&w=${width}${caption ? `&caption=${encodeURIComponent(caption)}` : ""}`,
@@ -88,7 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSettings: setSettingsState,
       toast,
     };
-  }, [boot, camera, shoot, video, settings, location, libraryVersion, previewNonce, toast]);
+  }, [boot, camera, shoot, video, settings, location, readiness, refreshReadiness, libraryVersion, previewNonce, toast]);
 
   if (fatal) {
     return (

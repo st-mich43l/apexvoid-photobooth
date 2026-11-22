@@ -9,6 +9,7 @@ import (
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera/edsdk"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/video"
 )
 
@@ -102,6 +103,8 @@ func humanBytes(n int64) string {
 // folder takes effect after a restart (the library is opened once at startup).
 type SaveResult struct {
 	RestartRequired bool `json:"restartRequired"`
+	// Settings is the full result of a PatchSettings (the UI shows what the backend now holds).
+	Settings *settings.Settings `json:"settings,omitempty"`
 }
 
 // edsdkKind names the kind of SDK problem so missing, incompatible and

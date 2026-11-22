@@ -26,6 +26,8 @@ type Status struct {
 	LastAction   string         `json:"lastAction,omitempty"`
 	LastCode     string         `json:"lastCode,omitempty"` // machine-readable class of LastError (see the Code* constants)
 	Drivers      []DriverStatus `json:"drivers"`
+	// Version grows with every snapshot so the UI can drop one that arrives after a newer one.
+	Version uint64 `json:"version"`
 }
 
 // Manager owns the single active camera, serialises access to it and
@@ -42,6 +44,7 @@ type Manager struct {
 	cancelRec context.CancelFunc
 	onChange  func(Status)
 	shooting  sync.Mutex   // held for the whole duration of a capture
+	ver       uint64       // status snapshot counter
 	seen      []DeviceInfo // the most recent discovery, to know whether the camera had look-alikes
 
 	// ReconnectInterval is how often a lost camera is looked for again.
@@ -494,8 +497,10 @@ func (m *Manager) setErr(err error) {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	cam, info, rec, lerr, live := m.cam, m.info, m.reconnect, m.lastErr, m.liveWant
+	m.ver++
+	ver := m.ver
 	m.mu.Unlock()
-	st := Status{State: StateDisconnected, Reconnecting: rec, Drivers: m.Drivers()}
+	st := Status{State: StateDisconnected, Reconnecting: rec, Drivers: m.Drivers(), Version: ver}
 	if cam != nil {
 		c := cam.Capabilities()
 		i := cam.Info()

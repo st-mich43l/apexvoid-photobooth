@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -32,6 +33,46 @@ func (s *Service) SaveSettings(n settings.Settings) (SaveResult, error) {
 	restart := old.MediaDir != n.MediaDir
 	s.emit("settings:changed", s.publicSettings())
 	return SaveResult{RestartRequired: restart}, nil
+}
+
+// PatchSettings changes only the named settings and leaves every other value as it
+// is *now* on the backend. The UI used to send its whole copy of the settings, so a
+// stale copy (for example one that predates a camera chosen on another page) silently
+// overwrote newer values. The PIN is never writable here.
+func (s *Service) PatchSettings(patch map[string]any) (SaveResult, error) {
+	s.patchMu.Lock()
+	defer s.patchMu.Unlock()
+	old := s.settings.Get()
+	raw, err := json.Marshal(old)
+	if err != nil {
+		return SaveResult{}, newUserErr(err.Error(), "")
+	}
+	var cur map[string]any
+	if err := json.Unmarshal(raw, &cur); err != nil {
+		return SaveResult{}, newUserErr(err.Error(), "")
+	}
+	for k, v := range patch {
+		switch k {
+		case "kioskPin", "kioskPinSet":
+			continue
+		}
+		cur[k] = v
+	}
+	merged, err := json.Marshal(cur)
+	if err != nil {
+		return SaveResult{}, newUserErr(err.Error(), "")
+	}
+	var n settings.Settings
+	if err := json.Unmarshal(merged, &n); err != nil {
+		return SaveResult{}, newUserErr("Invalid setting: "+err.Error(), "")
+	}
+	res, err := s.SaveSettings(n)
+	if err != nil {
+		return res, err
+	}
+	pub := s.publicSettings()
+	res.Settings = &pub
+	return res, nil
 }
 
 // SetKioskPin sets, changes or clears (next == "") the operator PIN that

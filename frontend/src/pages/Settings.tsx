@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../state";
 import { Badge, Confirm, ErrorNote, useAction } from "../ui";
@@ -13,6 +13,20 @@ export function SettingsPage() {
   const [pinNew, setPinNew] = useState("");
   const pin = useAction();
   const [draft, setDraft] = useState<S>(settings);
+  // what the draft was based on: a background update (a camera chosen on another page, a preselected frame…) is taken over
+  // for every setting this page has not touched, so saving can never roll those back with a stale copy
+  const base = useRef<S>(settings);
+  useEffect(() => {
+    const old = base.current;
+    setDraft((d) => {
+      const next = { ...d } as Record<string, unknown>;
+      for (const k of Object.keys(settings) as (keyof S)[]) {
+        if (JSON.stringify(d[k]) === JSON.stringify(old[k])) next[k as string] = settings[k];
+      }
+      return next as unknown as S;
+    });
+    base.current = settings;
+  }, [settings]);
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const save = useAction();
@@ -119,7 +133,12 @@ export function SettingsPage() {
       <div className="savebar">
         <button disabled={!dirty} onClick={() => setDraft(settings)}>Discard</button>
         <button className="primary" disabled={!dirty || save.busy} onClick={() => save.run(async () => {
-          const r = await api.saveSettings(draft); setSettings(draft); toast(r.restartRequired ? "Saved — restart the app to use the new media folder" : "Settings saved");
+          // only what this page changed is sent; the backend merges it into its current settings
+          const changed: Record<string, unknown> = {};
+          for (const k of Object.keys(draft) as (keyof S)[]) if (JSON.stringify(draft[k]) !== JSON.stringify(settings[k])) changed[k as string] = draft[k];
+          const r = await api.patchSettings(changed as Partial<S>);
+          if (r.settings) { setSettings(r.settings); setDraft(r.settings); }
+          toast(r.restartRequired ? "Saved — restart the app to use the new media folder" : "Settings saved");
         })}>Save settings</button>
       </div>
       {migrate && <MigrationDialog onClose={() => setMigrate(false)} />}
