@@ -6,14 +6,22 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
 )
 
 // Errors a caller can react to.
 var (
-	ErrDuplicate    = errors.New("an identical print was just submitted")
-	ErrNeedsConfirm = errors.New("reprinting needs confirmation")
+	ErrDuplicate         = errors.New("an identical print was just submitted")
+	ErrNeedsConfirm      = errors.New("reprinting needs confirmation")
+	ErrSubmissionUnknown = errors.New("print submission status is unknown; check the Windows queue and printer before printing again")
 )
 
 // Manager validates, submits and tracks print jobs on top of a Driver and a Store.
@@ -97,6 +105,10 @@ func (m *Manager) Print(ctx context.Context, r PrintRequest) (Job, error) {
 	if j, ok, err := m.store.ByRequest(r.RequestID); err != nil {
 		return Job{}, err
 	} else if ok {
+		if j.Status == StatusSubmitting || j.Status == StatusUnknown {
+			j.Status, j.Detail = StatusUnknown, ErrSubmissionUnknown.Error()
+			return j, ErrSubmissionUnknown
+		}
 		return j, nil
 	}
 	// physical fit (r.Paper comes from the printer's own list)
@@ -126,22 +138,46 @@ func (m *Manager) Print(ctx context.Context, r PrintRequest) (Job, error) {
 	}
 
 	key := dupKey(r)
+	reqKey := "request:" + r.RequestID
 	m.mu.Lock()
-	if m.inflight[key] {
+	if m.inflight[key] || (r.RequestID != "" && m.inflight[reqKey]) {
 		m.mu.Unlock()
 		return Job{}, ErrDuplicate
 	}
 	m.inflight[key] = true
+	if r.RequestID != "" {
+		m.inflight[reqKey] = true
+	}
 	m.mu.Unlock()
-	defer func() { m.mu.Lock(); delete(m.inflight, key); m.mu.Unlock() }()
+	defer func() {
+		m.mu.Lock()
+		delete(m.inflight, key)
+		if r.RequestID != "" {
+			delete(m.inflight, reqKey)
+		}
+		m.mu.Unlock()
+	}()
+	// A concurrent request may have completed after the first lookup.
+	if j, ok, err := m.store.ByRequest(r.RequestID); err != nil {
+		return Job{}, err
+	} else if ok {
+		if j.Status == StatusSubmitting || j.Status == StatusUnknown {
+			j.Status, j.Detail = StatusUnknown, ErrSubmissionUnknown.Error()
+			return j, ErrSubmissionUnknown
+		}
+		return j, nil
+	}
 
 	now := m.now()
 	job := Job{ID: newID(), RequestID: r.RequestID, Kind: r.Kind, MediaID: r.MediaID, RenderedMediaID: r.RenderedMediaID, SessionID: r.SessionID,
 		TemplateID: r.TemplateID, File: r.File, Printer: r.Printer, PaperName: r.Paper.Name, PaperID: r.Paper.ID, Orientation: string(r.Orientation),
-		Fit: string(r.Fit), Copies: r.Copies, Status: StatusSubmitting, Detail: "Submitting to the Windows print queue…", Attempt: 1, CreatedAt: now, UpdatedAt: now}
+		Fit: string(r.Fit), Copies: r.Copies, ImageDPI: r.ImageDPI, Status: StatusSubmitting, Detail: "Submitting to the Windows print queue…", Attempt: 1, CreatedAt: now, UpdatedAt: now}
 	if prev, ok, err := m.store.Recent(job, now.Add(-m.DuplicateWindow)); err != nil {
 		return Job{}, err
 	} else if ok {
+		if prev.Status == StatusUnknown || prev.Status == StatusSubmitting {
+			return prev, ErrSubmissionUnknown
+		}
 		return prev, fmt.Errorf("%w (%s ago); use Reprint to print again", ErrDuplicate, now.Sub(prev.CreatedAt).Round(time.Second))
 	}
 	return m.submit(ctx, job, r)
@@ -156,13 +192,19 @@ func (m *Manager) submit(ctx context.Context, job Job, r PrintRequest) (Job, err
 		Fit: r.Fit, Copies: r.Copies, ImageDPI: r.ImageDPI})
 	job.UpdatedAt = m.now()
 	if err != nil {
+		if native != "" {
+			job.NativeID, job.Status, job.Detail = native, StatusUnknown, ErrSubmissionUnknown.Error()
+			_ = m.store.Update(job)
+			return job, fmt.Errorf("%w: %v", ErrSubmissionUnknown, err)
+		}
 		job.Status, job.Detail = StatusFailed, "Not sent to the printer: "+err.Error()
 		_ = m.store.Update(job)
 		return job, err
 	}
 	job.NativeID, job.Status, job.Detail = native, StatusQueued, "Sent to the Windows print queue."
 	if err := m.store.Update(job); err != nil {
-		return job, err
+		job.Status, job.Detail = StatusUnknown, ErrSubmissionUnknown.Error()
+		return job, fmt.Errorf("%w: %v", ErrSubmissionUnknown, err)
 	}
 	return job, nil
 }
@@ -261,36 +303,94 @@ func (m *Manager) Reprint(ctx context.Context, id string, confirmed bool) (Job, 
 	if !Terminal(j.Status) {
 		return Job{}, errors.New("this job is still in the print queue")
 	}
+	if j.Status == StatusUnknown {
+		return Job{}, ErrSubmissionUnknown
+	}
+	if j.Status == StatusFailed && j.NativeID != "" {
+		state, err := m.drv.Status(ctx, j.Printer, j.NativeID)
+		if err != nil || state.Status != StatusRemoved {
+			return Job{}, errors.New("the failed job may still be in the Windows queue; check or cancel it before reprinting")
+		}
+	}
 	root := j.ID
 	if j.ParentID != "" {
 		root = j.ParentID
 	}
-	all, err := m.store.List(500)
+	m.mu.Lock()
+	key := "reprint:" + root
+	if m.inflight[key] {
+		m.mu.Unlock()
+		return Job{}, ErrDuplicate
+	}
+	m.inflight[key] = true
+	m.mu.Unlock()
+	defer func() { m.mu.Lock(); delete(m.inflight, key); m.mu.Unlock() }()
+	if _, err := m.store.Get(root); err != nil {
+		return Job{}, fmt.Errorf("original print job is missing: %w", err)
+	}
+	if pending, err := m.store.HasPendingReprint(root); err != nil {
+		return Job{}, err
+	} else if pending {
+		return Job{}, errors.New("an earlier reprint is still pending or its status is unknown; check the Windows queue")
+	}
+	n, err := m.store.CountReprints(root)
 	if err != nil {
 		return Job{}, err
 	}
-	n := 0
-	for _, x := range all {
-		if x.ID == root || x.ParentID == root {
-			n++
-		}
-	}
-	if n > m.MaxReprints {
+	if n >= m.MaxReprints {
 		return Job{}, fmt.Errorf("reprint limit reached (%d reprints)", m.MaxReprints)
 	}
 	ps, err := m.drv.List(ctx)
 	if err != nil {
 		return Job{}, err
 	}
+	available := false
 	for _, p := range ps {
-		if p.Name == j.Printer && !p.Available() {
-			return Job{}, fmt.Errorf("printer %q is %s", p.Name, p.Status)
+		if p.Name == j.Printer {
+			if !p.Available() {
+				return Job{}, fmt.Errorf("printer %q is %s", p.Name, p.Status)
+			}
+			available = true
+			break
 		}
+	}
+	if !available {
+		return Job{}, fmt.Errorf("printer %q is not installed", j.Printer)
+	}
+	caps, err := m.drv.Capabilities(ctx, j.Printer)
+	if err != nil {
+		return Job{}, err
+	}
+	paper, ok := FindPaper(caps.Papers, j.PaperName)
+	if !ok || (j.PaperID != 0 && paper.ID != j.PaperID) {
+		return Job{}, errors.New("the original paper configuration is no longer available on this printer")
+	}
+	f, err := os.Open(j.File)
+	if err != nil {
+		return Job{}, fmt.Errorf("the original print file cannot be read: %w", err)
+	}
+	defer f.Close()
+	if _, _, err := image.DecodeConfig(f); err != nil {
+		return Job{}, fmt.Errorf("the original print file is not a readable image: %w", err)
+	}
+	dpi := j.ImageDPI
+	if dpi <= 0 {
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return Job{}, err
+		}
+		buf := make([]byte, 32)
+		n, _ := io.ReadFull(f, buf)
+		if units, x, y, ok := media.JPEGDensity(buf[:n]); ok && units == 1 && x >= 72 && x == y {
+			dpi = x
+		}
+	}
+	if dpi <= 0 {
+		return Job{}, errors.New("the original image DPI is unavailable; recompose it before printing")
 	}
 	now := m.now()
 	nj := j
 	nj.ID, nj.RequestID, nj.ParentID, nj.NativeID = newID(), "", root, ""
-	nj.Status, nj.Detail, nj.Attempt, nj.CreatedAt, nj.UpdatedAt = StatusSubmitting, "Submitting reprint…", n+1, now, now
+	nj.Status, nj.Detail, nj.Attempt, nj.CreatedAt, nj.UpdatedAt, nj.ImageDPI = StatusSubmitting, "Submitting reprint…", n+2, now, now, dpi
 	return m.submit(ctx, nj, PrintRequest{Printer: j.Printer, File: j.File, Title: "Reprint " + j.ID,
-		Paper: Paper{ID: j.PaperID, Name: j.PaperName}, Orientation: Orientation(j.Orientation), Fit: Fit(j.Fit), Copies: j.Copies, ImageDPI: 300})
+		Paper: paper, Orientation: Orientation(j.Orientation), Fit: Fit(j.Fit), Copies: j.Copies, ImageDPI: dpi})
 }

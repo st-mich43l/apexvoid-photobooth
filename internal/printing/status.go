@@ -98,7 +98,7 @@ func MapPrinterStatus(status, attributes uint32) (state, detail string) {
 	case len(p) > 0:
 		return "error", strings.Join(p, ", ")
 	case status&PrinterPaused != 0:
-		return "ready", "The printer queue is paused (jobs will wait)."
+		return "paused", "The Windows printer queue is paused. Resume it in Windows before printing."
 	}
 	return "ready", ""
 }

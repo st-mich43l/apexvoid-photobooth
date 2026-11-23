@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, on } from "../api";
-import { jobActive, jobKind, jobLabel, paperLabel, pickPaper } from "../printInfo";
+import { jobActive, jobKind, jobLabel, paperLabel } from "../printInfo";
 import { PrintPanel } from "../PrintPanel";
 import { useApp } from "../state";
 import { Badge, Confirm, ErrorNote, useAction } from "../ui";
@@ -31,14 +31,19 @@ export function PrinterPage() {
 
   const printer = settings.printerName; // empty = Digital only: the Windows default printer is never used silently
   const digital = !printer;
-  useEffect(() => { if (printer) api.printerCapabilities(printer).then(setCaps).catch(() => setCaps(null)); }, [printer]);
+  useEffect(() => {
+    let active = true;
+    setCaps(null);
+    if (printer) api.printerCapabilities(printer).then((c) => { if (active) setCaps(c); }).catch(() => { if (active) setCaps(null); });
+    return () => { active = false; };
+  }, [printer]);
 
   const save = (patch: Partial<typeof settings>) => act.run(async () => {
     const r = await api.patchSettings(patch); setSettings(r.settings ?? { ...settings, ...patch }); toast("Saved");
   });
   const cur = pr?.printers.find((p) => p.name === printer);
   const lastTest = jobs.find((j) => j.kind === "test");
-  const paper = pickPaper(caps?.papers ?? [], settings.printPaper);
+  const paper = caps?.papers.some((p) => p.name === settings.printPaper) ? settings.printPaper : "";
 
   return (
     <div className="page">
@@ -64,7 +69,7 @@ export function PrinterPage() {
           </>}
         </dl>
         <p className="muted small">{digital ? "Pick a printer below to offer prints." : !cur ? "This printer is not installed any more. Photos are still saved digitally; choose another printer, or switch to Digital only." : cur.status !== "ready" ? "Windows reports the printer is not ready. Guests can still take photos — they are saved digitally. Check power, paper and the cable, then Refresh printers." : "Windows says the printer is ready; that does not prove paper will come out. Send a test print to check the tray."}</p>
-        {!digital && <div className="row"><TestPrint printer={printer} paper={paper} disabled={!cur || cur.status !== "ready"} onSent={() => { void api.printJobs().then(setJobs); }} /></div>}
+        {!digital && <div className="row"><TestPrint printer={printer} paper={paper} disabled={!cur || cur.status !== "ready" || !paper} onSent={() => { void api.printJobs().then(setJobs); }} /></div>}
       </section>
       <div className="note warn"><div>{pr?.note}</div></div>
 
@@ -96,7 +101,28 @@ export function PrinterPage() {
             <div className="form">
               <label>Default paper size
                 <select value={paper} onChange={(e) => save({ printPaper: e.target.value })} disabled={!caps}>
+                  <option value="">Choose a supported paper size…</option>
                   {caps?.papers.map((p) => <option key={`${p.id}-${p.name}`} value={p.name}>{paperLabel(p)}</option>)}
+                </select>
+              </label>
+              <label>Default orientation
+                <select value={settings.printOrientation || "auto"} disabled={!caps} onChange={(e) => save({ printOrientation: e.target.value })}>
+                  <option value="auto">Automatic</option>
+                  {caps?.orientations.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+              <label>Default placement
+                <select value={settings.printFit || "fit"} onChange={(e) => save({ printFit: e.target.value })}>
+                  <option value="fit">Fit printable area</option><option value="fill">Fill sheet (may crop)</option><option value="actual">True size</option>
+                </select>
+              </label>
+              <label>Default copies
+                <input type="number" min={1} max={Math.min(10, caps?.maxCopies || 1)} value={settings.printCopies || 1} disabled={!caps}
+                  onChange={(e) => { const n = Number(e.target.value); if (n >= 1 && n <= Math.min(10, caps?.maxCopies || 1)) save({ printCopies: n }); }} />
+              </label>
+              <label>Two-up strips
+                <select value={settings.printTwoUp || "auto"} onChange={(e) => save({ printTwoUp: e.target.value })}>
+                  <option value="auto">When two strips fit</option><option value="off">Single strip</option>
                 </select>
               </label>
             </div>
@@ -135,8 +161,8 @@ export function PrinterPage() {
                   <div className="muted small">{when(j.createdAt)}</div></td>
                 <td>{j.printer}<div className="muted small">{j.paperName} · {j.copies}× · {j.orientation}/{j.fit}</div></td>
                 <td><Badge kind={jobKind(j.status)}>{jobLabel[j.status]}</Badge>{jobActive(j.status) && <span className="spinner tiny" />}
-                  <div className="muted small">{j.detail}</div></td>
-                <td>{j.kind === "print" && !jobActive(j.status) && <button className="ghost" disabled={act.busy} onClick={() => setConfirmReprint(j)}>Reprint…</button>}</td>
+                  <div className="muted small">{j.detail}</div>{j.status === "unknown" && <div className="muted small">Check the Windows queue and output tray. Reprinting is blocked while the submission is uncertain.</div>}</td>
+                <td>{j.kind === "print" && !jobActive(j.status) && j.status !== "unknown" && <button className="ghost" disabled={act.busy} onClick={() => setConfirmReprint(j)}>Reprint…</button>}</td>
               </tr>
             ))}
           </tbody></table>
@@ -144,7 +170,7 @@ export function PrinterPage() {
       </section>
 
       {confirmReprint && <Confirm title="Print this again?" confirmLabel="Reprint" onNo={() => setConfirmReprint(null)}
-        body={<p>This sends the same finished image to <strong>{confirmReprint.printer}</strong> again ({confirmReprint.copies} {confirmReprint.copies > 1 ? "copies" : "copy"} on {confirmReprint.paperName}). Check the output tray first: the spooler cannot tell whether the earlier print came out.</p>}
+        body={<div>{recent.some((m) => m.id === (confirmReprint.renderedMediaId || confirmReprint.mediaId)) && <img style={{ maxHeight: 180, maxWidth: "100%" }} src={mediaUrl(confirmReprint.renderedMediaId || confirmReprint.mediaId, "thumb", "")} alt="Image selected for reprint" />}<p>This sends the same finished image to <strong>{confirmReprint.printer}</strong> again ({confirmReprint.copies} {confirmReprint.copies > 1 ? "copies" : "copy"} on {confirmReprint.paperName}). Previous state: {jobLabel[confirmReprint.status]}. Check the output tray first: the spooler cannot tell whether the earlier print came out.</p></div>}
         onYes={() => { const j = confirmReprint; setConfirmReprint(null); act.run(async () => { const r = await api.reprint(j.id, true); toast(`Reprint sent (${r.id})`); setJobs(await api.printJobs()); }); }} />}
     </div>
   );

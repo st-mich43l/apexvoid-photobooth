@@ -90,6 +90,11 @@ var migrations = []string{
 	ALTER TABLE media ADD COLUMN variant_id TEXT NOT NULL DEFAULT '';
 	ALTER TABLE media ADD COLUMN frame_rev INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE media ADD COLUMN frame_dir TEXT NOT NULL DEFAULT '';`,
+
+	// v4: retain the image's physical resolution for safe reprints.
+	`ALTER TABLE print_jobs ADD COLUMN image_dpi INTEGER NOT NULL DEFAULT 0;
+	CREATE INDEX print_jobs_parent ON print_jobs(parent_id);
+	CREATE INDEX print_jobs_media ON print_jobs(media_id,kind,status);`,
 }
 
 // Open opens (creating if needed) the library database and migrates it.

@@ -44,13 +44,17 @@ type Settings struct {
 	// OutputDPI is the print resolution of built-in frames: 300 (standard) or 600 (high). Custom frames keep the DPI set in the Frame Builder.
 	OutputDPI int `json:"outputDpi"`
 	// PreviewMirror flips the live preview horizontally (like a mirror) for guests. It is display only: photos are never mirrored.
-	PreviewMirror bool   `json:"previewMirror"`
-	AutoReconnect bool   `json:"autoReconnect"`
-	EnableMock    bool   `json:"enableMock"`  // development: expose the simulated camera
-	FFmpegPath    string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
-	CanonSDKDir   string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
-	PrinterName   string `json:"printerName"`
-	PrintPaper    string `json:"printPaper"` // default paper size name (as reported by the printer)
+	PreviewMirror    bool   `json:"previewMirror"`
+	AutoReconnect    bool   `json:"autoReconnect"`
+	EnableMock       bool   `json:"enableMock"`  // development: expose the simulated camera
+	FFmpegPath       string `json:"ffmpegPath"`  // empty = beside the exe, then PATH
+	CanonSDKDir      string `json:"canonSdkDir"` // empty = beside the exe, ./sdk/canon, PATH
+	PrinterName      string `json:"printerName"`
+	PrintPaper       string `json:"printPaper"` // default paper size name (as reported by the printer)
+	PrintOrientation string `json:"printOrientation"`
+	PrintFit         string `json:"printFit"`
+	PrintCopies      int    `json:"printCopies"`
+	PrintTwoUp       string `json:"printTwoUp"` // auto | on | off
 	// Preferred sources, separate for Photo and Video mode. Restored at start-up;
 	// when one is missing the operator is asked before another source is used.
 	PhotoCamera camera.Preferred `json:"photoCamera"`
@@ -67,12 +71,37 @@ type Settings struct {
 func Default() Settings {
 	return Settings{
 		CountdownSeconds: 3, Shots: 4, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
+		PrintOrientation: "auto", PrintFit: "fit", PrintCopies: 1, PrintTwoUp: "auto",
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
 }
 
 // Validate normalises and checks values.
 func (s *Settings) Validate() error {
+	if s.PrintOrientation == "" {
+		s.PrintOrientation = "auto"
+	}
+	if s.PrintFit == "" {
+		s.PrintFit = "fit"
+	}
+	if s.PrintCopies == 0 {
+		s.PrintCopies = 1
+	}
+	if s.PrintTwoUp == "" {
+		s.PrintTwoUp = "auto"
+	}
+	if s.PrintOrientation != "auto" && s.PrintOrientation != "portrait" && s.PrintOrientation != "landscape" {
+		return errors.New("invalid default print orientation")
+	}
+	if s.PrintFit != "fit" && s.PrintFit != "fill" && s.PrintFit != "actual" {
+		return errors.New("invalid default print placement")
+	}
+	if s.PrintCopies < 1 || s.PrintCopies > 10 {
+		return errors.New("default print copies must be 1–10")
+	}
+	if s.PrintTwoUp != "auto" && s.PrintTwoUp != "on" && s.PrintTwoUp != "off" {
+		return errors.New("invalid default two-up setting")
+	}
 	if s.OutputDPI == 0 { // settings written before this option existed
 		s.OutputDPI = 300
 	}
