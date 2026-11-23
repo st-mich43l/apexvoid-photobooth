@@ -185,3 +185,110 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 30
+
+  # Only trusted master builds may decrypt and distribute the Canon SDK.
+  # Pull requests, including forks, never receive the vault password.
+  canon-portable:
+    name: Build Canon-enabled Windows portable executable
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    needs: [go, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: st-mich43l/ansible-library
+          # The build script verifies the exact expected SDK hashes.
+          ref: master
+          path: .canon-ansible
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Ansible Vault
+        run: python -m pip install 'ansible-core==2.21.4'
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Prepare pinned FFmpeg
+        env:
+          FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-21-12-37/ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1.zip
+          FFMPEG_SHA256: 47d2e37e5ab9dc775cf5e5e595a817a11534c2fd6533a16db476f45dd8a7ce83
+        run: |
+          curl --fail --location --retry 3 "$FFMPEG_URL" --output "$RUNNER_TEMP/ffmpeg.zip"
+          echo "$FFMPEG_SHA256  $RUNNER_TEMP/ffmpeg.zip" | sha256sum -c -
+          mkdir -p internal/video/embedded
+          python - <<'PY'
+          import gzip, os, shutil, zipfile
+          prefix = 'ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1/'
+          with zipfile.ZipFile(os.path.join(os.environ['RUNNER_TEMP'], 'ffmpeg.zip')) as z:
+              with z.open(prefix + 'bin/ffmpeg.exe') as src, gzip.open('internal/video/embedded/ffmpeg.exe.gz', 'wb', compresslevel=9) as dst:
+                  shutil.copyfileobj(src, dst)
+              with z.open(prefix + 'LICENSE.txt') as src, open('internal/video/embedded/FFMPEG-LICENSE.txt', 'wb') as dst:
+                  shutil.copyfileobj(src, dst)
+          PY
+      - name: Build with vaulted SDK and FFmpeg
+        env:
+          VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$VAULT_PASSWORD" ]; then echo 'ANSIBLE_VAULT_PASSWORD is required for the Canon build' >&2; exit 1; fi
+          umask 077
+          password_file=$(mktemp "$RUNNER_TEMP/canon-vault.XXXXXX")
+          trap 'rm -f "$password_file"' EXIT
+          printf '%s\n' "$VAULT_PASSWORD" > "$password_file"
+          unset VAULT_PASSWORD
+          ./scripts/build-canon-portable.sh "$GITHUB_WORKSPACE/.canon-ansible" "$password_file"
+          sha256sum dist/ApexVoidPhotobooth-canon.exe > dist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canon-portable-staging
+          path: |
+            dist/ApexVoidPhotobooth-canon.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  canon-windows-smoke:
+    name: Validate Canon-enabled executable on Windows
+    runs-on: windows-latest
+    needs: [canon-portable]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: canon-portable-staging
+          path: dist
+      - name: Check SDK extraction and native initialization
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth-canon.exe -ArgumentList '--canon-validate', "$PWD\canon-ci.json" -Wait -PassThru
+          if (-not (Test-Path canon-ci.json)) { throw "Canon validation did not write a report (exit $($p.ExitCode))" }
+          $r = Get-Content canon-ci.json -Raw | ConvertFrom-Json
+          if ($r.sdk.kind -or $r.sdk.machine -ne 'x64') { throw "Bundled SDK inspection failed: $($r.sdk | ConvertTo-Json)" }
+          $detected = $r.steps | Where-Object { $_.n -eq 1 }
+          if ($detected.detail -notmatch 'no Canon camera found') { throw "SDK discovery did not complete as expected on a camera-free runner: $($detected | ConvertTo-Json)" }
+          Write-Host 'Bundled SDK extracted, loaded, initialized and enumerated; camera operation remains unverified.'
+      - name: Application self-test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\ApexVoidPhotobooth-canon.exe -ArgumentList '--selftest', "$PWD\selftest.json" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content selftest.json; throw "Application self-test failed (exit $($p.ExitCode))" }
+          $r = Get-Content selftest.json -Raw | ConvertFrom-Json
+          $ff = $r.checks | Where-Object { $_.name -eq 'FFmpeg' }
+          if (-not $ff.ok -or $ff.detail -notlike '*built into this application*') { throw 'Bundled FFmpeg was not found' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ApexVoidPhotobooth-windows-x64-canon
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30

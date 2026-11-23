@@ -15,7 +15,9 @@ Values: `supported`, `unsupported`, `unverified` (API exists, has not succeeded 
 
 ## Canon EDSDK adapter (EOS R50, Windows 10/11 x64)
 
-### Install the SDK (you must do this; it is not bundled)
+### Install the SDK
+
+The optional SDK-enabled portable build unpacks its embedded DLLs automatically. Standard CI builds still require the installation below; see [INSTALL.md](INSTALL.md) for the local SDK-enabled build.
 1. Download the EDSDK from Canon (developer registration required; read Canon's licence — **its
    redistribution terms were not verified by this project**, so the DLLs are never committed or shipped).
 2. The supplied EDSDK 13.21.10 API reference lists **EOS R50** for camera control. Hardware operation remains unverified; see [the compatibility assessment](CANON_SDK_COMPATIBILITY.md).
