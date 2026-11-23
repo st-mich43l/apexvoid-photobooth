@@ -193,6 +193,7 @@ type Job struct {
 	Orientation     string    `json:"orientation"`
 	Fit             string    `json:"fit"`
 	Copies          int       `json:"copies"`
+	ImageDPI        int       `json:"imageDpi"`
 	Status          string    `json:"status"`
 	Detail          string    `json:"detail"`
 	NativeID        string    `json:"nativeId"`

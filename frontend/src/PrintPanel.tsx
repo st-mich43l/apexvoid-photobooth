@@ -12,12 +12,13 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
   const [caps, setCaps] = useState<PrinterCaps | null>(null);
   const [printer, setPrinter] = useState(settings.printerName);
   const [paper, setPaper] = useState(settings.printPaper);
-  const [orientation, setOrientation] = useState("auto");
-  const [fit, setFit] = useState("fit");
-  const [copies, setCopies] = useState(1);
-  const [twoUp, setTwoUp] = useState<boolean | null>(null); // null = follow the offer for this paper
+  const [orientation, setOrientation] = useState(settings.printOrientation || "auto");
+  const [fit, setFit] = useState(settings.printFit || "fit");
+  const [copies, setCopies] = useState(settings.printCopies || 1);
+  const [twoUp, setTwoUp] = useState<boolean | null>(settings.printTwoUp === "off" ? false : null); // null = follow the offer for this paper
   const [preview, setPreview] = useState<PrintPreview | null>(null);
   const [previewError, setPreviewError] = useState("");
+  const [previewKey, setPreviewKey] = useState("");
   const { busy, error, run, clear } = useAction();
   // one id per user action: a double tap or a retry can never print twice
   const requestId = useRef(newRequestId());
@@ -26,26 +27,36 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
     api.listPrinters().then((r) => { setPr(r); setPrinter((p) => p || r.default || r.printers.find((x) => x.status === "ready")?.name || ""); }).catch(() => {});
   }, []);
   useEffect(() => {
-    if (!printer) { setCaps(null); return; }
-    api.printerCapabilities(printer).then((c) => { setCaps(c); setPaper((p) => pickPaper(c.papers, p)); }).catch(() => setCaps(null));
+    let active = true;
+    setCaps(null); setPreview(null); setPreviewKey("");
+    if (!printer) { setPaper(""); return () => { active = false; }; }
+    api.printerCapabilities(printer).then((c) => {
+      if (!active) return;
+      setCaps(c); setPaper((p) => pickPaper(c.papers, p));
+      setOrientation((o) => o === "auto" || c.orientations.includes(o) ? o : "auto");
+      setCopies((n) => Math.min(n, Math.max(1, c.maxCopies)));
+    }).catch(() => { if (active) { setCaps(null); setPaper(""); } });
+    return () => { active = false; };
   }, [printer]);
 
   const opts = (): import("./types").PrintOptions => ({ requestId: requestId.current, mediaId, templateId: templateId ?? "", printer, paper, orientation, fit, copies, twoUp: twoUp ?? false });
+  const selectionKey = JSON.stringify([mediaId, templateId, printer, paper, orientation, fit, copies, twoUp]);
   useEffect(() => {
-    if (!printer || !paper) { setPreview(null); return; }
+    if (!printer || !paper || !caps || !caps.papers.some((p) => p.name === paper)) { setPreview(null); setPreviewKey(""); return; }
     let alive = true;
-    setPreviewError("");
+    setPreview(null); setPreviewKey(""); setPreviewError("");
     api.printPreview({ ...opts(), requestId: "" }).then((p) => {
       if (!alive) return;
       if (twoUp === null && p.twoUpOffer && !p.twoUp) { setTwoUp(true); return; }   // a 2×6 strip on 4×6 paper: show the two-up sheet
-      setPreview(p);
+      setPreview(p); setPreviewKey(selectionKey);
     }).catch((e) => { if (alive) { setPreview(null); setPreviewError(e.message + (e.action ? ` ${e.action}` : "")); } });
     return () => { alive = false; };
-  }, [mediaId, templateId, printer, paper, orientation, fit, twoUp]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setTwoUp(null); }, [mediaId, paper]);
+  }, [mediaId, templateId, printer, paper, orientation, fit, copies, twoUp, caps]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setTwoUp(settings.printTwoUp === "off" ? false : null); }, [mediaId, paper, settings.printTwoUp]);
 
   const p = pr?.printers.find((x) => x.name === printer);
-  const unavailable = p && p.status !== "ready";
+  const unavailable = !p || p.status !== "ready";
+  const currentPreview = previewKey === selectionKey ? preview : null;
   return (
     <div className="print-panel">
       <div className="note warn"><div>{pr?.note ?? "Printing goes through the Windows spooler. A job leaving the queue does not prove that paper came out."}</div></div>
@@ -58,7 +69,8 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
               {pr?.printers.map((x) => <option key={x.name} value={x.name}>{x.name}{x.default ? " (default)" : ""} — {x.status}</option>)}
             </select>
           </label>
-          {unavailable && <div className="note err"><div><strong>{p!.name} is {p!.status}.</strong> {p!.detail}</div></div>}
+          {p && unavailable && <div className="note err"><div><strong>{p.name} is {p.status}.</strong> {p.detail}</div></div>}
+          {pr && printer && !p && <div className="note err"><div>The selected printer is no longer installed. Choose an available printer.</div></div>}
           <label>Paper
             <select value={paper} onChange={(e) => setPaper(e.target.value)} disabled={!caps}>
               {caps?.papers.map((x) => <option key={`${x.id}-${x.name}`} value={x.name}>{paperLabel(x)}</option>)}
@@ -85,16 +97,17 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
           </label>
         </div>
         <div className="print-preview">
-          {preview ? (
+          {currentPreview ? (
             <>
-              <img src={preview.image} alt="Print preview" />
+              <img src={currentPreview.image} alt="Print preview" />
               <p className="muted small">
-                Sheet {preview.paperMm[0].toFixed(0)}×{preview.paperMm[1].toFixed(0)} mm (printable {preview.printableMm[0].toFixed(0)}×{preview.printableMm[1].toFixed(0)} mm) · image {preview.imageInches[0].toFixed(2)}×{preview.imageInches[1].toFixed(2)} in
-                at {preview.scalePct.toFixed(0)}% {preview.rotated ? "· turned 90°" : ""} {preview.croppedPct > 0.5 ? `· ${preview.croppedPct.toFixed(0)}% cropped` : ""}
+                {copies} {copies === 1 ? "copy" : "copies"} · Sheet {currentPreview.paperMm[0].toFixed(0)}×{currentPreview.paperMm[1].toFixed(0)} mm (printable {currentPreview.printableMm[0].toFixed(0)}×{currentPreview.printableMm[1].toFixed(0)} mm) · image {currentPreview.imageInches[0].toFixed(2)}×{currentPreview.imageInches[1].toFixed(2)} in
+                at {currentPreview.scalePct.toFixed(0)}% {currentPreview.rotated ? "· turned 90°" : ""} {currentPreview.croppedPct > 0.5 ? `· ${currentPreview.croppedPct.toFixed(0)}% cropped` : ""}
               </p>
-              <p className="muted small">White space on the sheet: {describeMargins(preview.marginMm)}.</p>
-              {preview.assumedGeometry && <p className="muted small"><Badge kind="warn">estimated</Badge> The driver's real printable area is not available here.</p>}
-              {preview.warning && <div className="note warn"><div>{preview.warning}</div></div>}
+              <p className="muted small">White space on the sheet: {describeMargins(currentPreview.marginMm)}.</p>
+              {currentPreview.unprintableMm && <p className="muted small">Unprintable margins: {describeMargins(currentPreview.unprintableMm)}.</p>}
+              {currentPreview.assumedGeometry && <p className="muted small"><Badge kind="warn">estimated</Badge> The driver's real printable area is not available here.</p>}
+              {currentPreview.warning && <div className="note warn"><div>{currentPreview.warning}</div></div>}
               <p className="muted small">Grey = area this printer cannot print. The file that is printed is the finished layout, never the raw camera original.</p>
             </>
           ) : <p className="muted">{previewError || (printer ? "Preparing preview…" : "Choose a printer to see the preview.")}</p>}
@@ -102,7 +115,7 @@ export function PrintPanel({ mediaId, templateId, onPrinted }: { mediaId: string
       </div>
       <div className="row">
         <span className="muted small">Print job id: unique per click, so a double tap prints once.</span>
-        <button className="primary big" disabled={busy || !printer || !paper || !!unavailable || !preview} onClick={() => run(async () => {
+        <button className="primary big" disabled={busy || !printer || !paper || unavailable || !currentPreview} onClick={() => run(async () => {
           const j = await api.printMedia(opts());
           requestId.current = newRequestId();                      // the next click is a new action
           toast(`Print job ${j.id}: ${j.status}`); onPrinted?.(j);

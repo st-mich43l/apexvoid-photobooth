@@ -174,5 +174,8 @@ func TestPrintResultUsesTheOperatorsPrinterAndTwoUpAutomatically(t *testing.T) {
 	if _, err := s.PrintResult(done.ResultID, "tap1"); err != nil || fp.n() != 1 {
 		t.Fatalf("%v n=%d", err, fp.n())
 	}
+	if _, err := s.PrintResult(done.ResultID, "another-action"); err == nil || fp.n() != 1 {
+		t.Fatalf("second guest action must go through operator reprint: %v n=%d", err, fp.n())
+	}
 	_ = templates.DefaultFrameID
 }

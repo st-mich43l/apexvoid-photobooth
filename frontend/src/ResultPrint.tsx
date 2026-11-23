@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, toAppError } from "./api";
 import { newRequestId } from "./printInfo";
 import { Icon } from "./icons";
@@ -14,8 +14,8 @@ export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolea
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; msg: string }>({ kind: "idle", msg: "" });
   const reqId = useRef(newRequestId()); // one id per tap: a double tap prints once
-  const last = useRef(mediaId);
-  if (last.current !== mediaId) { last.current = mediaId; reqId.current = newRequestId(); }
+  const locked = useRef(false);
+  useEffect(() => { reqId.current = newRequestId(); locked.current = false; setState({ kind: "idle", msg: "" }); }, [mediaId]);
 
   if (!booth) {
     return (
@@ -27,22 +27,23 @@ export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolea
   }
   if (!settings.printerName) return null; // printing is not set up: guests are not shown a button that cannot work
   const print = async () => {
+    if (locked.current) return;
+    locked.current = true;
     setState({ kind: "sending", msg: "" });
     try {
       const j = await api.printResult(mediaId, reqId.current);
-      reqId.current = newRequestId();
       setState({ kind: "sent", msg: j.status === "failed" ? j.detail : "Sent to the printer. If nothing comes out, please ask the host." });
     } catch (e) {
       const err = toAppError(e);
-      setState({ kind: "error", msg: err.action ? `${err.message} ${err.action}` : err.message });
+      setState({ kind: "error", msg: /unknown/i.test(err.message) ? "Submission status unknown. Please ask the operator to check the printer." : "The printer needs attention. Please ask the operator for help." });
     }
   };
   return (
     <div className="g-print">
-      <button type="button" className="g-btn g-secondary" disabled={state.kind === "sending"} onClick={print}>
-        <Icon name="printer" size={24} /><span>{state.kind === "sending" ? "Sending…" : state.kind === "sent" ? "Print another copy" : "Print"}</span>
+      <button type="button" className="g-btn g-secondary" disabled={state.kind !== "idle"} onClick={print}>
+        <Icon name="printer" size={24} /><span>{state.kind === "sending" ? "Sending…" : state.kind === "sent" ? "Sent to printer" : state.kind === "error" ? "Ask the operator" : "Print"}</span>
       </button>
-      {state.kind === "sent" && <p className="g-print-note" role="status">{state.msg}</p>}
+      {state.kind === "sent" && <p className="g-print-note" role="status">{state.msg} For another copy, please ask the operator.</p>}
       {state.kind === "error" && <GuestMessage kind="err">{state.msg}</GuestMessage>}
     </div>
   );

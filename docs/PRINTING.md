@@ -53,3 +53,9 @@ unprintable border and the exact image position, scale and margins.
 
 `ApexVoidPhotobooth.exe --print-selftest report.json "<printer>" ["<paper>"]` runs the sequence headlessly
 (without a printer name it only enumerates) and writes a JSON report with every spooler state seen.
+
+## UX-4 operator checks
+
+The Printer page saves the default paper, orientation, placement, copy count and strip two-up choice. Select a printer and a paper that it currently reports; review the preview's scale, crop and grey unprintable region before printing. A calibration page is sent only after confirmation; marking that one page inspected does not confirm later delivery. The guest result allows one print action and directs additional copies to the operator's confirmed reprint flow.
+
+Reprints retain the stored image DPI and require the original file, job, printer and paper to remain available. Legacy jobs without stored DPI use a valid JPEG density when present; otherwise recompose the image. If submission is **unknown**, check the Windows queue and output tray; do not submit another copy until the uncertainty is resolved. The application never treats a job leaving the queue as proof of physical delivery. The full physical acceptance procedure and remaining limits are in [UX4_AUDIT.md](UX4_AUDIT.md).

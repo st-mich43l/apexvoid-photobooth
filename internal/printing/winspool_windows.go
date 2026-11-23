@@ -435,6 +435,7 @@ func (winDriver) Submit(ctx context.Context, r SubmitRequest) (string, error) {
 	if int32(jobID) <= 0 {
 		return "", lastErr(e, "StartDoc (the printer driver or spooler refused the job)")
 	}
+	nativeID := strconv.Itoa(int(int32(jobID)))
 	copies := r.Copies
 	if copies < 1 {
 		copies = 1
@@ -442,11 +443,11 @@ func (winDriver) Submit(ctx context.Context, r SubmitRequest) (string, error) {
 	for c := 0; c < copies; c++ {
 		if ctx.Err() != nil {
 			procAbortDoc.Call(hdc)
-			return "", ctx.Err()
+			return nativeID, ctx.Err()
 		}
 		if rr, _, e := procStartPage.Call(hdc); int32(rr) <= 0 {
 			procAbortDoc.Call(hdc)
-			return "", lastErr(e, "StartPage")
+			return nativeID, lastErr(e, "StartPage")
 		}
 		procSetStretchBltMode.Call(hdc, halftone)
 		rr, _, _ := procStretchDIBits.Call(hdc,
@@ -455,18 +456,18 @@ func (winDriver) Submit(ctx context.Context, r SubmitRequest) (string, error) {
 			uintptr(unsafe.Pointer(&pix[0])), uintptr(unsafe.Pointer(&bmi)), dibRGBColors, srccopy)
 		if int32(rr) <= 0 { // 0 or GDI_ERROR (-1)
 			procAbortDoc.Call(hdc)
-			return "", errors.New("drawing the image onto the printer page failed")
+			return nativeID, errors.New("drawing the image onto the printer page failed")
 		}
 		if rr, _, e := procEndPage.Call(hdc); int32(rr) <= 0 {
 			procAbortDoc.Call(hdc)
-			return "", lastErr(e, "EndPage")
+			return nativeID, lastErr(e, "EndPage")
 		}
 	}
 	runtime.KeepAlive(pix)
 	if rr, _, e := procEndDoc.Call(hdc); int32(rr) <= 0 {
-		return "", lastErr(e, "EndDoc")
+		return nativeID, lastErr(e, "EndDoc")
 	}
-	return strconv.Itoa(int(int32(jobID))), nil
+	return nativeID, nil
 }
 
 func (winDriver) Status(ctx context.Context, printer, nativeID string) (JobState, error) {
