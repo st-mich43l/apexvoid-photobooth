@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { filterFrames, photoCounts, photosLabel } from "../frameInfo";
@@ -12,6 +13,7 @@ import type { AssetInfo, Frame, FrameDef } from "../types";
 /** Studio: every frame (built-in and custom). The operator chooses which ones guests can pick in Booth Mode. */
 export function Frames() {
   const { settings, setSettings, toast, frameUrl } = useApp();
+  const t = (key: Parameters<typeof translate>[1]) => translate(settings?.language, key);
   const [frames, setFrames] = useState<Frame[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [problems, setProblems] = useState<string[]>([]);
@@ -89,7 +91,7 @@ export function Frames() {
 
   return (
     <div className="page">
-      <h1>Frames</h1>
+      <h1>{translate(settings?.language, "frames")}</h1>
       <ErrorNote error={error} />
       <p className="muted">
         A frame is a layout (where the photos go) and a design (colours, borders, artwork). Guests choose one <b>before</b> their photos are taken; it sets how many photos are shot.
@@ -103,21 +105,21 @@ export function Frames() {
           <section className="make-card" aria-label="Create a frame">
             <span className="make-icon" aria-hidden="true"><Icon name="sparkle" size={24} /></span>
             <div className="make-text">
-              <h3>Design your own</h3>
-              <p>Start from a layout, then place photos, shapes and text in the builder.</p>
+              <h3>{t("designYourOwn")}</h3>
+              <p>{t("designHint")}</p>
             </div>
             <div className="make-actions">
               <select aria-label="Layout" value={layout} onChange={(e) => setLayout(e.target.value)}>
                 {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
               </select>
-              <button className="primary" onClick={startNew} disabled={!layouts.length}>Create frame…</button>
+              <button className="primary" onClick={startNew} disabled={!layouts.length}>{t("createFrame")}</button>
             </div>
           </section>
           <section className="make-card make-import" aria-label="Import a PNG frame">
             <span className="make-icon" aria-hidden="true"><Icon name="upload" size={24} /></span>
             <div className="make-text">
-              <h3>Already have a PNG?</h3>
-              <p>Drop in a frame picture with transparent windows. Photo slots are placed for you.</p>
+              <h3>{t("havePng")}</h3>
+              <p>{t("pngHint")}</p>
             </div>
             <div className="make-actions">
               <ImageImport className="primary alt" label="Import PNG as frame…" hint="Fastest way to use your own artwork" busy={importing} onPick={importPng} />
@@ -125,36 +127,36 @@ export function Frames() {
           </section>
         </div>
         <div className="gallery-filters">
-          <label>Search frames <input value={search} onChange={(e) => setSearch(e.target.value)} /></label>
-          <label>Layout <select value={layoutFilter} onChange={(e) => setLayoutFilter(e.target.value)}><option value="">All layouts</option>{[...new Set((frames ?? []).map((f) => f.format))].map((f) => <option key={f} value={f}>{f}</option>)}</select></label>
-          <label>Source <select value={source} onChange={(e) => setSource(e.target.value)}><option value="all">All frames</option><option value="builtin">Built-in</option><option value="custom">Custom</option></select></label>
-          <label className="inline"><input type="checkbox" checked={onlyFavorites} onChange={(e) => setOnlyFavorites(e.target.checked)} /> Favorites only</label>
+          <label>{translate(settings?.language, "searchFrames")} <input value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+          <label>{t("layout")} <select value={layoutFilter} onChange={(e) => setLayoutFilter(e.target.value)}><option value="">{t("allLayouts")}</option>{[...new Set((frames ?? []).map((f) => f.format))].map((f) => <option key={f} value={f}>{f}</option>)}</select></label>
+          <label>{t("source")} <select value={source} onChange={(e) => setSource(e.target.value)}><option value="all">{t("allFrames")}</option><option value="builtin">{t("builtIn")}</option><option value="custom">{t("custom")}</option></select></label>
+          <label className="inline"><input type="checkbox" checked={onlyFavorites} onChange={(e) => setOnlyFavorites(e.target.checked)} /> {t("favoritesOnly")}</label>
         </div>
         <div className="filters" role="group" aria-label="Categories">
           {["All", ...categories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
         </div>
         <div className="filters" role="group" aria-label="Number of photos">
-          <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>Any photos</button>
+          <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>{t("anyPhotos")}</button>
           {photoCounts(frames ?? []).map((n) => <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photosLabel(n)}</button>)}
         </div>
         <div className="row">
-          <label>Visibility <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="all">All</option><option value="offered">Offered</option><option value="hidden">Hidden</option></select></label>
+          <label>{t("visibility")} <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="all">{t("all")}</option><option value="offered">{t("offered")}</option><option value="hidden">{t("hidden")}</option></select></label>
           <span className="muted small">{enabledCount} of {frames?.length ?? 0} offered · showing {shown.length}</span>
-          <button onClick={() => bulk(true)} disabled={busy || !shown.length}>Offer all shown</button>
-          <button onClick={() => { if (shown.filter((f) => f.enabled).length === enabledCount && enabledCount > 0) setPendingHide("bulk"); else void bulk(false); }} disabled={busy || !shown.length}>Hide all shown</button>
+          <button onClick={() => bulk(true)} disabled={busy || !shown.length}>{t("offerAll")}</button>
+          <button onClick={() => { if (shown.filter((f) => f.enabled).length === enabledCount && enabledCount > 0) setPendingHide("bulk"); else void bulk(false); }} disabled={busy || !shown.length}>{t("hideAll")}</button>
         </div>
         {bulkError && <div className="note err" role="alert">{bulkError}</div>}
       </div>
 
-      {!frames && !error && <div className="center-msg"><div className="spinner" />Loading frames…</div>}
+      {!frames && !error && <div className="center-msg"><div className="spinner" />{t("loadingFrames")}</div>}
       <div className="grid templates">
         {shown.map((f) => (
           <section key={f.id} className={`card tpl ${settings.templateId === f.id ? "selected" : ""} ${f.enabled ? "" : "off"}`}>
             <div className="tpl-preview"><img src={frameUrl(f.id, variants[f.id] ?? "", 220)} alt={`${f.name} preview`} loading="lazy" /></div>
             <h3>{f.name} {f.editable ? <Badge kind="info">custom</Badge> : !f.builtin ? <Badge kind="warn">file</Badge> : null}</h3>
             <p className="muted small">{f.category} · {f.format} · {photosLabel(f.photos)} · {f.pixelW}×{f.pixelH} px @ {f.dpi} dpi</p>
-            {f.variants && f.variants.length > 1 && <label>Preview color <select value={variants[f.id] ?? ""} onChange={(e) => setVariants((cur) => ({ ...cur, [f.id]: e.target.value }))}><option value="">Default</option>{f.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
-            <label className="inline"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => { if (!e.target.checked && enabledCount === 1 && f.enabled) setPendingHide(f); else void toggle(f, e.target.checked); }} aria-label={`Offer ${f.name} ${f.format} in Booth Mode`} /> Offered in Booth</label>
+            {f.variants && f.variants.length > 1 && <label>{t("previewColor")} <select value={variants[f.id] ?? ""} onChange={(e) => setVariants((cur) => ({ ...cur, [f.id]: e.target.value }))}><option value="">{t("defaultLabel")}</option>{f.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
+            <label className="inline"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => { if (!e.target.checked && enabledCount === 1 && f.enabled) setPendingHide(f); else void toggle(f, e.target.checked); }} aria-label={`Offer ${f.name} ${f.format} in Booth Mode`} /> {t("offeredInBooth")}</label>
             <div className="row">
               <button aria-label={`${f.favorite ? "Unpin" : "Pin"} ${f.name}`} onClick={() => favorite(f)} disabled={busy}>{f.favorite ? "★ Favorite" : "☆ Favorite"}</button>
               <button aria-label={`Move ${f.name} earlier`} onClick={() => move(f, -1)} disabled={busy || frames?.[0]?.id === f.id}>↑</button>
@@ -162,9 +164,9 @@ export function Frames() {
               <button className={settings.templateId === f.id ? "" : "primary"} disabled={settings.templateId === f.id || !f.enabled} onClick={() => makeDefault(f)}>
                 {settings.templateId === f.id ? "Preselected" : "Preselect"}
               </button>
-              {f.editable && <button onClick={() => edit(f)} aria-label={`Edit ${f.name}`}>Edit</button>}
-              <button onClick={() => duplicate(f)} aria-label={`Duplicate ${f.name}`}>Duplicate</button>
-              {f.editable && <button className="danger" onClick={() => setRemoving(f)} aria-label={`Delete ${f.name}`}>Delete</button>}
+              {f.editable && <button onClick={() => edit(f)} aria-label={`Edit ${f.name}`}>{t("edit")}</button>}
+              <button onClick={() => duplicate(f)} aria-label={`Duplicate ${f.name}`}>{t("duplicateAction")}</button>
+              {f.editable && <button className="danger" onClick={() => setRemoving(f)} aria-label={`Delete ${f.name}`}>{t("deleteAction")}</button>}
             </div>
           </section>
         ))}
@@ -173,7 +175,7 @@ export function Frames() {
         <FrameBuilder initial={building.def} isNew={building.isNew} notes={building.notes} knownAssets={building.assets} onClose={() => setBuilding(null)}
           onSaved={(saved) => { setBuilding(null); load(); toast(`“${saved.name}” saved${saved.enabled ? " and offered in Booth Mode" : " (switch it on to offer it in Booth Mode)"}`); }} />
       )}
-      {pendingHide && <Confirm title="Hide the last offered frame?" danger confirmLabel="Hide frame" onNo={() => setPendingHide(null)} onYes={() => { const pending = pendingHide; setPendingHide(null); if (pending === "bulk") void bulk(false); else void toggle(pending, false); }} body={<p>No frames will be available to guests until another is offered.</p>} />}
+      {pendingHide && <Confirm title={t("hideLastTitle")} danger confirmLabel={t("hideFrame")} onNo={() => setPendingHide(null)} onYes={() => { const pending = pendingHide; setPendingHide(null); if (pending === "bulk") void bulk(false); else void toggle(pending, false); }} body={<p>{t("hideLastHint")}</p>} />}
       {removing && (
         <Confirm title="Delete frame?" danger confirmLabel="Delete frame" onNo={() => setRemoving(null)} onYes={() => remove(removing)}
           body={<p>“{removing.name}” will be removed from the library. Photos, finished images and earlier sessions that used it are not affected — each session keeps its own copy of the frame.</p>} />

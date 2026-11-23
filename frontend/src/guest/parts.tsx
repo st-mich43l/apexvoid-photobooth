@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon } from "../icons";
 import { photosLabel, swatch } from "../frameInfo";
@@ -18,10 +19,11 @@ export const STEPS = ["Frame", "Shoot", "Review", "Done"] as const;
 export type Step = 1 | 2 | 3 | 4;
 
 /** Where the guest is in the journey. Purely informational: never a button. */
-export function StepIndicator({ step }: { step: Step }) {
+export function StepIndicator({ step, language }: { step: Step; language?: string }) {
+  const labels = (["frameStep", "shootStep", "reviewStep", "doneStep"] as const).map((key) => translate(language, key));
   return (
-    <ol className="g-steps" aria-label={`Step ${step} of ${STEPS.length}: ${STEPS[step - 1]}`}>
-      {STEPS.map((label, i) => (
+    <ol className="g-steps" aria-label={`Step ${step} of ${STEPS.length}: ${labels[step - 1]}`}>
+      {labels.map((label, i) => (
         <li key={label} className={i + 1 === step ? "now" : i + 1 < step ? "done" : ""} aria-current={i + 1 === step ? "step" : undefined}>
           <span className="g-step-dot">{i + 1 < step ? <Icon name="check" size={14} /> : i + 1}</span>
           <span className="g-step-label">{label}</span>
@@ -32,11 +34,11 @@ export function StepIndicator({ step }: { step: Step }) {
 }
 
 /** Top bar of every guest screen after Welcome. The right-hand column stays empty: the operator's Exit button lives there. */
-export function GuestHeader({ step }: { step: Step }) {
+export function GuestHeader({ step, language }: { step: Step; language?: string }) {
   return (
     <header className="g-header">
       <BrandMark compact />
-      <StepIndicator step={step} />
+      <StepIndicator step={step} language={language} />
       <span aria-hidden="true" />
     </header>
   );

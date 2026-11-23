@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, on } from "../api";
 import { jobActive, jobKind, jobLabel, paperLabel } from "../printInfo";
@@ -12,6 +13,7 @@ import type { Media, PrintJob, PrinterCaps, PrintersResult } from "../types";
 /** Printer page: installed printers, defaults, test print, preview + print, queue and reprint history. */
 export function PrinterPage() {
   const { settings, setSettings, mediaUrl, libraryVersion, toast } = useApp();
+  const t = (key: Parameters<typeof translate>[1]) => translate(settings?.language, key);
   const [pr, setPr] = useState<PrintersResult | null>(null);
   const [caps, setCaps] = useState<PrinterCaps | null>(null);
   const [jobs, setJobs] = useState<PrintJob[]>([]);
@@ -47,25 +49,25 @@ export function PrinterPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Printer" sub="Printing is optional. Digital only works without a printer.">
-        <button onClick={refreshPrinters} disabled={load.busy}>{load.busy ? "Scanning…" : "Refresh printers"}</button>
+      <PageHeader title={translate(settings?.language, "printer")} sub={t("printerSub")}>
+        <button onClick={refreshPrinters} disabled={load.busy}>{load.busy ? t("scanning") : t("refreshPrinters")}</button>
       </PageHeader>
       <ErrorNote error={load.error ?? act.error} onClose={() => { load.clear(); act.clear(); }} />
       <section className="card print-mode" aria-label="Printing mode">
-        <h3>Printing mode</h3>
+        <h3>{translate(settings?.language, "printingMode")}</h3>
         <div className="mode-choice" role="radiogroup" aria-label="Printing mode">
           <button role="radio" aria-checked={digital} className={digital ? "on" : ""} disabled={act.busy} onClick={() => { if (!digital) save({ printerName: "" }); }}>
-            <strong>Digital only</strong><span>Guests get digital photos. No printer needed.</span></button>
+            <strong>{t("digitalOnly")}</strong><span>{t("digitalHint")}</span></button>
           <button role="radio" aria-checked={!digital} className={!digital ? "on" : ""} disabled={act.busy}
             onClick={() => { if (digital) { if (pr?.default) save({ printerName: pr.default }); else toast("Choose a printer from the list below."); } }}>
-            <strong>Print with a printer</strong><span>{digital ? "Choose a printer below." : "On."}</span></button>
+            <strong>{t("printWithPrinter")}</strong><span>{digital ? t("choosePrinterBelow") : t("on")}</span></button>
         </div>
         <dl className="facts">
-          <Fact label="Printer">{printer || <span className="muted">none — digital only</span>}</Fact>
+          <Fact label={t("printer")}>{printer || <span className="muted">{t("noPrinter")}</span>}</Fact>
           {!digital && <>
-            <Fact label="Windows reports">{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? "ready (not verified)" : cur.status} /> : <span className="warn-text">printer not found</span>}</Fact>
-            <Fact label="Paper size">{settings.printPaper || <span className="muted">not set</span>}</Fact>
-            <Fact label="Test print">{lastTest ? <>{lastTest.detail || jobLabel[lastTest.status]} <span className="muted small">{when(lastTest.createdAt)}</span></> : <span className="muted">not requested — it is never sent automatically</span>}</Fact>
+            <Fact label="Windows reports">{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? t("notVerified") : cur.status} /> : <span className="warn-text">{t("printerNotFound")}</span>}</Fact>
+            <Fact label={t("paperSize")}>{settings.printPaper || <span className="muted">not set</span>}</Fact>
+            <Fact label={t("testPrint")}>{lastTest ? <>{lastTest.detail || jobLabel[lastTest.status]} <span className="muted small">{when(lastTest.createdAt)}</span></> : <span className="muted">{t("testNotRequested")}</span>}</Fact>
           </>}
         </dl>
         <p className="muted small">{digital ? "Pick a printer below to offer prints." : !cur ? "This printer is not installed any more. Photos are still saved digitally; choose another printer, or switch to Digital only." : cur.status !== "ready" ? "Windows reports the printer is not ready. Guests can still take photos — they are saved digitally. Check power, paper and the cable, then Refresh printers." : "Windows says the printer is ready; that does not prove paper will come out. Send a test print to check the tray."}</p>
@@ -75,20 +77,20 @@ export function PrinterPage() {
 
       <div className="two-col">
         <section className="card">
-          <h3>Installed printers <span className="muted small">{pr?.driver}</span></h3>
-          {pr && pr.printers.length === 0 && <p className="muted">No printers are installed. Add one in Windows Settings → Printers &amp; scanners, then press Refresh.</p>}
+          <h3>{translate(settings?.language, "installedPrinters")} <span className="muted small">{pr?.driver}</span></h3>
+          {pr && pr.printers.length === 0 && <p className="muted">{t("noPrinters")}</p>}
           <ul className="list">
             {pr?.printers.map((p) => (
               <li key={p.name}>
                 <div>
                   <strong>{p.name}</strong>{" "}
                   <Badge kind={p.status === "ready" ? "ok" : p.status === "offline" ? "warn" : "err"}>{p.status}</Badge>
-                  {p.default && <Badge kind="info">Windows default</Badge>}
-                  {printer === p.name && <Badge kind="info">used by the booth</Badge>}
+                  {p.default && <Badge kind="info">{t("windowsDefault")}</Badge>}
+                  {printer === p.name && <Badge kind="info">{t("usedByBooth")}</Badge>}
                   {p.detail && <div className="muted small">{p.detail}</div>}
                   {p.driver && <div className="muted small">{p.driver}{p.port ? ` · ${p.port}` : ""}</div>}
                 </div>
-                <button disabled={printer === p.name || act.busy} onClick={() => save({ printerName: p.name })}>Use this printer</button>
+                <button disabled={printer === p.name || act.busy} onClick={() => save({ printerName: p.name })}>{t("usePrinter")}</button>
               </li>
             ))}
           </ul>
@@ -96,24 +98,24 @@ export function PrinterPage() {
 
         <section className="card">
           <h3>Defaults{printer ? ` — ${printer}` : ""}</h3>
-          {!printer && <p className="muted">Choose a printer first.</p>}
+          {!printer && <p className="muted">{t("choosePrinterFirst")}</p>}
           {printer && (<>
             <div className="form">
               <label>Default paper size
                 <select value={paper} onChange={(e) => save({ printPaper: e.target.value })} disabled={!caps}>
-                  <option value="">Choose a supported paper size…</option>
+                  <option value="">{t("choosePaper")}</option>
                   {caps?.papers.map((p) => <option key={`${p.id}-${p.name}`} value={p.name}>{paperLabel(p)}</option>)}
                 </select>
               </label>
               <label>Default orientation
                 <select value={settings.printOrientation || "auto"} disabled={!caps} onChange={(e) => save({ printOrientation: e.target.value })}>
-                  <option value="auto">Automatic</option>
+                  <option value="auto">{t("automatic")}</option>
                   {caps?.orientations.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </label>
               <label>Default placement
                 <select value={settings.printFit || "fit"} onChange={(e) => save({ printFit: e.target.value })}>
-                  <option value="fit">Fit printable area</option><option value="fill">Fill sheet (may crop)</option><option value="actual">True size</option>
+                  <option value="fit">{t("fitArea")}</option><option value="fill">{t("fillSheet")}</option><option value="actual">{t("trueSize")}</option>
                 </select>
               </label>
               <label>Default copies
@@ -122,7 +124,7 @@ export function PrinterPage() {
               </label>
               <label>Two-up strips
                 <select value={settings.printTwoUp || "auto"} onChange={(e) => save({ printTwoUp: e.target.value })}>
-                  <option value="auto">When two strips fit</option><option value="off">Single strip</option>
+                  <option value="auto">{t("twoStrips")}</option><option value="off">{t("singleStrip")}</option>
                 </select>
               </label>
             </div>
@@ -134,9 +136,9 @@ export function PrinterPage() {
       </div>
 
       <details className="advanced">
-      <summary>Advanced — preview, placement, rotation and calibration</summary>
+      <summary>{t("advancedPrint")}</summary>
       <section className="card">
-        <h3>Preview and print</h3>
+        <h3>{translate(settings?.language, "previewPrint")}</h3>
         {recent.length === 0 ? <p className="muted">Take a photo session first, then print its strip from here or from the Gallery.</p> : (<>
           <div className="strip-row">
             {recent.map((m) => (
@@ -152,8 +154,8 @@ export function PrinterPage() {
       </details>
 
       <section className="card">
-        <h3>Print queue and history</h3>
-        {jobs.length === 0 ? <p className="muted">No print jobs yet.</p> : (
+        <h3>{translate(settings?.language, "printHistory")}</h3>
+        {jobs.length === 0 ? <p className="muted">{t("noJobsYet")}</p> : (
           <table className="table jobs"><tbody>
             {jobs.map((j) => (
               <tr key={j.id}>
@@ -161,8 +163,8 @@ export function PrinterPage() {
                   <div className="muted small">{when(j.createdAt)}</div></td>
                 <td>{j.printer}<div className="muted small">{j.paperName} · {j.copies}× · {j.orientation}/{j.fit}</div></td>
                 <td><Badge kind={jobKind(j.status)}>{jobLabel[j.status]}</Badge>{jobActive(j.status) && <span className="spinner tiny" />}
-                  <div className="muted small">{j.detail}</div>{j.status === "unknown" && <div className="muted small">Check the Windows queue and output tray. Reprinting is blocked while the submission is uncertain.</div>}</td>
-                <td>{j.kind === "print" && !jobActive(j.status) && j.status !== "unknown" && <button className="ghost" disabled={act.busy} onClick={() => setConfirmReprint(j)}>Reprint…</button>}</td>
+                  <div className="muted small">{j.detail}</div>{j.status === "unknown" && <div className="muted small">{t("unknownPrintHelp")}</div>}</td>
+                <td>{j.kind === "print" && !jobActive(j.status) && j.status !== "unknown" && <button className="ghost" disabled={act.busy} onClick={() => setConfirmReprint(j)}>{t("reprint")}</button>}</td>
               </tr>
             ))}
           </tbody></table>

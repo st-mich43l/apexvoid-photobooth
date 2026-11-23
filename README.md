@@ -15,7 +15,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 |---|---|---|
 | Camera abstraction, capability model, reconnect, single-capture lock | working | CI unit + contract tests |
 | Simulated (mock) camera | dev tool, always labelled SIMULATED | CI |
-| **Canon EOS R50 via EDSDK** (discover, live view, shutter, JPEG original download, USB-drop recovery, clean release) | **implemented, NOT hardware-tested** | adapter logic tested against a fake SDK in CI; the real DLL binding is only compiled (cross-vet), never executed |
+| **Canon EOS R50 via EDSDK** (discover, live view, shutter, JPEG original download, USB-drop recovery, clean release) | **implemented, NOT hardware-tested** | adapter logic tested against a fake SDK in CI; the regular PR compiles the DLL binding; physical camera operation has not been verified |
 | **UVC / webcam via FFmpeg** (preview, stills, MP4 recording, mic selection) | pipeline tested with a synthetic FFmpeg source; **real DirectShow device untested** | CI |
 | Canon movie start/stop + movie file transfer via EDSDK | **not implemented, unverified** (see docs/CAMERAS.md) | — |
 | Photo state machine (IDLE→PREVIEW→COUNTDOWN→CAPTURING→REVIEW→SAVING→COMPLETED, ERROR, CANCELLED) | working | CI incl. race detector, cancel, retake, disconnect, repeat sessions |
@@ -25,7 +25,7 @@ Data lives in a local SQLite file and ordinary folders; the app makes no network
 | **Frame builder** (custom frames, **Import PNG as frame** with automatic photo windows, drag/resize slots, transparent PNG overlay import, atomic storage) **300 / 600 dpi output** and **two-up 4×6 printing of 2×6 strips**, Booth *Print* | working; unit/UI/golden-image tests; the Windows CI job runs the whole frame flow | CI; **not run in WebView2, with a real camera or on paper** — [docs/FRAMES.md](docs/FRAMES.md), checklist F1–F9 in [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md) |
 | **Frame selection before capture**: 17 original designs × 9 layouts, colour options, optional caption, frame decides the photo count, per-session immutable snapshot, change design after capture without retaking | working with the simulated camera; unit/UI tests | CI; **not yet run inside WebView2 or with a real camera** — see [docs/FRAMES.md](docs/FRAMES.md) |
 | Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
-| Windows x64 single-file exe (FFmpeg built in) | built by CI as the only artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
+| Windows x64 single-file exe (FFmpeg built in) | built by CI as an unsigned test artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
 
 Guest-experience audit and session-safety rules: [docs/UX1_AUDIT.md](docs/UX1_AUDIT.md) (manual WebView2 checks: section G of the hardware tests). Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
 

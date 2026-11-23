@@ -1,3 +1,4 @@
+import { translate, type TranslationKey } from "./i18n";
 import { useCallback, useState } from "react";
 import { useApp } from "./state";
 import { Badge } from "./ui";
@@ -22,7 +23,7 @@ const NAV = [...NAV_MAIN, ...NAV_TOOLS];
 
 /** Studio Mode — the operator interface. */
 export function Studio({ onBooth }: { onBooth: () => void }) {
-  const { camera, boot, location } = useApp();
+  const { camera, boot, location, settings } = useApp();
   const [migrateOpen, setMigrateOpen] = useState(true);
   // #camera, #gallery … deep-link straight to a page (handy for support and screenshots)
   const [page, setPage] = useState(() => (NAV.some(([id]) => id === window.location.hash.slice(1).split("/")[0]) ? window.location.hash.slice(1).split("/")[0] : "dashboard"));
@@ -32,7 +33,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
   const booth = useOpenBooth(onBooth, go);
   const navButton = ([id, label]: [string, string]) => (
     <button key={id} className={page === id ? "active" : ""} onClick={() => go(id)} aria-current={page === id ? "page" : undefined}>
-      <Icon name={id} /><span className="nav-label">{label}</span>
+      <Icon name={id} /><span className="nav-label">{translate(settings?.language, id as TranslationKey) || label}</span>
     </button>
   );
 
