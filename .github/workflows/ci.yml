@@ -55,7 +55,7 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  # The ONE release artifact: a single executable with an LGPL FFmpeg built in (unpacked at first use and run as
+  # The standard test artifact: a single executable with an LGPL FFmpeg built in (unpacked at first use and run as
   # a separate process; see docs/THIRD-PARTY.md). FFmpeg is pinned by release tag + SHA-256 and never committed.
   windows:
     name: Windows x64 single-file build (built-in FFmpeg), self-tests and artifact
@@ -97,7 +97,7 @@ jobs:
           Get-Item internal\video\embedded\* | Select-Object Name, Length
       - name: Go tests on Windows (portable packages)
         shell: bash
-        run: go test -count=1 ./internal/...
+        run: go test -count=1 ./internal/... ./cmd/photobooth
       - name: Windows resources (icon, manifest, version info)
         shell: bash
         working-directory: cmd/photobooth
@@ -176,9 +176,58 @@ jobs:
           Copy-Item README.md, docs\CAMERAS.md, docs\HARDWARE_TESTS.md, docs\INSTALL.md, docs\PRINTING.md dist\
           Copy-Item docs\THIRD-PARTY.md dist\THIRD-PARTY-NOTICES.md
           Copy-Item internal\video\embedded\FFMPEG-LICENSE.txt dist\FFMPEG-LICENSE.txt
+          Copy-Item internal\templates\fonts\OFL.txt dist\NOTO-SANS-OFL.txt
           New-Item dist\sdk\canon -ItemType Directory | Out-Null
           Set-Content dist\sdk\canon\PUT-CANON-EDSDK-DLLS-HERE.txt "Copy the x64 EDSDK.dll, EdsImage.dll and the Dll folder contents from the Canon EDSDK you downloaded from Canon. They are not redistributable by this project."
-          Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256 | Format-List
+          $exeHash = (Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256).Hash.ToLower()
+          $manifest = [ordered]@{
+            version = "$env:GITHUB_REF_NAME-$($env:GITHUB_SHA.Substring(0,7))"
+            commit = $env:GITHUB_SHA
+            builtUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            architecture = 'windows-amd64'
+            ffmpeg = $env:FFMPEG_DIR
+            executableSha256 = $exeHash
+            signing = 'unsigned test build'
+            canonSdk = 'not bundled'
+          }
+          $manifest | ConvertTo-Json | Set-Content -Encoding utf8 dist\BUILD-MANIFEST.json
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup 6 is required to build the test installer' }
+          & $iscc '/DAppVersion=0.2.0' build\windows\apexvoid.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed: $LASTEXITCODE" }
+          $files = Get-ChildItem dist -File -Recurse | Sort-Object FullName
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower()
+            $relative = [System.IO.Path]::GetRelativePath((Resolve-Path dist).Path, $file.FullName).Replace('\', '/')
+            "$hash  $relative"
+          }
+          $lines | Set-Content -Encoding ascii dist\SHA256SUMS.txt
+          Write-Host "Unsigned test build SHA-256: $exeHash"
+      - name: Exercise test installer and preserve customer files on uninstall
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'ApexVoid-install-test'
+          $setup = (Resolve-Path dist\ApexVoidPhotobooth-setup-unsigned.exe).Path
+          $p = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$target`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Installer failed (exit $($p.ExitCode)); verify WebView2 is installed on the runner" }
+          $app = Join-Path $target 'ApexVoidPhotobooth.exe'
+          if (-not (Test-Path $app)) { throw 'Installed executable missing' }
+          $keep = Join-Path $target 'customer-media-sentinel.txt'
+          Set-Content $keep 'keep'
+          $p = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $keep)) { throw 'Uninstall failed or removed unowned customer files' }
+      - name: Verify packaged checksums and build manifest
+        shell: pwsh
+        run: |
+          $manifest = Get-Content dist\BUILD-MANIFEST.json -Raw | ConvertFrom-Json
+          $actual = (Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256).Hash.ToLower()
+          if ($manifest.executableSha256 -ne $actual -or $manifest.commit -ne $env:GITHUB_SHA) { throw 'Build manifest does not match executable or commit' }
+          foreach ($line in Get-Content dist\SHA256SUMS.txt) {
+            $parts = $line -split '  ', 2
+            if ($parts.Count -ne 2) { throw "Malformed checksum entry" }
+            $actualFile = (Get-FileHash (Join-Path dist $parts[1]) -Algorithm SHA256).Hash.ToLower()
+            if ($actualFile -ne $parts[0]) { throw "Package checksum mismatch for $($parts[1])" }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: ApexVoidPhotobooth-windows-x64
@@ -186,11 +235,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Only trusted master builds may decrypt and distribute the Canon SDK.
-  # Pull requests, including forks, never receive the vault password.
+  # DISABLED: CI artifacts contain extractable Canon SDK binaries. Re-enable
+  # only after the applicable agreement is reviewed and distribution rights,
+  # permitted recipients and artifact access are documented and approved.
   canon-portable:
     name: Build Canon-enabled Windows portable executable
-    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: ${{ false }}
     runs-on: ubuntu-latest
     needs: [go, frontend]
     steps:

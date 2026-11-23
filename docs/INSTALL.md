@@ -1,9 +1,8 @@
 # Install, run, test
 
 ## Run (Windows 10/11 x64)
-1. Download the CI artifact `ApexVoidPhotobooth-windows-x64` (the only artifact CI produces) and unzip anywhere. `ApexVoidPhotobooth.exe` is a single file with a pinned LGPL FFmpeg built in.
-2. Requires the **WebView2 runtime** (already present on Windows 11 and updated Windows 10; otherwise install the
-   Evergreen runtime from Microsoft).
+1. Download the CI artifact `ApexVoidPhotobooth-windows-x64` (the standard unsigned test artifact) and unzip anywhere. `ApexVoidPhotobooth.exe` is a single file with a pinned LGPL FFmpeg built in.
+2. Requires the **Microsoft Edge WebView2 Evergreen Runtime**. ApexVoid checks its Windows registration before starting the window and shows a recovery message when it is missing. Obtain it from [Microsoft's WebView2 download page](https://developer.microsoft.com/microsoft-edge/webview2/). For offline kiosks, download the x64 Evergreen Standalone Installer on an internet-connected computer, transfer it to the kiosk, and run it with operator knowledge. Microsoft describes [offline deployment and detection](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution). No prerequisite is downloaded silently. Registration alone cannot guarantee that a damaged runtime starts successfully; actual WebView2 acceptance is still required.
 3. Double-click `ApexVoidPhotobooth.exe`. No server, Docker, database or network is needed.
 4. Webcams and video work out of the box: FFmpeg is unpacked from the exe on first use (see docs/THIRD-PARTY.md). To use your own FFmpeg, put `ffmpeg.exe` next to the app or set its path in Settings; that copy always wins over the built-in one.
 5. For the Canon R50: follow docs/CAMERAS.md (SDK DLLs are not included).
@@ -52,7 +51,7 @@ cd frontend && npm ci && npm run build && cd ..
 ./scripts/build-canon-portable.sh /path/to/ansible-library /secure/path/vault-password-file
 ```
 
-The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. Trusted CI runs on `master` also produce `ApexVoidPhotobooth-windows-x64-canon`: configure the repository Actions secret `ANSIBLE_VAULT_PASSWORD` with the vault password. The job retrieves the encrypted SDK from `ansible-library` master, verifies the pinned DLL hashes, and tests SDK initialization on Windows. Pull-request jobs do not decrypt the SDK. GitHub Actions artifacts contain extractable Canon binaries; restrict distribution as required by the Canon licence. Camera operation still requires hardware validation.
+The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. The Canon-enabled CI jobs are disabled until the applicable agreement and redistribution rights are reviewed and documented. Previously produced Canon-enabled artifacts contain extractable DLLs; access and retention require review. Camera operation still requires hardware validation.
 
 ### Gallery, export and trash
 
@@ -61,3 +60,14 @@ Gallery pages sessions and their media on demand; search, date (UTC), mode, stat
 ### Offline support bundle
 
 In Studio → Diagnostics, choose **Export support bundle** and select a local folder. The ZIP contains an allowlisted readiness report and counts of recognized log event categories, not raw logs, media, settings, folder paths, device names, PINs or secrets. It makes no network connection. Review any separately collected validation reports before sharing them; they are not included automatically. Current application logs rotate at approximately 1 MiB per file with four backups; local logs may still contain private paths or device names, so do not send them without review. Older daily logs are retained for up to 30 days and are not part of the ZIP.
+
+### Back up and restore the complete library
+
+1. Finish the active session and close ApexVoid. Confirm it has exited on every computer that can access the library. The SQLite database may have WAL files while open, so copying just the database is not a complete backup.
+2. Copy the **entire** media-library folder shown in Studio → Settings, including `database`, `sessions`, `templates`, `trash`, and any SQLite WAL/SHM files. Copy `%APPDATA%\ApexVoidPhotobooth\settings.json` separately if operator preferences are needed. Store the backup in a protected location with enough free space.
+3. To restore, keep the original and backup untouched; copy the complete backup to a new local folder. Start ApexVoid, select that folder as the custom library in Settings, then close and reopen the application. Check session counts, sample originals and compositions, and run Verify Library before relying on the restored copy.
+4. Do not overwrite a live library or permanently delete the old copy until the restored library has been checked. Media and settings may contain private information; secure backup access. These instructions still require target Windows/filesystem validation.
+
+### Unsigned per-user test installer
+
+The Windows CI package also contains `ApexVoidPhotobooth-setup-unsigned.exe`. It installs application files for the current user, offers an optional desktop shortcut, and leaves the media library and operator settings intact on uninstall. It checks WebView2 registration and explains how to install the official Evergreen runtime if missing; it does not download anything. Test installs, upgrades and uninstall on a copy before use. This installer is unsigned and is not a qualified production release.

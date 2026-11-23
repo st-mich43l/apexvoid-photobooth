@@ -38,6 +38,12 @@ export function SettingsPage() {
     <div className="page">
       <h1>Settings</h1>
       <ErrorNote error={save.error ?? other.error} />
+      <section className="card"><h3>Language / Ngôn ngữ</h3>
+        <label>Interface language<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
+          <option value="en">English</option><option value="vi">Tiếng Việt (preview — partial)</option>
+        </select></label>
+        <p className="muted small">Vietnamese translation is in progress; untranslated screens remain in English.</p>
+      </section>
       <section className="card"><h3>Photo sessions</h3>
         <div className="form">
           <label>Countdown (seconds)<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>

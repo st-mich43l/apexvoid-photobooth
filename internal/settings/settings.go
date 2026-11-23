@@ -37,6 +37,7 @@ type CameraMode struct {
 
 // Settings is the persisted configuration.
 type Settings struct {
+	Language         string `json:"language"`
 	MediaDir         string `json:"mediaDir"` // empty = default data directory
 	CountdownSeconds int    `json:"countdownSeconds"`
 	Shots            int    `json:"shots"`      // legacy: the frame now decides the photo count (1, 2, 3, 4 or 6)
@@ -70,7 +71,7 @@ type Settings struct {
 // Default returns factory settings.
 func Default() Settings {
 	return Settings{
-		CountdownSeconds: 3, Shots: 4, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
+		Language: "en", CountdownSeconds: 3, Shots: 4, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
 		PrintOrientation: "auto", PrintFit: "fit", PrintCopies: 1, PrintTwoUp: "auto",
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
@@ -78,6 +79,12 @@ func Default() Settings {
 
 // Validate normalises and checks values.
 func (s *Settings) Validate() error {
+	if s.Language == "" {
+		s.Language = "en"
+	}
+	if s.Language != "en" && s.Language != "vi" {
+		return errors.New("unsupported language")
+	}
 	if s.PrintOrientation == "" {
 		s.PrintOrientation = "auto"
 	}
