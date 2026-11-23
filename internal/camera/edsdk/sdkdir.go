@@ -2,6 +2,7 @@ package edsdk
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 )
 
@@ -10,8 +11,10 @@ import (
 // install) including Canon's own package layout.
 func sdkCandidates(configured, exeDir string) []string {
 	var c []string
-	if configured != "" {
-		c = append(c, configured, filepath.Join(configured, "Dll"), filepath.Join(configured, "EDSDK_64", "Dll"))
+	for _, root := range []string{configured, os.Getenv("CANON_EDSDK_PATH")} {
+		if root != "" {
+			c = append(c, root, filepath.Join(root, "Dll"), filepath.Join(root, "EDSDK_64", "Dll"), filepath.Join(root, "Windows", "EDSDK_64", "Dll"))
+		}
 	}
 	if exeDir != "" {
 		c = append(c,
