@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { backendLabel, canRecordVideo, guidance, kindLabel, modeOptions, resolutions } from "../sourceInfo";
@@ -45,7 +46,7 @@ export function CameraPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Camera" sub="Choose the photo camera, check the picture, and test it if you like.">
+      <PageHeader title={translate(settings?.language, "camera")} sub="Choose the photo camera, check the picture, and test it if you like.">
         <button onClick={() => { void refresh(); }} disabled={scan.busy}><Icon name="refresh" size={16} /> {scan.busy ? "Scanning…" : "Refresh devices"}</button>
       </PageHeader>
       {src?.restoreNote && <div className="note warn" role="alert"><div>{src.restoreNote}</div></div>}
@@ -58,7 +59,7 @@ export function CameraPage() {
 
       <div className="two-col sources">
         <section className="card" aria-label="Photo camera">
-          <h3>Photo camera</h3>
+          <h3>{translate(settings?.language, "photoCamera")}</h3>
           {scan.busy && !src && <StateBlock kind="loading">Looking for cameras…</StateBlock>}
           {src && src.devices.length === 0 && <StateBlock kind="empty">No camera found. Connect a camera (Canon body, webcam, capture card) and press Refresh devices.</StateBlock>}
           <ul className="sources-list">
@@ -91,7 +92,7 @@ export function CameraPage() {
         </section>
 
         <section className="card" aria-label="Live preview">
-          <header className="row"><h3>Live preview{camera.device ? ` — ${camera.device.name}` : ""}</h3>
+          <header className="row"><h3>{translate(settings?.language, "livePreview")}{camera.device ? ` — ${camera.device.name}` : ""}</h3>
             {camera.device && (camera.liveView
               ? <button onClick={() => api.stopLiveView()}>Stop preview</button>
               : <button className="primary" disabled={locked} onClick={() => act.run(() => api.startLiveView())}>Start preview</button>)}
@@ -106,7 +107,7 @@ export function CameraPage() {
       <details className="advanced">
         <summary>Advanced — video camera, resolution, drivers and diagnostics</summary>
         <section className="card">
-          <h3>Video camera</h3>
+          <h3>{translate(settings?.language, "videoCamera")}</h3>
           <p className="muted small">Video recording has its own default camera, separate from the Photo camera.</p>
           <ul className="sources-list">
             {src?.devices.filter((d) => canRecordVideo(d) || isPref(d, "video")).map((d) => (
@@ -133,7 +134,7 @@ export function CameraPage() {
           </section>
         )}
         <section className="card">
-          <h3>Camera drivers</h3>
+          <h3>{translate(settings?.language, "cameraDrivers")}</h3>
           <p className="muted small">A driver that is not available only matters if you use a camera that needs it (Canon needs its SDK; webcams need FFmpeg).</p>
           <ul className="list compact">
             {camera.drivers.map((d) => (

@@ -51,7 +51,7 @@ cd frontend && npm ci && npm run build && cd ..
 ./scripts/build-canon-portable.sh /path/to/ansible-library /secure/path/vault-password-file
 ```
 
-The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. The Canon-enabled CI jobs are disabled until the applicable agreement and redistribution rights are reviewed and documented. Previously produced Canon-enabled artifacts contain extractable DLLs; access and retention require review. Camera operation still requires hardware validation.
+The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. Trusted master CI builds the separate Canon-enabled artifact from the vaulted SDK and validates initialization on Windows; it contains extractable SDK DLLs. Pull-request jobs do not receive the vault password. Camera operation still requires hardware validation.
 
 ### Gallery, export and trash
 

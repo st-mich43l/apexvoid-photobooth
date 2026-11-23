@@ -239,12 +239,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # DISABLED: CI artifacts contain extractable Canon SDK binaries. Re-enable
-  # only after the applicable agreement is reviewed and distribution rights,
-  # permitted recipients and artifact access are documented and approved.
+  # Trusted master builds can use the vaulted SDK. Pull requests, including
+  # forks, never receive the vault password.
   canon-portable:
     name: Build Canon-enabled Windows portable executable
-    if: ${{ false }}
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     needs: [go, frontend]
     steps:
