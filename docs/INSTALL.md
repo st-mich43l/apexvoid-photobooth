@@ -40,3 +40,16 @@ Offline self-test of the whole stack (no window): `ApexVoidPhotobooth.exe --self
 Go: unit, adapter contract (mock, UVC with synthetic source, Canon with a fake SDK), state machine, persistence,
 crash recovery, disconnect/reconnect, repeat sessions, loopback server. Frontend: typecheck, unit tests, build.
 Hardware-only checks: docs/HARDWARE_TESTS.md.
+
+### Local portable build with Canon EDSDK
+
+A Windows x64 build can embed the vaulted Canon 13.21.10 DLLs and unpack them automatically into the user's cache when the Canon driver is used. An SDK configured in Settings, `CANON_EDSDK_PATH`, or beside the app takes precedence. The built executable contains extractable Canon binaries; confirm Canon's licence permits its intended distribution. This does not verify camera operation.
+
+On a trusted build machine with Go, Node, Ansible Vault, and the `ansible-library` checkout containing the encrypted files:
+
+```sh
+cd frontend && npm ci && npm run build && cd ..
+./scripts/build-canon-portable.sh /path/to/ansible-library /secure/path/vault-password-file
+```
+
+The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. Trusted CI runs on `master` also produce `ApexVoidPhotobooth-windows-x64-canon`: configure the repository Actions secret `ANSIBLE_VAULT_PASSWORD` with the vault password. The job retrieves the encrypted SDK from `ansible-library` master, verifies the pinned DLL hashes, and tests SDK initialization on Windows. Pull-request jobs do not decrypt the SDK. GitHub Actions artifacts contain extractable Canon binaries; restrict distribution as required by the Canon licence. Camera operation still requires hardware validation.
