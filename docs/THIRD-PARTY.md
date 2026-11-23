@@ -17,7 +17,7 @@ BtbN FFmpeg-Builds project (`ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1`), stor
 A local `go build` without `-tags embedffmpeg` contains no third-party binary.
 
 ## Canon EDSDK
-The standard build does not include Canon DLLs. Existing Canon-enabled CI artifacts contain extractable SDK binaries. The jobs creating them are disabled in this change pending review of the applicable Canon agreement and documented distribution permission. Use an independently authorized SDK installation; see docs/CAMERAS.md and docs/UX6_RELEASE_PLAN.md.
+The standard build does not include Canon DLLs. The separate Canon-enabled CI artifact contains extractable EDSDK binaries; the ordinary build can use an existing SDK installation. See docs/CAMERAS.md.
 
 ## Noto Sans
 

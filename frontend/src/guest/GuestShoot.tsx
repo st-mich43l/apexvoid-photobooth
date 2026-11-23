@@ -1,4 +1,4 @@
-import { translate } from "../i18n";
+import { formatTranslation, photoCount, translate } from "../i18n";
 import { useState, type ReactNode } from "react";
 import { photosLabel } from "../frameInfo";
 import { Icon } from "../icons";
@@ -7,9 +7,9 @@ import { LivePreview } from "../ui";
 import { Fit, GuestMessage, LayoutBadge, LoadingState, PrimaryAction, SecondaryAction } from "./parts";
 
 /** "Photo 2 of 4" with one dot per photo: taken, being taken now, still to come. */
-export function PhotoSteps({ total, taken, current, retaking }: { total: number; taken: number; current: number | null; retaking?: boolean }) {
+export function PhotoSteps({ total, taken, current, retaking, language }: { total: number; taken: number; current: number | null; retaking?: boolean; language?: string }) {
   const n = current != null ? current + 1 : Math.min(taken, total);
-  const text = current != null ? (retaking ? `Retaking photo ${n}` : `Photo ${n} of ${total}`) : `${Math.min(taken, total)} of ${total} photos`;
+  const text = current != null ? (retaking ? formatTranslation(language, "retakingPhoto", { current: n }) : formatTranslation(language, "photoOf", { current: n, total })) : formatTranslation(language, "photosOf", { current: Math.min(taken, total), total });
   return (
     <div className="steps" role="progressbar" aria-label="Photo progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={n}>
       <ol>{Array.from({ length: total }, (_, i) => <li key={i} className={current === i ? "now" : i < taken ? "done" : ""} aria-hidden="true" />)}</ol>
@@ -77,7 +77,7 @@ export function GuestShoot(p: GuestShootProps) {
       {camera.reconnecting && (
         <div className="g-reconnect" role="status">
           <div className="g-spinner" aria-hidden="true" />
-          <div><strong>{t("reconnecting")}</strong><span>{t("safePhotos")}{p.slow ? " Still working — please ask the host if this takes much longer." : ""}</span></div>
+          <div><strong>{t("reconnecting")}</strong><span>{t("safePhotos")}{p.slow ? t("slowReconnect") : ""}</span></div>
         </div>
       )}
       {p.error && <GuestMessage kind="warn" role="alert" action={<button type="button" className="g-btn g-secondary g-small" onClick={p.onClearError}>OK</button>}>{t("errorGuest")}</GuestMessage>}
@@ -88,7 +88,7 @@ export function GuestShoot(p: GuestShootProps) {
           <div className="g-stage-wrap">
             <div className="g-stage">
               <LivePreview className="g-live" />
-              {s.state !== "PREVIEW" && <PhotoSteps total={s.shots} taken={s.taken.length} current={s.slot} retaking={retaking} />}
+              {s.state !== "PREVIEW" && <PhotoSteps language={p.language} total={s.shots} taken={s.taken.length} current={s.slot} retaking={retaking} />}
               {s.state === "COUNTDOWN" && s.remaining > 0 && (
                 <div className="g-count" key={`${s.slot}-${s.remaining}`} aria-live="assertive"><span>{s.remaining}</span><small>{t("getReady")}</small></div>
               )}
@@ -104,9 +104,9 @@ export function GuestShoot(p: GuestShootProps) {
           <div className="g-actions">
             {s.state === "PREVIEW" && (
               <>
-                <div className="g-prompt"><b>{t("getReady")}</b><span>We’ll take {photosLabel(frame.photos)}{cd ? `, with a ${cd}-second countdown before each` : ""}.</span></div>
+                <div className="g-prompt"><b>{t("getReady")}</b><span>{formatTranslation(p.language, "countPrompt", { photos: photoCount(p.language, frame.photos) })}{cd ? formatTranslation(p.language, "countdownPrompt", { seconds: cd }) : ""}.</span></div>
                 <PrimaryAction icon="camera" className="g-start" disabled={p.busy || !camera.liveView || camera.reconnecting} onClick={p.onStart}>
-                  {t("startShooting")}<small>{photosLabel(frame.photos)}</small>
+                  {t("startShooting")}<small>{photoCount(p.language, frame.photos)}</small>
                 </PrimaryAction>
               </>
             )}
@@ -118,7 +118,7 @@ export function GuestShoot(p: GuestShootProps) {
 
       {s.state === "IDLE" && !p.error && <LoadingState>{t("cameraPreparing")}</LoadingState>}
       {s.state === "IDLE" && p.error && (
-        <div className="g-center"><p>We couldn’t start the camera.</p><PrimaryAction onClick={p.onRetryPreview}>Try again</PrimaryAction></div>
+        <div className="g-center"><p>{t("cameraStartError")}</p><PrimaryAction onClick={p.onRetryPreview}>{t("tryAgain")}</PrimaryAction></div>
       )}
 
       {s.state === "REVIEW" && (
@@ -177,11 +177,11 @@ export function GuestShoot(p: GuestShootProps) {
 
       {s.state === "ERROR" && (
         <div className="g-center">
-          <GuestMessage kind="err"><strong>We couldn’t take that photo.</strong><div>Your other photos are safe. Tap below to try again, or ask the host.</div></GuestMessage>
-          <PrimaryAction onClick={p.onReset}>Try again</PrimaryAction>
+          <GuestMessage kind="err"><strong>{t("photoError")}</strong><div>{t("safeOtherPhotos")}</div></GuestMessage>
+          <PrimaryAction onClick={p.onReset}>{t("tryAgain")}</PrimaryAction>
         </div>
       )}
-      {s.state === "CANCELLED" && <div className="g-center"><p>Session cancelled.</p><PrimaryAction onClick={p.onReset}>Start again</PrimaryAction></div>}
+      {s.state === "CANCELLED" && <div className="g-center"><p>{t("sessionCancelled")}</p><PrimaryAction onClick={p.onReset}>{t("startAgain")}</PrimaryAction></div>}
     </div>
   );
 }
