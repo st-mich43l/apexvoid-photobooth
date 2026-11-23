@@ -608,3 +608,14 @@ label.inline { display: flex; align-items: center; gap: 10px; cursor: pointer; f
 .booth-root[data-orientation="portrait"] .controls { flex-direction: column; align-items: stretch; }
 .booth-root[data-orientation="portrait"] .controls button { width: 100%; }
 .booth-root[data-orientation="landscape"] .stage-preview { max-height: 62vh; }
+
+/* UX-5: bounded, session-first browsing. */
+.gallery-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
+.gallery-filters label { display: grid; gap: 5px; font-size: .85rem; }
+.session-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin: 16px 0; }
+.session-card { display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 5px; padding: 12px; min-width: 0; }
+.session-card small { overflow-wrap: anywhere; opacity: .7; }
+.session-card-image { display: grid; place-items: center; height: 140px; background: #0b0814; border-radius: 8px; overflow: hidden; }
+.session-card-image img { width: 100%; height: 100%; object-fit: contain; }
+.session-summary { margin: 16px 0; }
+.viewer-image-viewport { max-height: 62vh; overflow: auto; touch-action: pan-x pan-y; }

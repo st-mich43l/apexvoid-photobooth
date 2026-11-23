@@ -24,10 +24,11 @@ import (
 // FrameView is a frame as the UI sees it: the full definition plus derived facts.
 type FrameView struct {
 	templates.Template
-	Photos int    `json:"photos"` // photos the frame needs → the shot count of a session using it
-	Format string `json:"format"`
-	PixelW int    `json:"pixelW"`
-	PixelH int    `json:"pixelH"`
+	Favorite bool   `json:"favorite"`
+	Photos   int    `json:"photos"` // photos the frame needs → the shot count of a session using it
+	Format   string `json:"format"`
+	PixelW   int    `json:"pixelW"`
+	PixelH   int    `json:"pixelH"`
 }
 
 // FramesResult lists frames and the problems found in user frame files.
@@ -56,12 +57,15 @@ func (s *Service) ListFrames(includeDisabled bool) FramesResult {
 		res.Errors = []string{}
 	}
 	seen := map[string]bool{}
+	_, favorites := s.tpl.Catalogue()
 	dpi := s.settings.Get().OutputDPI
 	for _, t := range s.tpl.All() {
 		if t.Legacy || (!includeDisabled && !t.Enabled) {
 			continue
 		}
-		res.Frames = append(res.Frames, viewOf(t, dpi))
+		v := viewOf(t, dpi)
+		v.Favorite = favorites[t.ID]
+		res.Frames = append(res.Frames, v)
 		seen[t.Category] = true
 	}
 	for _, c := range templates.Categories {
@@ -78,6 +82,14 @@ func (s *Service) ListFrames(includeDisabled bool) FramesResult {
 	res.Categories = append(res.Categories, rest...)
 	res.Default = s.settings.Get().TemplateID
 	return res
+}
+
+// SetFrameCatalogue saves ordering and favorites without changing designs.
+func (s *Service) SetFrameCatalogue(order []string, favorites map[string]bool) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
+	return userErr(s.tpl.SetCatalogue(order, favorites))
 }
 
 // SetFrameEnabled offers or withdraws a frame in Booth Mode (Studio).

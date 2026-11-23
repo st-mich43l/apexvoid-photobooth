@@ -18,7 +18,9 @@ import (
 const stateFile = "frame-state.json"
 
 type libState struct {
-	Enabled map[string]bool `json:"enabled"`
+	Enabled   map[string]bool `json:"enabled"`
+	Order     []string        `json:"order,omitempty"`
+	Favorites map[string]bool `json:"favorites,omitempty"`
 }
 
 // Library is the set of built-in plus user frames. It is safe for concurrent use.
@@ -26,9 +28,11 @@ type Library struct {
 	Dir  string
 	Errs []string // problems loading user frames, shown in the UI
 
-	mu      sync.RWMutex
-	list    []Template
-	enabled map[string]bool
+	mu        sync.RWMutex
+	list      []Template
+	enabled   map[string]bool
+	order     []string
+	favorites map[string]bool
 }
 
 // Load reads built-ins and user frames from dir (created if missing).
@@ -44,8 +48,11 @@ func (l *Library) reload() {
 	l.Errs = nil
 	if b, err := os.ReadFile(filepath.Join(l.Dir, stateFile)); err == nil {
 		var st libState
-		if json.Unmarshal(b, &st) == nil && st.Enabled != nil {
-			l.enabled = st.Enabled
+		if json.Unmarshal(b, &st) == nil {
+			if st.Enabled != nil {
+				l.enabled = st.Enabled
+			}
+			l.order, l.favorites = st.Order, st.Favorites
 		}
 	}
 	files, _ := filepath.Glob(filepath.Join(l.Dir, "*.json"))
@@ -92,7 +99,7 @@ func (l *Library) reload() {
 	}
 	list = append(list, l.loadCustom(have)...)
 	for i := range list {
-		if on, ok := l.enabled[list[i].ID]; ok && list[i].Builtin && !list[i].Legacy {
+		if on, ok := l.enabled[list[i].ID]; ok && !list[i].Editable && !list[i].Legacy {
 			list[i].Enabled = on
 		}
 		if list[i].Legacy {
@@ -100,6 +107,20 @@ func (l *Library) reload() {
 		}
 	}
 	sort.SliceStable(list, func(i, j int) bool { return list[i].Order < list[j].Order })
+	rank := map[string]int{}
+	for i, id := range l.order {
+		rank[id] = i + 1
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		a, b := rank[list[i].ID], rank[list[j].ID]
+		if a == 0 {
+			return false
+		}
+		if b == 0 {
+			return true
+		}
+		return a < b
+	})
 	l.list = list
 }
 
@@ -166,13 +187,79 @@ func (l *Library) SetEnabled(id string, on bool) error {
 		next[k] = v
 	}
 	next[id] = on
-	b, _ := json.MarshalIndent(libState{Enabled: next}, "", "  ")
+	b, _ := json.MarshalIndent(libState{Enabled: next, Order: l.order, Favorites: l.favorites}, "", "  ")
 	if err := storage.WriteReplace(filepath.Join(l.Dir, stateFile), b); err != nil {
 		return err
 	}
 	l.enabled = next
 	l.list[idx].Enabled = on
 	return nil
+}
+
+// SetCatalogue persists presentation metadata atomically; artwork and frozen
+// session snapshots are never modified.
+func (l *Library) SetCatalogue(order []string, favorites map[string]bool) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	known := map[string]bool{}
+	for _, t := range l.list {
+		if !t.Legacy {
+			known[t.ID] = true
+		}
+	}
+	seen := map[string]bool{}
+	for _, id := range order {
+		if !known[id] || seen[id] {
+			return fmt.Errorf("invalid or duplicate frame %q", id)
+		}
+		seen[id] = true
+	}
+	for id := range favorites {
+		if !known[id] {
+			return fmt.Errorf("unknown frame %q", id)
+		}
+	}
+	clean := map[string]bool{}
+	for id, on := range favorites {
+		if on {
+			clean[id] = true
+		}
+	}
+	b, err := json.MarshalIndent(libState{Enabled: l.enabled, Order: order, Favorites: clean}, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err = storage.WriteReplace(filepath.Join(l.Dir, stateFile), b); err != nil {
+		return err
+	}
+	l.order = append([]string(nil), order...)
+	l.favorites = clean
+	rank := map[string]int{}
+	for i, id := range l.order {
+		rank[id] = i + 1
+	}
+	sort.SliceStable(l.list, func(i, j int) bool {
+		a, b := rank[l.list[i].ID], rank[l.list[j].ID]
+		if a == 0 {
+			return false
+		}
+		if b == 0 {
+			return true
+		}
+		return a < b
+	})
+	return nil
+}
+
+func (l *Library) Catalogue() ([]string, map[string]bool) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	order := append([]string(nil), l.order...)
+	favorites := map[string]bool{}
+	for id, on := range l.favorites {
+		favorites[id] = on
+	}
+	return order, favorites
 }
 
 // Compose renders photos into frame t using its assets.

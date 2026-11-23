@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Frame } from "../types";
 
 const h = vi.hoisted(() => ({
-  api: { listFrames: vi.fn(), importPngFrame: vi.fn(), newFrameDraft: vi.fn(), getFrame: vi.fn(), deleteFrame: vi.fn(), setFrameEnabled: vi.fn(), saveSettings: vi.fn() },
+  api: { listFrames: vi.fn(), importPngFrame: vi.fn(), newFrameDraft: vi.fn(), getFrame: vi.fn(), deleteFrame: vi.fn(), setFrameEnabled: vi.fn(), setFrameCatalogue: vi.fn(), saveSettings: vi.fn() },
   S: {} as Record<string, unknown>,
   builder: vi.fn(),
 }));
@@ -61,4 +61,29 @@ describe("Frames page: import a PNG as a frame", () => {
     expect(h.api.importPngFrame).not.toHaveBeenCalled();
     expect((h.S.toast as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("That image is larger than 15 MB.", "err");
   });
+  it("filters frames by name and persists ordering", async () => {
+    h.api.listFrames.mockResolvedValue({ frames: [fr("plain.strip4", "plain", 4), fr("rose", "rose", 3)], categories: ["Plain"], errors: [], dir: "", default: "plain.strip4" });
+    h.api.setFrameCatalogue.mockResolvedValue(undefined);
+    render(<Frames />); await screen.findByText("rose");
+    fireEvent.click(screen.getByRole("button", { name: "Move rose earlier" }));
+    await waitFor(() => expect(h.api.setFrameCatalogue).toHaveBeenCalledWith(["rose", "plain.strip4"], {}));
+    fireEvent.change(screen.getByLabelText("Search frames"), { target: { value: "rose" } });
+    expect(screen.queryByText("plain.strip4")).toBeNull(); expect(screen.getByText("rose")).toBeTruthy();
+  });
+  it("warns before hiding the last offered frame", async () => {
+    render(<Frames />); await screen.findByText("plain.strip4");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Offer plain.strip4/ }));
+    expect(screen.getByText(/No frames will be available/)).toBeTruthy();
+    expect(h.api.setFrameEnabled).not.toHaveBeenCalled();
+  });
+  it("reports partial bulk failures and reloads the catalogue", async () => {
+    h.api.listFrames.mockResolvedValue({ frames: [fr("plain.strip4", "plain", 4), fr("rose", "rose", 3), { ...fr("other", "other", 2), category: "Other" }], categories: ["Plain", "Other"], errors: [], dir: "", default: "plain.strip4" });
+    h.api.setFrameEnabled.mockImplementation((id: string) => id === "rose" ? Promise.reject(new Error("fail")) : Promise.resolve());
+    render(<Frames />); await screen.findByText("rose");
+    fireEvent.click(screen.getByRole("button", { name: "Plain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide all shown" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Updated 1 frames; failed: rose/i));
+    expect(h.api.listFrames.mock.calls.length).toBeGreaterThan(1);
+  });
+
 });

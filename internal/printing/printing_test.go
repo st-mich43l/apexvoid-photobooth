@@ -546,6 +546,11 @@ func TestFailedJobThatLeavesTheQueueStaysFailed(t *testing.T) {
 func TestDatabaseUpgradesFromVersion1(t *testing.T) {
 	root := t.TempDir()
 	db, _ := storage.Open(storage.Layout{Root: root})
+	for _, q := range []string{`DROP TABLE media_trash_ops`, `DROP TABLE session_trash_ops`, `DROP INDEX sessions_created_id`, `DROP INDEX sessions_chronological`, `DROP INDEX media_session_status_kind`} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
 	_, _ = db.Exec(`DROP TABLE print_jobs`)
 	for _, c := range []string{"frame_id", "frame_name", "variant_id", "frame_rev", "caption", "frame_dir"} { // undo the v3 columns
 		_, _ = db.Exec(`ALTER TABLE sessions DROP COLUMN ` + c)

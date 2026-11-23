@@ -95,6 +95,14 @@ var migrations = []string{
 	`ALTER TABLE print_jobs ADD COLUMN image_dpi INTEGER NOT NULL DEFAULT 0;
 	CREATE INDEX print_jobs_parent ON print_jobs(parent_id);
 	CREATE INDEX print_jobs_media ON print_jobs(media_id,kind,status);`,
+	// v5: stable session browsing and efficient media summaries.
+	`CREATE INDEX sessions_created_id ON sessions(created_at DESC,id DESC);
+	CREATE INDEX sessions_chronological ON sessions((substr(created_at,1,19)||'.'||substr(CASE WHEN substr(created_at,20,1)='.' THEN substr(created_at,21,length(created_at)-21) ELSE '' END||'000000000',1,9)) DESC,id DESC);
+	CREATE INDEX media_session_status_kind ON media(session_id,status,kind,captured_at DESC,id DESC);
+	CREATE INDEX print_jobs_session_created ON print_jobs(session_id,created_at DESC,id DESC);
+	CREATE TABLE media_trash_ops(media_id TEXT PRIMARY KEY, previous_status TEXT NOT NULL, state TEXT NOT NULL, session_owner TEXT NOT NULL DEFAULT '');
+	CREATE INDEX media_trash_owner ON media_trash_ops(session_owner,state);
+	CREATE TABLE session_trash_ops(session_id TEXT PRIMARY KEY, previous_status TEXT NOT NULL, state TEXT NOT NULL);`,
 }
 
 // Open opens (creating if needed) the library database and migrates it.
