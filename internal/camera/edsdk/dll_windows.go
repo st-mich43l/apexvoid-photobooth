@@ -186,7 +186,11 @@ var (
 
 func (d *dllAPI) Init() (err error) {
 	// EDSDK needs a COM apartment on the thread that initialises it.
-	_ = windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED)
+	// x/sys reports S_FALSE (already initialised on this thread) as an error,
+	// although COM considers it a success and requires CoUninitialize.
+	if err := windows.CoInitializeEx(0, windows.COINIT_APARTMENTTHREADED); err != nil && err != syscall.Errno(1) {
+		return fmt.Errorf("initialise Canon SDK COM apartment: %w", err)
+	}
 	// Any failure below undoes what was done so far: the worker only calls
 	// Terminate after a successful Init, so a half-initialised SDK must not
 	// leave the DLL loaded or the COM apartment open.
@@ -332,6 +336,10 @@ func (d *dllAPI) streamBytes(stream uintptr) ([]byte, error) {
 
 func (d *dllAPI) DownloadEvf(c ref) ([]byte, error) {
 	s := d.sc
+	// Match Canon's sample: each frame gets a fresh stream and image reference.
+	// Reusing a stream without resetting its position/length risks returning
+	// stale bytes from the preceding frame.
+	defer d.resetEvf()
 	if d.evfStr == 0 {
 		if err := d.chk("EdsCreateMemoryStream", d.call("EdsCreateMemoryStream", 0, uintptr(unsafe.Pointer(&s.h)))); err != nil {
 			return nil, err

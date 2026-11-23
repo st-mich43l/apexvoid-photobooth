@@ -1,7 +1,7 @@
 # Canon EDSDK integration — audit (Phase C1) and what changed
 
 Scope: `internal/camera/edsdk`, `internal/camera` (manager), `internal/capture`, the Camera/Diagnostics UI.
-Nothing here was run against a real camera or the real Canon DLLs: the project has neither in CI.
+The SDK has since been inspected statically; see [CANON_SDK_COMPATIBILITY.md](CANON_SDK_COMPATIBILITY.md). No real camera or Windows DLL execution has been verified.
 
 ## What existed (and was kept)
 * A single `api` boundary to `EDSDK.dll` (`dll_windows.go`), loaded dynamically, with a fake for tests — kept.
@@ -39,4 +39,4 @@ Nothing here was run against a real camera or the real Canon DLLs: the project h
 * Camera-native movie recording / transfer through EDSDK (explicitly out of scope; UVC/FFmpeg video unchanged).
 * RAW-only workflows (reported as unsupported); RAW files are discarded, not stored.
 * The residual late-transfer case described in docs/CAMERAS.md.
-* Constants/signatures were re-read against what is known of EDSDK 13.x but cannot be compared with the headers here.
+* The supplied 13.21.10 headers were checked as described in the compatibility assessment; Windows ABI execution remains unverified.
