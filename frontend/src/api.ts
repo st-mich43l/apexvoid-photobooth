@@ -111,6 +111,7 @@ export const api = {
   saveSettings: (s: Settings) => wrap(call<{ restartRequired: boolean }>("SaveSettings", s)),
   diagnostics: () => wrap(call<Diagnostics>("RunDiagnostics")),
   diagnosticSummary: () => wrap(call<string>("DiagnosticSummary")),
+  exportSupportBundle: (folder: string) => wrap(call<string>("ExportSupportBundle", folder)),
   labelTestSession: (sessionId: string) => wrap(call<void>("LabelTestSession", sessionId)),
 };
 
