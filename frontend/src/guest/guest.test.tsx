@@ -158,6 +158,12 @@ describe("countdown and capture feedback", () => {
 });
 
 describe("review", () => {
+  it("renders review and retake actions in Vietnamese", () => {
+    render(<GuestShoot {...G(snap("REVIEW", { taken: taken(1) }), { language: "vi" })} />);
+    expect(screen.getByText("Bạn thấy ảnh thế nào?")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Chụp lại ảnh 1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ảnh đẹp rồi" })).toBeTruthy();
+  });
   it("lists photos in capture order and each Retake names its photo", () => {
     const p = G(snap("REVIEW", { taken: [...taken(4)].reverse() })); render(<GuestShoot {...p} />);
     const imgs = screen.getAllByRole("img").filter((i) => /^Photo \d$/.test(i.getAttribute("alt") ?? "")).map((i) => i.getAttribute("alt"));

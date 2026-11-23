@@ -1,3 +1,4 @@
+import { translate } from "./i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, toAppError } from "./api";
 import { choiceOf, explainFit, filterFrames, fitFor, photoCounts, photosLabel, swatch } from "./frameInfo";
@@ -64,20 +65,20 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
       <div className="g-screen" data-testid="frame-selection">
         {error && (
           <GuestMessage kind="err" action={<button type="button" className="g-btn g-secondary" onClick={load}>Try again</button>}>
-            <strong>The frames could not be loaded.</strong> {error}
+            <strong>{translate(settings.language, "frameError")}</strong> {error}
           </GuestMessage>
         )}
-        {!error && !frames && <LoadingState>Loading frames…</LoadingState>}
-        {frames && frames.length === 0 && <GuestMessage kind="warn">No frames are available. Please ask the host.</GuestMessage>}
+        {!error && !frames && <LoadingState>{translate(settings.language, "loadingFrames")}</LoadingState>}
+        {frames && frames.length === 0 && <GuestMessage kind="warn">{translate(settings.language, "noFrames")}</GuestMessage>}
         {!(frames && frames.length > 0) && (
           <div className="g-actions">
             {onBack && <SecondaryAction icon="back" className="g-back" disabled={busy} onClick={onBack}>{backLabel ?? "Back"}</SecondaryAction>}
           </div>
         )}
         {frames && frames.length > 0 && (
-          <GuestFrames frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
+          <GuestFrames language={settings.language} frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
             picked={picked} pickId={pickId} select={select} variantId={variantId} setVariantId={setVariantId} caption={caption} setCaption={setCaption}
-            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? "Choose your frame"} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
+            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? translate(settings.language, "framesTitle")} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
             confirm={confirm} portrait={portrait}
             thumbUrl={(f) => frameUrl(f.id, "", 420)}
             bigUrl={(f) => frameUrl(f.id, variantId, portrait ? 320 : 720, f.captionEnabled ? caption.trim() : "")} />
