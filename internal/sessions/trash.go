@@ -9,6 +9,38 @@ import (
 	"strings"
 )
 
+// checkTrashLinks verifies the common library-to-trash path before recording a
+// new operation. Per-file failures (including mount points and permissions) are
+// still journalled and recoverable; no file is overwritten.
+func (s *Store) checkTrashLinks() error {
+	source, err := os.CreateTemp(s.db.Layout.SessionsDir(), ".trash-link-probe-")
+	if err != nil {
+		return fmt.Errorf("cannot test trash support: %w", err)
+	}
+	name := source.Name()
+	defer os.Remove(name)
+	if err = source.Close(); err != nil {
+		return err
+	}
+	target, err := os.CreateTemp(s.db.Layout.TrashDir(), ".trash-link-probe-")
+	if err != nil {
+		return fmt.Errorf("cannot test trash support: %w", err)
+	}
+	dest := target.Name()
+	if err = target.Close(); err != nil {
+		os.Remove(dest)
+		return err
+	}
+	if err = os.Remove(dest); err != nil {
+		return err
+	}
+	defer os.Remove(dest)
+	if err = os.Link(name, dest); err != nil {
+		return fmt.Errorf("trash is unavailable: this library must support same-volume hard links: %w", err)
+	}
+	return nil
+}
+
 // Call with s.mu held when a write can race a session trash operation.
 func (s *Store) checkWritableSession(id string) error {
 	var status string
@@ -144,6 +176,9 @@ func (s *Store) Trash(id string) error {
 	if sess.Status == StatusActive {
 		return errors.New("an active session's media cannot be moved to trash")
 	}
+	if err := s.checkTrashLinks(); err != nil {
+		return err
+	}
 	return s.trashLocked(id, "")
 }
 
@@ -207,6 +242,11 @@ func (s *Store) TrashSession(id string) error {
 	}
 	if existing == "restoring" {
 		return errors.New("session restoration is in progress; finish it before moving to trash")
+	}
+	if existing == "" {
+		if err := s.checkTrashLinks(); err != nil {
+			return err
+		}
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
