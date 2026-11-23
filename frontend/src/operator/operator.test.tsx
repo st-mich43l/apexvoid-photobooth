@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
     listPrinters: vi.fn(), listFrames: vi.fn(), librarySummary: vi.fn(), listCameraSources: vi.fn(), openLibraryFolder: vi.fn(), testPrint: vi.fn(), printJobs: vi.fn(),
     boothReadiness: vi.fn(), patchSettings: vi.fn(), shootState: vi.fn(), startPreview: vi.fn(), startShooting: vi.fn(), accept: vi.fn(), labelTestSession: vi.fn(),
     recoverShooting: vi.fn(), startLiveView: vi.fn(), stopLiveView: vi.fn(), connectCamera: vi.fn(), disconnectCamera: vi.fn(), setPreferredCamera: vi.fn(), clearPreferredCamera: vi.fn(),
-    diagnostics: vi.fn(), diagnosticSummary: vi.fn(), listMedia: vi.fn(), printerCapabilities: vi.fn(),
+    diagnostics: vi.fn(), diagnosticSummary: vi.fn(), pickFolder: vi.fn(), exportSupportBundle: vi.fn(), listMedia: vi.fn(), printerCapabilities: vi.fn(),
   },
 }));
 vi.mock("../state", () => ({ useApp: () => h.S }));
@@ -395,6 +395,14 @@ describe("diagnostics page", () => {
     h.api.diagnostics.mockResolvedValue(diag([{ name: "Canon SDK files", ok: true, state: "info", detail: "Not installed", scope: "canon", blocksGuests: false }]));
     render(<DiagnosticsPage />);
     expect(await screen.findByText(/Nothing here stops guests/)).toBeTruthy();
+  });
+  it("exports a support bundle only after the operator chooses a folder", async () => {
+    h.api.diagnostics.mockResolvedValue(diag([]));
+    h.api.pickFolder.mockResolvedValue("/chosen");
+    h.api.exportSupportBundle.mockResolvedValue("/chosen/support.zip");
+    render(<DiagnosticsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /Export support bundle/ }));
+    await waitFor(() => expect(h.api.exportSupportBundle).toHaveBeenCalledWith("/chosen"));
   });
   it("copies the sanitized support summary from the backend, unchanged", async () => {
     h.api.diagnostics.mockResolvedValue(diag([]));

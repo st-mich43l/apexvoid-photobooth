@@ -165,3 +165,7 @@ What is tested in CI (Linux/Windows runners, **no camera**): FFmpeg command cons
 (sample DirectShow/V4L2/AVFoundation output), preview framing, recording + stop + probe, max-duration, crash
 recovery, and the shared camera contract using a synthetic FFmpeg source. What is **not** tested: opening a real
 DirectShow device, real microphone sync, a real R50.
+
+### Unconfirmed Canon transfers
+
+If a Canon capture times out, is cancelled after the shutter request, or its transfer fails, stop the session and power-cycle and reconnect the camera before trying again. The camera object refuses further captures after an unconfirmed transfer; a delayed image is not intentionally assigned to a subsequent shot on that connection. EDSDK events do not provide a proven universal shot correlation token, and camera reset behavior and arbitrarily delayed events remain UNVERIFIED on physical R50 hardware. Follow the UX-6 hardware protocol before production use.

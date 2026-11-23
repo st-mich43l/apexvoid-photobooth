@@ -61,24 +61,21 @@ type Camera struct {
 	notified bool
 
 	// capture association: only transfer requests that arrive while a capture
-	// window is open belong to a photograph; anything else is a late arrival
-	// (or a RAW companion) and is dropped, never attached to another shot.
-	capBusy      bool
-	winOpen      bool
-	winSeq       uint64
-	suspectUntil time.Time // a capture timed out: its photo may still arrive
-	lastFile     string
-	nCaptures    uint64
-	nLate        uint64
-	nInvalid     uint64
+	// window is open are candidates; SDK events have no proven shot identifier.
+	// An uncertain capture blocks later captures on this camera object.
+	capBusy           bool
+	winOpen           bool
+	winSeq            uint64
+	transferUncertain bool // failed/cancelled shot may still deliver a JPEG
+	lastFile          string
+	nCaptures         uint64
+	nLate             uint64
+	nInvalid          uint64
 
 	// FrameInterval paces live-view downloads (default ~30 fps).
 	FrameInterval time.Duration
 	// CaptureTimeout bounds the wait for the photo to arrive after the shutter.
 	CaptureTimeout time.Duration
-	// LateGrace is how long the next capture waits after a timed-out one so a
-	// delayed transfer of the first photo cannot be mistaken for the next.
-	LateGrace time.Duration
 	// KeepAliveInterval is how often the camera's auto power-off timer is
 	// extended while connected (default 30 s). The camera also announces
 	// "will soon shut down", which triggers an immediate extension.
@@ -93,7 +90,7 @@ func newCamera(w *worker, a api, info camera.DeviceInfo, find conflictFinder, d 
 	return &Camera{
 		w: w, a: a, info: info, find: find, drv: d,
 		frames: camera.NewFrameBuffer(), events: make(chan camera.Event, 4), items: make(chan capItem, 16), gone: make(chan struct{}),
-		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second, LateGrace: 6 * time.Second,
+		state: camera.StateDisconnected, FrameInterval: 33 * time.Millisecond, CaptureTimeout: 25 * time.Second,
 		KeepAliveInterval: 30 * time.Second, kick: make(chan struct{}, 1),
 		caps: camera.Capabilities{
 			LiveView: camera.Unverified, StillCapture: camera.Unverified, OriginalTransfer: camera.Unverified,
@@ -514,29 +511,6 @@ func (c *Camera) drainItems() {
 	}
 }
 
-// settle waits out the late-transfer grace after a timed-out capture, with the
-// window closed, so a delayed photo of the failed attempt is dropped instead of
-// being mistaken for the next one.
-func (c *Camera) settle(ctx context.Context) error {
-	c.mu.Lock()
-	wait := time.Until(c.suspectUntil)
-	c.mu.Unlock()
-	if wait <= 0 {
-		return nil
-	}
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-c.gone:
-		return nil
-	case <-time.After(wait):
-	}
-	c.mu.Lock()
-	c.suspectUntil = time.Time{}
-	c.mu.Unlock()
-	return nil
-}
-
 func lostErr() error {
 	return camera.Errf(camera.CodeDisconnected, "Check the USB cable and that the camera is on. The app reconnects automatically.", nil, "the camera was disconnected during the capture")
 }
@@ -554,6 +528,10 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		return camera.Photo{}, err
 	}
 	c.mu.Lock()
+	if c.transferUncertain {
+		c.mu.Unlock()
+		return camera.Photo{}, camera.Errf(camera.CodeCaptureFailed, "Stop the session, turn the camera off and on, then reconnect it before trying again.", nil, "the previous transfer was not confirmed; a late photo cannot safely be assigned")
+	}
 	if c.capBusy {
 		c.mu.Unlock()
 		return camera.Photo{}, camera.Errf(camera.CodeBusyOperation, "Wait for the current capture to finish.", nil, "a capture is already in progress on this camera")
@@ -562,9 +540,6 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); c.capBusy = false; c.mu.Unlock() }()
 
-	if err := c.settle(ctx); err != nil {
-		return camera.Photo{}, err
-	}
 	c.openWindow()
 	defer c.closeWindow()
 
@@ -595,12 +570,29 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		break
 	}
 	if shotErr != nil {
+		// Even an SDK error may follow a shutter action; do not assume that
+		// the camera cannot still deliver a transfer for this attempt.
+		c.mu.Lock()
+		c.transferUncertain = true
+		c.mu.Unlock()
 		if ctx.Err() != nil {
+			// The native shutter call may finish after its caller gives up.
 			return camera.Photo{}, ctx.Err()
 		}
-		return camera.Photo{}, c.fail("take picture", shotErr)
+		return camera.Photo{}, uncertainTransferError(c.fail("take picture", shotErr))
 	}
 
+	// An unsuccessful wait after the shutter leaves a transfer uncorrelated.
+	// Do not open another capture window on this camera object until an operator
+	// has power-cycled and reconnected the camera.
+	confirmed := false
+	defer func() {
+		if !confirmed {
+			c.mu.Lock()
+			c.transferUncertain = true
+			c.mu.Unlock()
+		}
+	}()
 	// 2. wait for the camera to offer the file, download and check the JPEG
 	deadline := time.NewTimer(c.CaptureTimeout)
 	defer deadline.Stop()
@@ -612,19 +604,16 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 		case <-c.gone:
 			return camera.Photo{}, lostErr()
 		case <-deadline.C:
-			c.mu.Lock()
-			c.suspectUntil = time.Now().Add(c.LateGrace)
-			c.mu.Unlock()
 			msg := "the camera did not deliver the photo in time"
-			act := "Check that the camera is in Photo mode with a card or SaveTo-PC enabled, then retry."
+			act := "Stop the session, power-cycle the camera, check Photo mode and SaveTo-PC, then reconnect before retrying."
 			if sawRAW {
-				msg, act = "the camera only delivered a RAW file", "Set the camera's image quality to JPEG or RAW+JPEG."
+				msg, act = "the camera only delivered a RAW file", "Set image quality to JPEG or RAW+JPEG, power-cycle and reconnect the camera before retrying."
 			}
 			return camera.Photo{}, camera.Errf(camera.CodeTimeout, act, nil, "%s", msg)
 		case it := <-c.items:
 			photo, done, err := c.receive(ctx, it)
 			if err != nil {
-				return camera.Photo{}, err
+				return camera.Photo{}, uncertainTransferError(err)
 			}
 			if !done { // RAW companion or a duplicate: keep waiting for the JPEG
 				sawRAW = sawRAW || photo.Filename != ""
@@ -632,9 +621,21 @@ func (c *Camera) Capture(ctx context.Context) (camera.Photo, error) {
 			}
 			c.setCap(func(k *camera.Capabilities) { k.StillCapture, k.OriginalTransfer = camera.Supported, camera.Supported })
 			c.afterCapture(ctx, r)
+			confirmed = true
 			return photo, nil
 		}
 	}
+}
+
+// Preserve the original error code while making the required reset explicit.
+func uncertainTransferError(err error) error {
+	var ce *camera.Error
+	if errors.As(err, &ce) {
+		copy := *ce
+		copy.Action = strings.TrimSpace(ce.Action + " Stop the session, power-cycle and reconnect the camera before retrying.")
+		return &copy
+	}
+	return camera.Errf(camera.CodeCaptureFailed, "Stop the session, power-cycle and reconnect the camera before retrying.", err, "camera transfer was not confirmed")
 }
 
 // receive handles one queued transfer request. The item is always completed
@@ -680,12 +681,11 @@ func (c *Camera) receive(ctx context.Context, it capItem) (camera.Photo, bool, e
 		c.mu.Lock()
 		c.nInvalid++
 		c.mu.Unlock()
-		return camera.Photo{}, false, camera.Errf(camera.CodeCaptureFailed, "The transfer was incomplete. Retry the shot; check the USB cable if it repeats.", verr, "the photo %s was not received completely", g.name)
+		return camera.Photo{}, false, camera.Errf(camera.CodeCaptureFailed, "The transfer was incomplete. Stop the session, power-cycle and reconnect the camera before retrying.", verr, "the photo %s was not received completely", g.name)
 	}
 	c.mu.Lock()
 	c.lastFile = g.name
 	c.nCaptures++
-	c.suspectUntil = time.Time{}
 	c.mu.Unlock()
 	return camera.Photo{Data: g.data, Filename: g.name, Source: "Canon EDSDK original (" + c.info.Name + ")"}, true, nil
 }
