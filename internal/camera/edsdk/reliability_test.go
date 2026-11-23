@@ -340,13 +340,13 @@ func TestShutterErrorsAreActionable(t *testing.T) {
 		if camera.CodeOf(err) != tc.want || camera.ActionOf(err) == "" {
 			t.Errorf("%s: %v / %q", tc.name, err, camera.ActionOf(err))
 		}
-		if _, err := c.Capture(bg()); err != nil {
-			t.Errorf("%s: the camera must stay usable after a failed shot: %v", tc.name, err)
+		if _, err := c.Capture(bg()); camera.CodeOf(err) != camera.CodeCaptureFailed || !strings.Contains(err.Error(), "previous transfer") {
+			t.Errorf("%s: unsafe retry after shutter error: %v", tc.name, err)
 		}
 	}
 }
 
-func TestIncompleteTransferIsRejectedAndTheNextShotWorks(t *testing.T) {
+func TestIncompleteTransferRejectsFurtherShotsUntilReconnect(t *testing.T) {
 	f := newFake()
 	_, c := connect(t, f)
 	f.with(func() { f.truncate = true })
@@ -361,9 +361,9 @@ func TestIncompleteTransferIsRejectedAndTheNextShotWorks(t *testing.T) {
 		t.Fatal("a rejected transfer must not promote the capability")
 	}
 	f.with(func() { f.truncate = false })
-	p, err := c.Capture(bg())
-	if err != nil || p.Filename != "IMG_0002.JPG" {
-		t.Fatalf("%v %+v", err, p)
+	_, err = c.Capture(bg())
+	if camera.CodeOf(err) != camera.CodeCaptureFailed || !strings.Contains(err.Error(), "previous transfer") {
+		t.Fatalf("unsafe retry: %v", err)
 	}
 	if f.leakedItems() != 0 {
 		t.Fatalf("leaked %d", f.leaked())
@@ -416,35 +416,17 @@ func TestRAWAndJPEGInEitherOrder(t *testing.T) {
 func TestTimeoutThenLateTransferIsNeverAttachedToTheNextShot(t *testing.T) {
 	f := newFake()
 	_, c := connect(t, f)
-	c.CaptureTimeout, c.LateGrace = 60*time.Millisecond, 200*time.Millisecond
+	c.CaptureTimeout = 60 * time.Millisecond
 	f.with(func() { f.holdShots = true })
-	_, err := c.Capture(bg())
-	if camera.CodeOf(err) != camera.CodeTimeout {
+	if _, err := c.Capture(bg()); camera.CodeOf(err) != camera.CodeTimeout {
 		t.Fatalf("%v", err)
 	}
-	// the delayed photo of shot 1 turns up while the next capture is settling
 	f.with(func() { f.holdShots = false })
-	c.CaptureTimeout = time.Second
-	res := make(chan camera.Photo, 1)
-	errc := make(chan error, 1)
-	go func() {
-		p, err := c.Capture(bg())
-		res <- p
-		errc <- err
-	}()
-	time.Sleep(40 * time.Millisecond)
+	if _, err := c.Capture(bg()); camera.CodeOf(err) != camera.CodeCaptureFailed || !strings.Contains(err.Error(), "previous transfer") {
+		t.Fatalf("unsafe retry: %v", err)
+	}
 	f.releaseHeld()
-	p, err := <-res, <-errc
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Filename != "IMG_0002.JPG" {
-		t.Fatalf("the late photo of shot 1 was attached to shot 2: %q", p.Filename)
-	}
-	if c.Diagnostics().LateTransfers < 2 {
-		t.Fatalf("late transfers not counted: %+v", c.Diagnostics())
-	}
-	time.Sleep(50 * time.Millisecond)
+	waitFor(t, "late transfers dropped", time.Second, func() bool { return c.Diagnostics().LateTransfers >= 2 })
 	if f.leakedItems() != 0 {
 		t.Fatalf("leaked %d", f.leaked())
 	}
