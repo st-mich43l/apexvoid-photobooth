@@ -45,7 +45,7 @@ export interface VideoState {
 export interface VideoSettings { device: string; audioInput: string; width: number; height: number; fps: number; maxSeconds: number }
 export interface Settings {
   mediaDir: string; countdownSeconds: number; shots: number; templateId: string; outputDpi: number; previewMirror: boolean; autoReconnect: boolean;
-  enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; printPaper: string; video: VideoSettings;
+  enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; printPaper: string; printOrientation?: string; printFit?: string; printCopies?: number; printTwoUp?: string; video: VideoSettings;
   kioskPinSet: boolean; // the PIN record itself never reaches the UI
   photoCamera: Preferred; videoCamera: Preferred; cameraModes: Record<string, SavedMode> | null;
 }
@@ -125,7 +125,7 @@ export interface PrintJob {
 }
 export interface PrintOptions { requestId: string; mediaId: string; templateId: string; printer: string; paper: string; orientation: string; fit: string; copies: number; twoUp: boolean }
 export interface PrintPreview {
-  image: string; paperMm: [number, number]; printableMm: [number, number]; marginMm: [number, number, number, number]; scalePct: number; croppedPct: number;
+  image: string; paperMm: [number, number]; printableMm: [number, number]; marginMm: [number, number, number, number]; unprintableMm?: [number, number, number, number]; scalePct: number; croppedPct: number;
   rotated: boolean; orientation: string; warning: string; assumedGeometry: boolean; imageInches: [number, number]; templateId: string; twoUpOffer: boolean; twoUp: boolean;
 }
 
