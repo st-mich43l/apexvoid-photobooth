@@ -286,3 +286,19 @@ func TestFramePreviewIsServedWithTokenAndRendersTheRealFrame(t *testing.T) {
 		t.Fatal("path tricks must not work")
 	}
 }
+
+func TestGuestFrameOrderingUsesCatalogueMetadata(t *testing.T) {
+	s, _, _ := newTestApp(t)
+	offered := s.ListFrames(false).Frames
+	if len(offered) < 2 {
+		t.Fatal("expected offered frames")
+	}
+	a, b := offered[0].ID, offered[1].ID
+	if err := s.SetFrameCatalogue([]string{b, a}, map[string]bool{b: true}); err != nil {
+		t.Fatal(err)
+	}
+	after := s.ListFrames(false).Frames
+	if after[0].ID != b || after[1].ID != a || !after[0].Favorite {
+		t.Fatalf("guest ordering %+v", after[:2])
+	}
+}

@@ -1,7 +1,7 @@
 import { Call, Events } from "@wailsio/runtime";
 import type {
   BootInfo, CameraMode, CameraSources, CameraStatus, ModeReadiness, SavedMode, LibraryStatus, MigrationReport, DeviceInfo, Diagnostics, Edits, LibrarySummary, Media, PrintJob, PrintersResult, Report,
-  Session, Settings, ShootSnapshot, CanonStatus, BoothReadiness, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
+  Session, SessionPage, SessionQuery, SessionMediaPage, Settings, ShootSnapshot, CanonStatus, BoothReadiness, FramesResult, FrameDef, Frame, AssetInfo, PNGFrameImport, VDevices, VideoState, PrinterCaps, PrintOptions, PrintPreview,
 } from "./types";
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
@@ -57,6 +57,11 @@ export const api = {
   stopRecording: () => wrap(call<void>("StopRecording")),
 
   listSessions: (limit = 200, offset = 0) => wrap(call<Session[]>("ListSessions", limit, offset)),
+  querySessions: (q: SessionQuery) => wrap(call<SessionPage>("QuerySessions", q)),
+  querySessionMedia: (id: string, limit = 50, offset = 0) => wrap(call<SessionMediaPage>("QuerySessionMedia", id, limit, offset)),
+  restoreSession: (id: string) => wrap(call<void>("RestoreSession", id)),
+  listSessionPrintJobs: (id: string, limit = 50, offset = 0) => wrap(call<PrintJob[]>("ListSessionPrintJobs", id, limit, offset)),
+  exportSession: (id: string, dest: string, edited: boolean) => wrap(call<string>("ExportSession", id, dest, edited)),
   listMedia: (sessionId = "", limit = 500, offset = 0) => wrap(call<Media[]>("ListMedia", sessionId, limit, offset)),
   getMedia: (id: string) => wrap(call<Media>("GetMedia", id)),
   saveEdits: (id: string, e: Edits) => wrap(call<Media>("SaveEdits", id, e)),
@@ -78,6 +83,7 @@ export const api = {
 
   listFrames: (includeDisabled = false) => wrap(call<FramesResult>("ListFrames", includeDisabled)),
   setFrameEnabled: (id: string, enabled: boolean) => wrap(call<void>("SetFrameEnabled", id, enabled)),
+  setFrameCatalogue: (order: string[], favorites: Record<string, boolean>) => wrap(call<void>("SetFrameCatalogue", order, favorites)),
   previewFrame: (id: string, variantId: string, caption: string, width: number) => wrap(call<string>("PreviewFrame", id, variantId, caption, width)),
   getFrame: (id: string) => wrap(call<FrameDef>("GetFrame", id)),
   newFrameDraft: (sourceId: string, name = "") => wrap(call<FrameDef>("NewFrameDraft", sourceId, name)),

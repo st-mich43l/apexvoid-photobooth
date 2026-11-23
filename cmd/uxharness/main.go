@@ -9,10 +9,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"log"
 	"net/http"
 	"os"
@@ -26,7 +30,9 @@ import (
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/camera/mock"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/printing"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/sessions"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/storage"
 )
 
 type fakePrinter struct {
@@ -106,6 +112,7 @@ func main() {
 	webcam := flag.Bool("webcam", false, "a fake USB webcam instead of the simulated camera (operator-screen screenshots)")
 	fewFrames := flag.Bool("few-frames", false, "leave the default set of frames (instead of switching every design on)")
 	printer := flag.Bool("printer", true, "configure the fake printer")
+	seed := flag.Int("seed-sessions", 0, "create synthetic completed sessions for gallery screenshots")
 	flag.Parse()
 
 	dir, _ := os.MkdirTemp("", "uxharness")
@@ -119,10 +126,47 @@ func main() {
 	if err := sm.Save(st); err != nil {
 		log.Fatal(err)
 	}
+	if *seed > 0 {
+		db, err := storage.Open(storage.Layout{Root: st.MediaDir})
+		if err != nil {
+			log.Fatal(err)
+		}
+		store := sessions.New(db)
+		for i := 0; i < *seed; i++ {
+			t := time.Now().UTC().Add(-time.Duration(i) * time.Hour)
+			store.SetClock(func() time.Time { return t })
+			sess, err := store.Create("photo", 1, "plain.strip4", true)
+			if err != nil {
+				log.Fatal(err)
+			}
+			img := image.NewRGBA(image.Rect(0, 0, 240, 180))
+			for y := 0; y < 180; y++ {
+				for x := 0; x < 240; x++ {
+					img.Set(x, y, color.RGBA{R: uint8((i*19 + x) % 256), G: uint8((y + i*9) % 256), B: uint8((x + y) / 2), A: 255})
+				}
+			}
+			var b bytes.Buffer
+			if err = jpeg.Encode(&b, img, nil); err != nil {
+				log.Fatal(err)
+			}
+			if _, err = store.AddPhoto(sess.ID, sessions.PhotoInput{Data: b.Bytes(), Simulated: true, Source: "generated screenshot sample"}); err != nil {
+				log.Fatal(err)
+			}
+			if err = store.SetFrame(sess.ID, sessions.FrameRef{ID: "plain.strip4", Name: "Classic strip"}); err != nil {
+				log.Fatal(err)
+			}
+			if err = store.SetStatus(sess.ID, sessions.StatusCompleted, ""); err != nil {
+				log.Fatal(err)
+			}
+		}
+		if err = db.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	h := &hub{subs: map[chan []byte]struct{}{}}
 	opts := app.Options{Version: "uxharness", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
-		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}}
+		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}, PickFolder: func() (string, error) { return filepath.Join(dir, "sample-exports"), nil }}
 	var wd *fakeWebcam
 	if *webcam {
 		wd = &fakeWebcam{mock.NewDriver()}

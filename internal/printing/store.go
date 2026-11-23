@@ -121,6 +121,17 @@ func (s *SQLStore) List(limit int) ([]Job, error) {
 	return s.query(`SELECT `+jobCols+` FROM print_jobs ORDER BY created_at DESC LIMIT ?`, limit)
 }
 
+// ListSession returns a deterministic bounded page of a session's print history.
+func (s *SQLStore) ListSession(id string, limit, offset int) ([]Job, error) {
+	if id == "" || offset < 0 {
+		return nil, errors.New("invalid session or offset")
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	return s.query(`SELECT `+jobCols+` FROM print_jobs WHERE session_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?`, id, limit, offset)
+}
+
 func (s *SQLStore) Active() ([]Job, error) {
 	return s.query(`SELECT ` + jobCols + ` FROM print_jobs WHERE status IN ('submitting','queued','printing') ORDER BY created_at`)
 }

@@ -418,3 +418,36 @@ func meanAbsDiff(a, b *image.NRGBA) float64 {
 	}
 	return sum / n
 }
+
+func TestCatalogueOrderAndFavoritesPersist(t *testing.T) {
+	dir := t.TempDir()
+	l := Load(dir)
+	frames := l.Active()
+	if len(frames) < 2 {
+		t.Fatal("need frames")
+	}
+	first, second := frames[0].ID, frames[1].ID
+	if err := l.SetCatalogue([]string{second, first}, map[string]bool{second: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SetEnabled(first, false); err != nil {
+		t.Fatal(err)
+	}
+	again := Load(dir)
+	all := again.All()
+	if all[0].ID != second || all[1].ID != first {
+		t.Fatalf("order lost: %s %s", all[0].ID, all[1].ID)
+	}
+	_, fav := again.Catalogue()
+	if !fav[second] || again.Get(first).Enabled {
+		t.Fatal("catalogue metadata lost after visibility change")
+	}
+	if err := again.SetCatalogue([]string{first, first}, map[string]bool{}); err == nil {
+		t.Fatal("duplicate order accepted")
+	}
+	latest := Load(dir)
+	order, fav := latest.Catalogue()
+	if len(order) < 2 || order[0] != second || !fav[second] {
+		t.Fatal("invalid update changed persisted state")
+	}
+}
