@@ -1,6 +1,6 @@
-import { translate } from "../i18n";
+import { formatTranslation, photoCount, translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
-import { fitFor, explainFit, photoCounts, photosLabel, swatch, type Fit } from "../frameInfo";
+import { fitFor, explainFit, photoCounts, swatch, type Fit } from "../frameInfo";
 import { Icon } from "../icons";
 import type { Frame } from "../types";
 import { FrameThumb, Fit as FitImage, LayoutBadge, PhotoDots, PrimaryAction, SecondaryAction } from "./parts";
@@ -35,7 +35,7 @@ export function GuestFrames(p: GuestFramesProps) {
   const counts = photoCounts(frames);
   const variants = picked?.variants ?? [];
   const activeVariant = variants.find((v) => v.id === p.variantId) ?? variants[0];
-  const label = p.fit.kind === "ok" ? (p.confirmLabel ?? t("continueLabel")) : p.fit.kind === "fewer" ? `Use the first ${p.fit.need} photos` : "Start over with this frame";
+  const label = p.fit.kind === "ok" ? (p.confirmLabel ?? t("continueLabel")) : p.fit.kind === "fewer" ? formatTranslation(p.language, "firstPhotos", { count: p.fit.need }) : t("restartFrame");
   const decision = p.fit.kind === "fewer" ? { useFirst: true } : p.fit.kind === "more" ? { restart: true } : {};
 
   return (
@@ -56,7 +56,7 @@ export function GuestFrames(p: GuestFramesProps) {
               <div className="g-chips" role="group" aria-label="Number of photos">
                 <button type="button" className={`g-chip ${p.count === 0 ? "on" : ""}`} aria-pressed={p.count === 0} onClick={() => p.setCount(0)}>{t("anyPhotos")}</button>
                 {counts.map((n) => (
-                  <button key={n} type="button" className={`g-chip ${p.count === n ? "on" : ""}`} aria-pressed={p.count === n} onClick={() => p.setCount(n)}>{photosLabel(n)}</button>
+                  <button key={n} type="button" className={`g-chip ${p.count === n ? "on" : ""}`} aria-pressed={p.count === n} onClick={() => p.setCount(n)}>{photoCount(p.language, n)}</button>
                 ))}
               </div>
             )}
@@ -67,7 +67,7 @@ export function GuestFrames(p: GuestFramesProps) {
               <div className="g-grid" role="radiogroup" aria-label="Frames">
                 {p.shown.map((f) => {
                   const mis = fitFor(f, p.takenPhotos).kind !== "ok";
-                  return <FrameThumb key={f.id} frame={f} src={p.thumbUrl(f)} selected={f.id === p.pickId} mismatch={mis} note={`needs ${photosLabel(f.photos)}`} onSelect={() => p.select(f)} />;
+                  return <FrameThumb key={f.id} frame={f} src={p.thumbUrl(f)} selected={f.id === p.pickId} mismatch={mis} note={formatTranslation(p.language, "needsPhotos", { count: f.photos })} onSelect={() => p.select(f)} />;
                 })}
               </div>
             </div>
@@ -81,7 +81,7 @@ export function GuestFrames(p: GuestFramesProps) {
               <FitImage className="g-detail-img" src={p.bigUrl(picked)} alt={`${picked.name} preview`} />
               <div className="g-detail-info">
                 <h2>{picked.name}</h2>
-                <p className="g-detail-meta"><LayoutBadge format={picked.format} /><PhotoDots n={picked.photos} /><span>{photosLabel(picked.photos)}</span></p>
+                <p className="g-detail-meta"><LayoutBadge format={picked.format} /><PhotoDots n={picked.photos} /><span>{photoCount(p.language, picked.photos)}</span></p>
                 {variants.length > 1 && (
                   <div className="g-colors">
                     <div className="g-swatches" role="radiogroup" aria-label="Colour">

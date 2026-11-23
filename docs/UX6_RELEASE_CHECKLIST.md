@@ -3,7 +3,6 @@
 **Production readiness: BLOCKED.** PASS requires recorded evidence; missing evidence is UNVERIFIED, not PASS.
 
 - [ ] P0 findings in `UX6_AUDIT.md` resolved and reviewed.
-- [ ] Canon agreement and rights to distribute binaries to intended recipients documented; otherwise Canon DLLs excluded.
 - [ ] Full regression and Windows CI checks pass on the candidate commit; reproducibility investigated and dependency hashes verified.
 - [ ] Windows 10/11 WebView2 desktop and touchscreen/scaling journey passes on target machines.
 - [ ] Physical R50, webcam and printer acceptance and endurance results recorded in `UX6_HARDWARE_RESULTS.md`.

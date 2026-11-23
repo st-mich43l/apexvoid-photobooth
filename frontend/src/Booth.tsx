@@ -1,3 +1,4 @@
+import { translate } from "./i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExitDialog } from "./ExitDialog";
 import { FrameSelection } from "./FrameSelection";
@@ -158,7 +159,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
       {fsError && (
         <div className="note warn fs-note" role="alert">
           <div>Fullscreen is not active: {fsError} Booth Mode keeps working in a window.</div>
-          <button onClick={goFullscreen}>Retry</button>
+          <button onClick={goFullscreen}>{translate(settings?.language, "retry")}</button>
         </div>
       )}
       {screen !== "welcome" && <GuestHeader step={step} language={settings?.language} />}
@@ -170,7 +171,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
         <>
           {modeError && <GuestMessage kind="err">{modeError}</GuestMessage>}
           <FrameSelection variant="booth" busy={preparing} initial={frame ? { id: frame.id, variantId: frame.variantId, caption: frame.caption } : undefined}
-            onConfirm={confirmFrame} onBack={goWelcome} backLabel="Home" />
+            onConfirm={confirmFrame} onBack={goWelcome} backLabel={translate(settings?.language, "home")} />
         </>
       )}
       {screen === "photo" && frame && (
@@ -178,7 +179,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
           onDone={finish} />
       )}
       {screen === "photo" && (
-        <button type="button" className="home-btn g-btn g-secondary" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}><Icon name="back" size={24} /><span>Home</span></button>
+        <button type="button" className="home-btn g-btn g-secondary" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}><Icon name="back" size={24} /><span>{translate(settings?.language, "home")}</span></button>
       )}
       {modeDialog}
       {confirmLeave && (

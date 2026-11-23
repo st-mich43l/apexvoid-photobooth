@@ -1,10 +1,10 @@
 # Windows release plan
 
-Status: **not production-ready**. Physical hardware acceptance, Canon redistribution permission, WebView2 deployment, signing and the remaining UX-6 implementation are release blockers. Do not label CI artifacts as production releases.
+Status: **not production-ready**. Physical hardware acceptance, WebView2 deployment, signing and the remaining UX-6 implementation are release blockers. Do not label CI artifacts as production releases.
 
 The standard Windows CI artifact contains the application with pinned FFmpeg, not Canon binaries. It is an unsigned test build; `BUILD-MANIFEST.json` records commit, version, UTC build time, architecture, FFmpeg version and executable SHA-256, and `SHA256SUMS.txt` lists packaged file checksums. Check the hash on the target machine before testing. These records identify a build; they do not prove bit-for-bit reproducibility or publisher identity.
 
-Canon-enabled artifact jobs are disabled until the repository owner reviews the actual applicable Canon agreement and records a verifiable reference, permitted distribution recipients and artifact access/retention policy. An SDK download or vault password is not redistribution permission. Existing artifacts should be reviewed for access and removed by an authorized repository owner if inappropriate. The local Canon build script is only for separately authorized development; do not publish its output while rights are unconfirmed. The ordinary build can use an independently authorized SDK installation.
+Trusted master CI also produces a separate Canon-enabled artifact containing extractable EDSDK DLLs. Pull-request workflows do not receive the vault password. The normal portable artifact uses an SDK installed separately.
 
 An eventual signed release must use a trusted code-signing identity held in an approved signing service or protected CI secret; never commit a certificate private key or password. Verify signatures with Windows `Get-AuthenticodeSignature` and publish verified checksums over a trusted channel. Do not disable SmartScreen or other Windows security to distribute unsigned executables.
 
