@@ -53,3 +53,7 @@ cd frontend && npm ci && npm run build && cd ..
 ```
 
 The password file contains only the vault password. The script verifies the DLL hashes, creates `dist/ApexVoidPhotobooth-canon.exe`, and removes the temporary plaintext SDK files. The executable embeds FFmpeg too if the CI-prepared `internal/video/embedded/ffmpeg.exe.gz` and `FFMPEG-LICENSE.txt` are present; otherwise video needs a separate FFmpeg. This local cross-build does not add the CI Windows resources. Trusted CI runs on `master` also produce `ApexVoidPhotobooth-windows-x64-canon`: configure the repository Actions secret `ANSIBLE_VAULT_PASSWORD` with the vault password. The job retrieves the encrypted SDK from `ansible-library` master, verifies the pinned DLL hashes, and tests SDK initialization on Windows. Pull-request jobs do not decrypt the SDK. GitHub Actions artifacts contain extractable Canon binaries; restrict distribution as required by the Canon licence. Camera operation still requires hardware validation.
+
+### Gallery, export and trash
+
+Gallery pages sessions and their media on demand; search, date (UTC), mode, status, simulated and operator-test filters are applied locally in SQLite. Open a session to export a new ZIP or move it to recoverable trash. The Trashed status filter provides Restore; permanent deletion remains an explicit Empty Trash action in Settings. Active sessions cannot be trashed. See [UX5_AUDIT.md](UX5_AUDIT.md) for recovery behavior and filesystem limitations.

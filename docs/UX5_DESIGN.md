@@ -1,0 +1,9 @@
+# UX-5 operator design
+
+Gallery opens on recent session cards rather than a wall of unrelated photos. Search and filters apply on the server. Previous/next page controls keep the number of rendered cards bounded; session details separately page media, with originals in shot order before compositions and videos. Viewer arrows work within and across loaded media pages; zoom uses a scrollable viewport and does not alter files. Original/edited display, the existing editor, export and printing remain operator actions.
+
+Export Session is available after a session ends, asks for a local folder, optionally includes edited copies, and writes a new ZIP containing a small session manifest and the chosen session's media. A trash confirmation is distinct from ordinary navigation; active sessions are protected, and the Trashed status filter exposes restoration after the Undo toast is gone. In-progress moves can also be restored from the status filter.
+
+Frames use the existing cards and builder. Filters and favorites narrow the operator view; up/down controls persist catalogue order for the existing guest picker. Preview color selection only changes the preview. Bulk failures show the affected names and IDs so the operator can retry; the last offered frame has a confirmation.
+
+Synthetic screenshots: [sessions](img/ux5/gallery-sessions.png), [search](img/ux5/gallery-search.png), [date filter](img/ux5/gallery-date-filter.png), [details](img/ux5/session-details.png), [viewer](img/ux5/image-viewer.png), [export](img/ux5/session-export.png), [frames](img/ux5/frame-catalogue.png), [filter](img/ux5/frame-filter.png), [ordering](img/ux5/frame-order.png), [injected bulk failure](img/ux5/frame-bulk-error.png), and [portrait](img/ux5/gallery-portrait.png). These are browser-harness captures, not Windows WebView2 verification.

@@ -174,3 +174,7 @@ the whole frame flow (choose a frame → four photos → composition → two-up 
 ## Limits
 
 Latin-only fonts; no layer rotation; the builder has only been exercised in jsdom and a browser harness, never in WebView2.
+
+## Catalogue controls (UX-5)
+
+Studio → Frames supports name, category, count, layout, visibility, source and favorite filters. Favorites and explicit up/down guest ordering are stored in `frame-state.json` alongside built-in visibility overrides; they do not alter frame artwork or frozen session snapshots. Preview color selection changes only the catalogue preview. Bulk visibility changes report individual failures; hiding the last offered frame requires confirmation. The guest picker reads the persisted order when it next loads.

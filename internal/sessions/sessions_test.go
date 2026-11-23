@@ -162,6 +162,9 @@ func TestTrashRestoreAndEmpty(t *testing.T) {
 	s, db := open(t, t.TempDir())
 	sess, _ := s.Create("photo", 1, "", false)
 	m, _ := s.AddPhoto(sess.ID, PhotoInput{Data: jpegBytes(t, 50, 50, color.NRGBA{1, 2, 3, 255})})
+	if err := s.SetStatus(sess.ID, StatusCompleted, ""); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Trash(m.ID); err != nil {
 		t.Fatal(err)
 	}

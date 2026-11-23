@@ -37,6 +37,12 @@ func TestDatabaseUpgradesFromVersion2KeepingSessionsAndMedia(t *testing.T) {
 	}
 	mustExec(`INSERT INTO sessions(id,created_at,updated_at,status,mode,shots_planned,template_id) VALUES('S1','t','t','completed','photo',4,'strip-2x6-4')`)
 	mustExec(`INSERT INTO media(id,session_id,kind,rel_path,captured_at,created_at) VALUES('M1','S1','strip','sessions/S1/exports/a.jpg','t','t')`)
+	mustExec(`DROP TABLE media_trash_ops`)
+	mustExec(`DROP TABLE session_trash_ops`)
+	mustExec(`DROP INDEX sessions_created_id`)
+	mustExec(`DROP INDEX sessions_chronological`)
+	mustExec(`DROP INDEX media_session_status_kind`)
+	mustExec(`DROP INDEX print_jobs_session_created`)
 	mustExec(`PRAGMA user_version=2`)
 	_ = db.Close()
 
