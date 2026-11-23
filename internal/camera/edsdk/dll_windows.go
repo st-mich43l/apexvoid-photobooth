@@ -29,11 +29,25 @@ func exeDir() string {
 	return ""
 }
 
-// SDKStatus statically inspects the Canon SDK folder (no DLL is loaded).
-func SDKStatus(configured string) SDKReport { return Inspect(configured, exeDir()) }
+// SDKStatus inspects external SDK folders or unpacks and inspects the bundled SDK.
+// It does not load the DLL or connect to a camera.
+func SDKStatus(configured string) SDKReport {
+	report := Inspect(configured, exeDir())
+	if report.OK() {
+		return report
+	}
+	dir, err := bundledSDKDir()
+	if err != nil {
+		return SDKReport{Kind: SDKInvalid, Problem: "Cannot unpack the built-in Canon SDK: " + err.Error(), Action: "Check that the Windows user cache is writable and restart the application."}
+	}
+	if dir == "" {
+		return report
+	}
+	return Inspect(dir, "")
+}
 
 func sdkAvailable(dir string) error {
-	r := Inspect(dir, exeDir())
+	r := SDKStatus(dir)
 	if r.OK() {
 		return nil
 	}
@@ -89,11 +103,11 @@ func resolveDependency(name, dir string) bool {
 }
 
 func loadDLL(dir string) (api, error) {
-	p, err := locateSDK(dir, exeDir())
-	if err != nil {
+	report := SDKStatus(dir)
+	if !report.OK() {
 		return nil, sdkAvailable(dir)
 	}
-	return &dllAPI{path: p, sc: &scratch{}}, nil
+	return &dllAPI{path: report.Path, sc: &scratch{}}, nil
 }
 
 // runningProcessNames lists executable names of running processes.
