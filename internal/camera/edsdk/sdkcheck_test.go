@@ -195,3 +195,20 @@ func TestLocateSDKUsesTheInspection(t *testing.T) {
 		t.Fatalf("configured folder not preferred: %v %v", p, err)
 	}
 }
+
+func TestSDKPathPrecedenceAndPackageRoot(t *testing.T) {
+	withResolver(t)
+	env := t.TempDir()
+	configured := t.TempDir()
+	exe := t.TempDir()
+	writeDLL(t, filepath.Join(env, "Windows", "EDSDK_64", "Dll", "EDSDK.dll"), 0x8664, nil, requiredExports)
+	writeDLL(t, filepath.Join(configured, "EDSDK_64", "Dll", "EDSDK.dll"), 0x8664, nil, requiredExports)
+	writeDLL(t, filepath.Join(exe, "EDSDK.dll"), 0x8664, nil, requiredExports)
+	t.Setenv("CANON_EDSDK_PATH", env)
+	if p, err := locateSDK(configured, exe); err != nil || p != filepath.Join(configured, "EDSDK_64", "Dll", "EDSDK.dll") {
+		t.Fatalf("configured path should win: %s %v", p, err)
+	}
+	if p, err := locateSDK("", exe); err != nil || p != filepath.Join(env, "Windows", "EDSDK_64", "Dll", "EDSDK.dll") {
+		t.Fatalf("environment package root should precede executable: %s %v", p, err)
+	}
+}

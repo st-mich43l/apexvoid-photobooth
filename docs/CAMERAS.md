@@ -18,11 +18,10 @@ Values: `supported`, `unsupported`, `unverified` (API exists, has not succeeded 
 ### Install the SDK (you must do this; it is not bundled)
 1. Download the EDSDK from Canon (developer registration required; read Canon's licence — **its
    redistribution terms were not verified by this project**, so the DLLs are never committed or shipped).
-2. Check the SDK release notes list **EOS R50** (support was not confirmed by us; the notes we could see named
-   R7/R10 for 13.18.10).
+2. The supplied EDSDK 13.21.10 API reference lists **EOS R50** for camera control. Hardware operation remains unverified; see [the compatibility assessment](CANON_SDK_COMPATIBILITY.md).
 3. Copy the **64-bit** `EDSDK.dll`, `EdsImage.dll` (and the rest of the `Dll` folder) into one of:
    `<app folder>\`, `<app folder>\sdk\canon\`, or any folder set in Settings → *Canon EDSDK folder*.
-   The app verifies the DLL is 64-bit and that `EdsImage.dll` sits beside it.
+   You can also set `CANON_EDSDK_PATH` to the SDK package root, Windows SDK folder, or x64 DLL folder. The app statically checks the DLL architecture, imports and required exports; keep `EdsImage.dll` beside it.
 
 ### Camera settings
 * Mode dial on a **still-photo** mode (not Movie), lens attached, battery charged / AC adapter.
@@ -45,7 +44,7 @@ releases handles and reconnects automatically (restoring live view).
   travel back through channels, never through variables shared with a caller that may have given up.
 * **Capture windows.** A transfer request belongs to a photograph only if it arrives while that capture is waiting
   for it. Anything else — a RAW companion that arrives after the JPEG, a photo that arrives after a timeout, a repeated
-  file name — is acknowledged and dropped (and counted), so a **late transfer can never be attached to another shot**.
+  file name — is acknowledged and dropped (and counted) while no capture is waiting.
   After a timeout the next capture waits a short grace period (`LateGrace`, 6 s) with its window closed before it
   fires the shutter. *Residual risk:* a transfer delayed by more than the grace period *and* arriving inside a later
   capture window cannot be told apart by the SDK; this has not been observed and cannot be tested without hardware.
