@@ -57,3 +57,7 @@ The password file contains only the vault password. The script verifies the DLL 
 ### Gallery, export and trash
 
 Gallery pages sessions and their media on demand; search, date (UTC), mode, status, simulated and operator-test filters are applied locally in SQLite. Open a session to export a new ZIP or move it to recoverable trash. The Trashed status filter provides Restore; permanent deletion remains an explicit Empty Trash action in Settings. Active sessions cannot be trashed. See [UX5_AUDIT.md](UX5_AUDIT.md) for recovery behavior and filesystem limitations.
+
+### Offline support bundle
+
+In Studio → Diagnostics, choose **Export support bundle** and select a local folder. The ZIP contains an allowlisted readiness report and counts of recognized log event categories, not raw logs, media, settings, folder paths, device names, PINs or secrets. It makes no network connection. Review any separately collected validation reports before sharing them; they are not included automatically. Current application logs rotate at approximately 1 MiB per file with four backups; local logs may still contain private paths or device names, so do not send them without review. Older daily logs are retained for up to 30 days and are not part of the ZIP.

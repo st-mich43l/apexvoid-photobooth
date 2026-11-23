@@ -49,7 +49,7 @@ type Options struct {
 type Service struct {
 	opts        Options
 	log         *slog.Logger
-	logFile     *os.File
+	logFile     *rotatingLog
 	settings    *settings.Manager
 	db          *storage.DB
 	owner       *storage.Ownership
@@ -176,14 +176,26 @@ func New(o Options) (*Service, error) {
 		drivers = append(drivers, d)
 	}
 	s.mgr = camera.NewManager(drivers...)
-	s.mgr.OnChange(func(st camera.Status) { s.emit("camera:status", st) })
+	s.mgr.OnChange(func(st camera.Status) {
+		if st.Reconnecting {
+			s.log.Warn("camera disconnected")
+		} else if st.LastCode != "" {
+			s.log.Warn("camera error")
+		}
+		s.emit("camera:status", st)
+	})
 
 	s.eng = capture.New(capture.Options{
 		Camera: s.mgr, Store: s.store, Tick: o.Tick, CaptureRetries: 1,
 		IsSimulated:  func() bool { st := s.mgr.Status(); return st.Device != nil && st.Device.Simulated },
 		Finalize:     s.finalizeStrip,
 		BeginSession: s.beginSession,
-		OnChange:     func(sn capture.Snapshot) { s.emit("capture:state", sn) },
+		OnChange: func(sn capture.Snapshot) {
+			if sn.State == capture.Error {
+				s.log.Warn("capture failed")
+			}
+			s.emit("capture:state", sn)
+		},
 	})
 	pd := o.PrintDriver
 	if pd == nil {
@@ -229,7 +241,7 @@ func (s *Service) initLogger(l storage.Layout) {
 			}
 		}
 	}
-	f, err := os.OpenFile(filepath.Join(l.LogsDir(), "app-"+time.Now().Format("20060102")+".log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := openRotatingLog(l.LogsDir(), 1<<20, 4)
 	if err != nil {
 		return
 	}
