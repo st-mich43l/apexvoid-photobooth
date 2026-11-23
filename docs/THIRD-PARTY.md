@@ -21,4 +21,4 @@ The standard build does not include Canon DLLs. The separate Canon-enabled CI ar
 
 ## Noto Sans
 
-The frame renderer embeds Noto Sans Regular as a fallback for text that its selected Go font cannot render, including Vietnamese characters. Copyright 2018 The Noto Project Authors; distributed under the SIL Open Font License 1.1. The font and full license are included in `internal/templates/fonts/`. Source: https://github.com/notofonts/noto-fonts/tree/main/hinted/ttf/NotoSans.
+The frame renderer embeds Noto Sans Regular as a fallback for text that its selected Go font cannot render, including Vietnamese characters. Copyright 2018 The Noto Project Authors; distributed under the SIL Open Font License 1.1. The font and full license are included in `internal/templates/fonts/`. Source: https://github.com/notofonts/noto-fonts/tree/main/hinted/ttf/NotoSans. Embedded file SHA-256: `b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`.
