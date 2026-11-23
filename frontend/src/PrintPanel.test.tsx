@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -108,4 +108,22 @@ describe("PrintPanel", () => {
     await screen.findByAltText("Print preview");
     expect(screen.queryByRole("checkbox", { name: /Two strips/ })).toBeNull();
   });
+  it("ignores old capabilities and blocks printing until the latest preview arrives", async () => {
+    let resolveOld!: (v: typeof caps) => void;
+    let resolvePreview!: (v: typeof preview) => void;
+    h.api.listPrinters.mockResolvedValue({ printers: [{ name: "Lab", status: "ready", default: true }, { name: "New", status: "ready" }], default: "Lab" });
+    h.api.printerCapabilities.mockImplementation((name: string) => name === "Lab" ? new Promise((r) => { resolveOld = r; }) : Promise.resolve({ ...caps, papers: [caps.papers[1]] }));
+    h.api.printPreview.mockImplementation(() => new Promise((r) => { resolvePreview = r; }));
+    render(<PrintPanel mediaId="M1" />);
+    await waitFor(() => expect(resolveOld).toBeDefined());
+    fireEvent.change(screen.getByLabelText("Printer"), { target: { value: "New" } });
+    await waitFor(() => expect(screen.getByRole("option", { name: /5x7 in/ })).toBeTruthy());
+    await act(async () => resolveOld(caps));
+    expect(screen.queryByRole("option", { name: /4x6 in/ })).toBeNull();
+    expect(printBtn().disabled).toBe(true);
+    await waitFor(() => expect(resolvePreview).toBeDefined());
+    await act(async () => resolvePreview(preview));
+    await waitFor(() => expect(printBtn().disabled).toBe(false));
+  });
+
 });

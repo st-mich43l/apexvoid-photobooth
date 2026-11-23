@@ -280,18 +280,19 @@ func fitOf(f string) printing.Fit {
 // PreviewResult is an accurate preview: the sheet, the printer's unprintable
 // border and the image exactly where it will be placed.
 type PreviewResult struct {
-	Image       string     `json:"image"` // data URL
-	PaperMm     [2]float64 `json:"paperMm"`
-	PrintableMm [2]float64 `json:"printableMm"`
-	MarginMm    [4]float64 `json:"marginMm"`
-	ScalePct    float64    `json:"scalePct"`
-	CroppedPct  float64    `json:"croppedPct"`
-	Rotated     bool       `json:"rotated"`
-	Orientation string     `json:"orientation"`
-	Warning     string     `json:"warning"`
-	AssumedGeom bool       `json:"assumedGeometry"`
-	ImageInches [2]float64 `json:"imageInches"`
-	Template    string     `json:"templateId"`
+	Image         string     `json:"image"` // data URL
+	PaperMm       [2]float64 `json:"paperMm"`
+	PrintableMm   [2]float64 `json:"printableMm"`
+	MarginMm      [4]float64 `json:"marginMm"`
+	UnprintableMm [4]float64 `json:"unprintableMm"`
+	ScalePct      float64    `json:"scalePct"`
+	CroppedPct    float64    `json:"croppedPct"`
+	Rotated       bool       `json:"rotated"`
+	Orientation   string     `json:"orientation"`
+	Warning       string     `json:"warning"`
+	AssumedGeom   bool       `json:"assumedGeometry"`
+	ImageInches   [2]float64 `json:"imageInches"`
+	Template      string     `json:"templateId"`
 	// TwoUpOffer: the image is a strip that fits twice on this paper; TwoUp: the preview shows that sheet.
 	TwoUpOffer bool `json:"twoUpOffer"`
 	TwoUp      bool `json:"twoUp"`
@@ -340,7 +341,8 @@ func (s *Service) PrintPreview(o PrintOptions) (PreviewResult, error) {
 		Image: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()), Orientation: string(or), Template: pr.templateID,
 		PaperMm: [2]float64{mm(g.PhysW, g.DPIX), mm(g.PhysH, g.DPIY)}, PrintableMm: [2]float64{mm(g.PrintW, g.DPIX), mm(g.PrintH, g.DPIY)},
 		MarginMm: pl.MarginMM, ScalePct: pl.ScalePct, CroppedPct: pl.CroppedPct, Rotated: pl.Rotated, Warning: pl.Warning, AssumedGeom: g.Assumed,
-		ImageInches: [2]float64{pr.widthIn, pr.heightIn}, TwoUp: o.TwoUp, TwoUpOffer: offer,
+		UnprintableMm: [4]float64{mm(g.OffX, g.DPIX), mm(g.OffY, g.DPIY), mm(g.PhysW-g.OffX-g.PrintW, g.DPIX), mm(g.PhysH-g.OffY-g.PrintH, g.DPIY)},
+		ImageInches:   [2]float64{pr.widthIn, pr.heightIn}, TwoUp: o.TwoUp, TwoUpOffer: offer,
 	}, nil
 }
 
@@ -356,13 +358,31 @@ func (s *Service) PrintMedia(o PrintOptions) (printing.Job, error) {
 	}
 	// idempotent: the same click never renders or prints twice
 	if j, ok, err := s.prnStore.ByRequest(o.RequestID); err == nil && ok {
+		if j.Status == printing.StatusSubmitting || j.Status == printing.StatusUnknown {
+			return j, newUserErr(printing.ErrSubmissionUnknown.Error(), "Ask the operator to check the printer and Windows queue.")
+		}
 		return j, nil
 	}
-	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, o.TwoUp, true)
+	paper, caps, err := s.resolvePaper(ctx, o.Printer, o.Paper)
 	if err != nil {
 		return printing.Job{}, err
 	}
-	paper, _, err := s.resolvePaper(ctx, o.Printer, o.Paper)
+	if o.Copies < 1 || (caps.MaxCopies > 0 && o.Copies > caps.MaxCopies) {
+		return printing.Job{}, newUserErr("The requested copy count is not supported by this printer.", "Choose a supported number of copies.")
+	}
+	if or := orient(o.Orientation); or != printing.Auto && len(caps.Orientations) > 0 {
+		supported := false
+		for _, available := range caps.Orientations {
+			if available == or {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			return printing.Job{}, newUserErr("The printer does not support this orientation.", "Choose an available orientation.")
+		}
+	}
+	pr, err := s.printSource(o.MediaID, o.TemplateID, o.Paper, o.TwoUp, true)
 	if err != nil {
 		return printing.Job{}, err
 	}
@@ -375,6 +395,10 @@ func (s *Service) PrintMedia(o PrintOptions) (printing.Job, error) {
 	j, err := s.prn.Print(ctx, req)
 	if err != nil {
 		s.log.Warn("print failed", "printer", o.Printer, "media", o.MediaID, "err", err)
+		if errors.Is(err, printing.ErrSubmissionUnknown) {
+			s.emit("print:job", j)
+			return j, newUserErr(printing.ErrSubmissionUnknown.Error(), "Ask the operator to check the printer and Windows queue.")
+		}
 		if errors.Is(err, printing.ErrDuplicate) {
 			return j, newUserErr(err.Error(), "")
 		}
@@ -486,9 +510,6 @@ func (s *Service) Reprint(id string, confirmed bool) (printing.Job, error) {
 	if err != nil {
 		return j, newUserErr(err.Error(), "")
 	}
-	if _, serr := os.Stat(j.File); serr != nil {
-		return j, newUserErr("The rendered print file is missing: "+j.File, "Print the image again from the gallery.")
-	}
 	s.emit("print:job", j)
 	return j, nil
 }
@@ -544,9 +565,24 @@ func (s *Service) PrintResult(mediaID, requestID string) (printing.Job, error) {
 	if cfg.PrinterName == "" {
 		return printing.Job{}, newUserErr("Printing is not set up.", "Ask the host to choose a printer in Studio → Printer.")
 	}
+	if requestID == "" {
+		return printing.Job{}, newUserErr("The print request has no id.", "Ask the operator for help.")
+	}
+	if _, ok, err := s.prnStore.ByRequest(requestID); err != nil {
+		return printing.Job{}, userErr(err)
+	} else if ok {
+		return s.PrintMedia(PrintOptions{RequestID: requestID})
+	}
+	if printed, err := s.prnStore.HasPrint(mediaID); err != nil {
+		return printing.Job{}, userErr(err)
+	} else if printed {
+		return printing.Job{}, newUserErr("This photo has already been sent to the printer.", "Ask the operator for another copy.")
+	}
 	ctx, cancel := s.ctx()
 	defer cancel()
-	o := PrintOptions{RequestID: requestID, MediaID: mediaID, Printer: cfg.PrinterName, Paper: cfg.PrintPaper, Orientation: "auto", Fit: "fit", Copies: 1}
-	o.TwoUp = s.twoUpOffer(ctx, o)
+	o := PrintOptions{RequestID: requestID, MediaID: mediaID, Printer: cfg.PrinterName, Paper: cfg.PrintPaper, Orientation: cfg.PrintOrientation, Fit: cfg.PrintFit, Copies: cfg.PrintCopies}
+	if cfg.PrintTwoUp == "on" || cfg.PrintTwoUp == "auto" {
+		o.TwoUp = s.twoUpOffer(ctx, o)
+	}
 	return s.PrintMedia(o)
 }

@@ -1,10 +1,14 @@
 package printing
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -13,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/storage"
 )
 
@@ -428,7 +433,9 @@ func TestSubmissionFailureIsRecordedAndCanBeRetried(t *testing.T) {
 func TestReprintNeedsConfirmationAndIsBounded(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	j, _ := e.m.Print(ctx, req("a"))
+	r := req("a")
+	r.File = testPrintImage(t)
+	j, _ := e.m.Print(ctx, r)
 	if _, err := e.m.Reprint(ctx, j.ID, true); err == nil || !strings.Contains(err.Error(), "still in the print queue") {
 		t.Fatalf("reprint while queued: %v", err)
 	}
@@ -567,3 +574,169 @@ func TestParseLpstat(t *testing.T) {
 
 var _ = filepath.Join
 var _ = os.Remove
+
+func testPrintImage(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "print.png")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestReprintPreflightAndDPI(t *testing.T) {
+	for _, dpi := range []int{300, 600} {
+		t.Run(fmt.Sprint(dpi), func(t *testing.T) {
+			e := newEnv(t)
+			r := req("first")
+			r.File = testPrintImage(t)
+			r.ImageDPI = dpi
+			j, err := e.m.Print(context.Background(), r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.drv.setState(JobState{Status: StatusCompleted})
+			rp, err := e.m.Reprint(context.Background(), j.ID, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rp.ImageDPI != dpi || e.drv.submits[1].ImageDPI != dpi {
+				t.Fatalf("wrong reprint DPI: %+v", rp)
+			}
+			if err := os.Remove(r.File); err != nil {
+				t.Fatal(err)
+			}
+			e.drv.setState(JobState{Status: StatusCompleted})
+			_, _ = e.m.Refresh(context.Background(), rp.ID)
+			if _, err := e.m.Reprint(context.Background(), j.ID, true); err == nil || e.drv.count() != 2 {
+				t.Fatalf("missing file submitted: %v", err)
+			}
+		})
+	}
+}
+
+func TestReprintLimitBeyondHistoryWindow(t *testing.T) {
+	e := newEnv(t)
+	r := req("first")
+	r.File = testPrintImage(t)
+	j, err := e.m.Print(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.drv.setState(JobState{Status: StatusCompleted})
+	for i := 0; i < 3; i++ {
+		p, err := e.m.Reprint(context.Background(), j.ID, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = e.m.Refresh(context.Background(), p.ID)
+	}
+	store := NewSQLStore(e.db)
+	for i := 0; i < 510; i++ {
+		e.now = e.now.Add(time.Second)
+		x := Job{ID: fmt.Sprintf("history-%d", i), Printer: "Lab", Status: StatusCompleted, CreatedAt: e.now, UpdatedAt: e.now}
+		if err := store.Insert(x); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.m.Reprint(context.Background(), j.ID, true); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("limit bypassed: %v", err)
+	}
+}
+
+type failingUpdateStore struct{ Store }
+
+func (s failingUpdateStore) Update(Job) error { return errors.New("disk unavailable") }
+func TestUncertainSubmissionCannotRetry(t *testing.T) {
+	e := newEnv(t)
+	e.m.store = failingUpdateStore{e.m.store}
+	j, err := e.m.Print(context.Background(), req("same"))
+	if !errors.Is(err, ErrSubmissionUnknown) || j.Status != StatusUnknown || e.drv.count() != 1 {
+		t.Fatalf("%+v %v", j, err)
+	}
+	if _, err = e.m.Print(context.Background(), req("same")); !errors.Is(err, ErrSubmissionUnknown) || e.drv.count() != 1 {
+		t.Fatalf("unsafe retry: %v", err)
+	}
+	e.now = e.now.Add(time.Hour)
+	if _, err = e.m.Print(context.Background(), req("different")); !errors.Is(err, ErrSubmissionUnknown) || e.drv.count() != 1 {
+		t.Fatalf("uncertain job was bypassed: %v", err)
+	}
+}
+
+func TestPausedPrinterIsNotReady(t *testing.T) {
+	status, detail := MapPrinterStatus(PrinterPaused, 0)
+	if status != "paused" || detail == "" || (Printer{Status: status}).Available() {
+		t.Fatalf("%s %s", status, detail)
+	}
+}
+
+func TestReprintRejectsMissingOriginalPrinterAndPaper(t *testing.T) {
+	for _, kind := range []string{"original", "printer", "paper"} {
+		t.Run(kind, func(t *testing.T) {
+			e := newEnv(t)
+			r := req("first")
+			r.File = testPrintImage(t)
+			j, err := e.m.Print(context.Background(), r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.drv.setState(JobState{Status: StatusCompleted})
+			j, err = e.m.Refresh(context.Background(), j.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "original":
+				child := j
+				child.ID = "child"
+				child.ParentID = "does-not-exist"
+				child.RequestID = ""
+				if err := e.m.store.Insert(child); err != nil {
+					t.Fatal(err)
+				}
+				j = child
+			case "printer":
+				e.drv.printers = nil
+			case "paper":
+				j.PaperName = "paper no longer offered"
+				if _, err := e.db.Exec(`UPDATE print_jobs SET paper_name=? WHERE id=?`, j.PaperName, j.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := e.m.Reprint(context.Background(), j.ID, true); err == nil || e.drv.count() != 1 {
+				t.Fatalf("unsafe %s reprint: %v", kind, err)
+			}
+		})
+	}
+}
+
+func TestLegacyReprintReadsJPEGDensity(t *testing.T) {
+	e := newEnv(t)
+	var b bytes.Buffer
+	if err := jpeg.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2)), nil); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(t.TempDir(), "legacy.jpg")
+	if err := os.WriteFile(p, media.SetJPEGDensity(b.Bytes(), 600), 0600); err != nil {
+		t.Fatal(err)
+	}
+	r := req("legacy")
+	r.File = p
+	r.ImageDPI = 0
+	j, err := e.m.Print(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.drv.setState(JobState{Status: StatusCompleted})
+	rp, err := e.m.Reprint(context.Background(), j.ID, true)
+	if err != nil || rp.ImageDPI != 600 {
+		t.Fatalf("legacy DPI: %+v %v", rp, err)
+	}
+}

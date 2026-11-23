@@ -20,6 +20,15 @@ func TestDatabaseUpgradesFromVersion2KeepingSessionsAndMedia(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := db.Exec(`DROP INDEX print_jobs_parent`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP INDEX print_jobs_media`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`ALTER TABLE print_jobs DROP COLUMN image_dpi`); err != nil {
+		t.Fatal(err)
+	}
 	mustExec := func(q string) {
 		t.Helper()
 		if _, err := db.Exec(q); err != nil {

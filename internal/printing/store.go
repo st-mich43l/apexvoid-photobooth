@@ -16,6 +16,9 @@ type Store interface {
 	ByRequest(requestID string) (Job, bool, error)
 	List(limit int) ([]Job, error)
 	Active() ([]Job, error)
+	CountReprints(root string) (int, error)
+	HasPendingReprint(root string) (bool, error)
+	HasPrint(mediaID string) (bool, error)
 	// Recent finds a non-failed job for the same media/printer/paper/copies/kind created after since.
 	Recent(j Job, since time.Time) (Job, bool, error)
 }
@@ -26,14 +29,14 @@ type SQLStore struct{ db *storage.DB }
 // NewSQLStore wraps an open library database.
 func NewSQLStore(db *storage.DB) *SQLStore { return &SQLStore{db: db} }
 
-const jobCols = `id,request_id,parent_id,kind,media_id,rendered_media_id,session_id,template_id,file,printer,paper_name,paper_id,orientation,fit,copies,status,detail,native_id,attempt,created_at,updated_at`
+const jobCols = `id,request_id,parent_id,kind,media_id,rendered_media_id,session_id,template_id,file,printer,paper_name,paper_id,orientation,fit,copies,status,detail,native_id,attempt,created_at,updated_at,image_dpi`
 
 func ts(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
 
 func (s *SQLStore) Insert(j Job) error {
-	_, err := s.db.Exec(`INSERT INTO print_jobs(`+jobCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := s.db.Exec(`INSERT INTO print_jobs(`+jobCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		j.ID, j.RequestID, j.ParentID, j.Kind, j.MediaID, j.RenderedMediaID, j.SessionID, j.TemplateID, j.File, j.Printer, j.PaperName, j.PaperID,
-		j.Orientation, j.Fit, j.Copies, j.Status, j.Detail, j.NativeID, j.Attempt, ts(j.CreatedAt), ts(j.UpdatedAt))
+		j.Orientation, j.Fit, j.Copies, j.Status, j.Detail, j.NativeID, j.Attempt, ts(j.CreatedAt), ts(j.UpdatedAt), j.ImageDPI)
 	return err
 }
 
@@ -55,10 +58,28 @@ func scanJob(r rowScanner) (Job, error) {
 	var j Job
 	var c, u string
 	err := r.Scan(&j.ID, &j.RequestID, &j.ParentID, &j.Kind, &j.MediaID, &j.RenderedMediaID, &j.SessionID, &j.TemplateID, &j.File, &j.Printer,
-		&j.PaperName, &j.PaperID, &j.Orientation, &j.Fit, &j.Copies, &j.Status, &j.Detail, &j.NativeID, &j.Attempt, &c, &u)
+		&j.PaperName, &j.PaperID, &j.Orientation, &j.Fit, &j.Copies, &j.Status, &j.Detail, &j.NativeID, &j.Attempt, &c, &u, &j.ImageDPI)
 	j.CreatedAt, _ = time.Parse(time.RFC3339Nano, c)
 	j.UpdatedAt, _ = time.Parse(time.RFC3339Nano, u)
 	return j, err
+}
+
+func (s *SQLStore) CountReprints(root string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM print_jobs WHERE parent_id=?`, root).Scan(&n)
+	return n, err
+}
+
+func (s *SQLStore) HasPendingReprint(root string) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM print_jobs WHERE parent_id=? AND status IN ('submitting','queued','printing','unknown')`, root).Scan(&n)
+	return n > 0, err
+}
+
+func (s *SQLStore) HasPrint(mediaID string) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM print_jobs WHERE media_id=? AND kind='print' AND (status<>'failed' OR native_id<>'')`, mediaID).Scan(&n)
+	return n > 0, err
 }
 
 func (s *SQLStore) Get(id string) (Job, error) {
@@ -105,7 +126,7 @@ func (s *SQLStore) Active() ([]Job, error) {
 }
 
 func (s *SQLStore) Recent(j Job, since time.Time) (Job, bool, error) {
-	out, err := s.query(`SELECT `+jobCols+` FROM print_jobs WHERE kind=? AND media_id=? AND printer=? AND paper_name=? AND copies=? AND parent_id='' AND status<>'failed' AND created_at>=? ORDER BY created_at DESC LIMIT 1`,
+	out, err := s.query(`SELECT `+jobCols+` FROM print_jobs WHERE kind=? AND media_id=? AND printer=? AND paper_name=? AND copies=? AND parent_id='' AND status<>'failed' AND (status IN ('submitting','unknown') OR created_at>=?) ORDER BY created_at DESC LIMIT 1`,
 		j.Kind, j.MediaID, j.Printer, j.PaperName, j.Copies, ts(since))
 	if err != nil || len(out) == 0 {
 		return Job{}, false, err

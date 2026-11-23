@@ -115,14 +115,26 @@ describe("ShootFlow with a pre-selected frame", () => {
       fireEvent.click(screen.getByRole("button", { name: /Print/ }));
       await waitFor(() => expect(h.api.printResult).toHaveBeenCalledWith("R1", expect.any(String)));
       await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Sent to the printer/));
-      expect(screen.getByRole("button", { name: "Print another copy" })).toBeTruthy();
+      expect((screen.getByRole("button", { name: "Sent to printer" }) as HTMLButtonElement).disabled).toBe(true);
+      expect(screen.getByText(/another copy, please ask the operator/i)).toBeTruthy();
+    });
+
+    it("Booth: a double tap cannot submit twice", async () => {
+      let finish!: (value: { id: string; status: string; detail: string }) => void;
+      h.api.printResult.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      const button = screen.getByRole("button", { name: "Print" });
+      fireEvent.click(button); fireEvent.click(button);
+      expect(h.api.printResult).toHaveBeenCalledTimes(1);
+      finish({ id: "P1", status: "queued", detail: "" });
+      await waitFor(() => expect(screen.getByRole("button", { name: "Sent to printer" })).toBeTruthy());
     });
 
     it("Booth: a printing problem is shown with what to do, not swallowed", async () => {
       h.api.printResult.mockRejectedValue(Object.assign(new Error("Printing is not set up."), { action: "Ask the host to choose a printer in Studio → Printer." }));
       render(<ShootFlow variant="booth" frame={FRAME} />);
       fireEvent.click(screen.getByRole("button", { name: /Print/ }));
-      await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/Ask the host/));
+      await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/ask the operator/i));
     });
 
     it("Booth: no print button when the operator has not set up a printer", () => {
