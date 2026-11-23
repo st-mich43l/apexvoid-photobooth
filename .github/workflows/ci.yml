@@ -198,8 +198,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: st-mich43l/ansible-library
-          # Pin the commit containing the vaulted SDK, not a moving branch.
-          ref: 5d891c75e885a064880185146196d04bd957a60b
+          # The build script verifies the exact expected SDK hashes.
+          ref: master
           path: .canon-ansible
           persist-credentials: false
       - uses: actions/setup-go@v5
