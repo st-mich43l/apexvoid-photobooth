@@ -123,7 +123,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   if (booth) {
     return (
       <div className="shoot booth g-screen">
-        <GuestShoot s={s} camera={camera} frame={frame} countdownSeconds={settings?.countdownSeconds} busy={busy} error={!!error} onClearError={clear} slow={slow}
+        <GuestShoot language={settings?.language} s={s} camera={camera} frame={frame} countdownSeconds={settings?.countdownSeconds} busy={busy} error={!!error} onClearError={clear} slow={slow}
           mediaUrl={mediaUrl} frameUrl={frameUrl} resultId={resultId} finishing={finishing}
           print={resultId ? <ResultPrint mediaId={resultId} booth /> : null}
           onStart={() => run(() => api.startShooting(frame.id, frame.variantId, frame.caption))}

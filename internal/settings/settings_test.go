@@ -98,3 +98,39 @@ func TestPreviewMirrorIsOffByDefaultAndPersists(t *testing.T) {
 		t.Fatal("not saved")
 	}
 }
+
+func TestLanguageDefaultsAndValidation(t *testing.T) {
+	s := Default()
+	s.Language = ""
+	if err := s.Validate(); err != nil || s.Language != "en" {
+		t.Fatalf("default: %+v %v", s, err)
+	}
+	s.Language = "vi"
+	if err := s.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	s.Language = "unsupported"
+	if err := s.Validate(); err == nil {
+		t.Fatal("expected unsupported language error")
+	}
+}
+
+func TestLanguagePersistsAcrossReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := m.Get()
+	cfg.Language = "vi"
+	if err := m.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().Language != "vi" {
+		t.Fatalf("language was not persisted: %q", reloaded.Get().Language)
+	}
+}

@@ -44,6 +44,7 @@ export interface VideoState {
 
 export interface VideoSettings { device: string; audioInput: string; width: number; height: number; fps: number; maxSeconds: number }
 export interface Settings {
+  language?: "en" | "vi";
   mediaDir: string; countdownSeconds: number; shots: number; templateId: string; outputDpi: number; previewMirror: boolean; autoReconnect: boolean;
   enableMock: boolean; ffmpegPath: string; canonSdkDir: string; printerName: string; printPaper: string; printOrientation?: string; printFit?: string; printCopies?: number; printTwoUp?: string; video: VideoSettings;
   kioskPinSet: boolean; // the PIN record itself never reaches the UI

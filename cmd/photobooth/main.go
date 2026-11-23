@@ -36,6 +36,11 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--print-selftest" {
 		os.Exit(app.PrintSelfTest(version, os.Args[2:]))
 	}
+	if err := checkWebViewRuntime(); err != nil {
+		startupError(err.Error())
+		os.Exit(1)
+	}
+
 	// Claim the user-level application instance before loading settings, opening
 	// a library, or touching any devices. The library lock also protects shared
 	// libraries opened from other user accounts or configurations.
