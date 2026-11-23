@@ -61,11 +61,21 @@ func writable(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	p := filepath.Join(dir, ".write-test")
-	if err := os.WriteFile(p, []byte("ok"), 0o644); err != nil {
+	f, err := os.CreateTemp(dir, ".write-test-")
+	if err != nil {
 		return err
 	}
-	return os.Remove(p)
+	name := f.Name()
+	if _, err = f.WriteString("ok"); err != nil {
+		_ = f.Close()
+		_ = os.Remove(name)
+		return err
+	}
+	if err = f.Close(); err != nil {
+		_ = os.Remove(name)
+		return err
+	}
+	return os.Remove(name)
 }
 
 // resolve implements the decision table:

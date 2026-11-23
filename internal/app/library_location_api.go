@@ -60,6 +60,11 @@ func (s *Service) MigrateLibrary() (MigrationReport, error) {
 
 	src := s.db.Layout
 	dst := storage.Layout{Root: s.libRes.DefaultPath}
+	destOwner, err := storage.AcquireOwnership(dst.Root)
+	if err != nil {
+		return MigrationReport{}, newUserErr("The destination library is in use.", "Close the other instance and try again.")
+	}
+	defer destOwner.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 	defer cancel()
 	last := time.Now()

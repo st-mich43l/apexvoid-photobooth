@@ -302,9 +302,13 @@ func TestInterruptedSessionIsRecoveredOnNextStart(t *testing.T) {
 	_ = s1.StartShooting(frameFor(1), "", "")
 	waitShoot(t, s1, capture.Review)
 	// simulate a crash: close the DB without Shutdown's session bookkeeping
+	close(s1.prnStop)
+	<-s1.prnDone
+	<-s1.restoreDone
 	s1.httpd.Close()
 	_ = s1.db.Close()
 	_ = s1.logFile.Close() // a dead process holds no file handles (Windows cannot delete open files)
+	_ = s1.owner.Close()   // simulate OS release after process exit
 
 	s2 := mk()
 	defer s2.Shutdown()

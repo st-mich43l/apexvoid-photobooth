@@ -216,3 +216,39 @@ func TestTrashRefusesToOverwriteDifferentExistingFile(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTrashPreflightFailureLeavesSessionUntouched(t *testing.T) {
+	s, db := open(t, t.TempDir())
+	sess, err := s.Create("photo", 1, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.AddPhoto(sess.ID, PhotoInput{Data: jpegBytes(t, 10, 10, color.NRGBA{R: 1, G: 2, B: 3, A: 255})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SetStatus(sess.ID, StatusCompleted, ""); err != nil {
+		t.Fatal(err)
+	}
+	original, err := db.Layout.Abs(m.RelPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(db.Layout.TrashDir()); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.TrashSession(sess.ID); err == nil {
+		t.Fatal("expected preflight error")
+	}
+	if _, err = os.Stat(original); err != nil {
+		t.Fatalf("original changed: %v", err)
+	}
+	current, err := s.Session(sess.ID)
+	if err != nil || current.Status != StatusCompleted {
+		t.Fatalf("session changed: %+v %v", current, err)
+	}
+	var n int
+	if err = db.QueryRow(`SELECT COUNT(*) FROM session_trash_ops`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("journal changed: %d %v", n, err)
+	}
+}
