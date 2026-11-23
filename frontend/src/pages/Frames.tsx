@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { filterFrames, photoCounts, photosLabel } from "../frameInfo";
@@ -89,7 +90,7 @@ export function Frames() {
 
   return (
     <div className="page">
-      <h1>Frames</h1>
+      <h1>{translate(settings?.language, "frames")}</h1>
       <ErrorNote error={error} />
       <p className="muted">
         A frame is a layout (where the photos go) and a design (colours, borders, artwork). Guests choose one <b>before</b> their photos are taken; it sets how many photos are shot.
@@ -125,7 +126,7 @@ export function Frames() {
           </section>
         </div>
         <div className="gallery-filters">
-          <label>Search frames <input value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+          <label>{translate(settings?.language, "searchFrames")} <input value={search} onChange={(e) => setSearch(e.target.value)} /></label>
           <label>Layout <select value={layoutFilter} onChange={(e) => setLayoutFilter(e.target.value)}><option value="">All layouts</option>{[...new Set((frames ?? []).map((f) => f.format))].map((f) => <option key={f} value={f}>{f}</option>)}</select></label>
           <label>Source <select value={source} onChange={(e) => setSource(e.target.value)}><option value="all">All frames</option><option value="builtin">Built-in</option><option value="custom">Custom</option></select></label>
           <label className="inline"><input type="checkbox" checked={onlyFavorites} onChange={(e) => setOnlyFavorites(e.target.checked)} /> Favorites only</label>

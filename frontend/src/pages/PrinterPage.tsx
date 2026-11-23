@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useEffect, useState } from "react";
 import { api, on } from "../api";
 import { jobActive, jobKind, jobLabel, paperLabel } from "../printInfo";
@@ -47,12 +48,12 @@ export function PrinterPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Printer" sub="Printing is optional. Digital only works without a printer.">
+      <PageHeader title={translate(settings?.language, "printer")} sub="Printing is optional. Digital only works without a printer.">
         <button onClick={refreshPrinters} disabled={load.busy}>{load.busy ? "Scanning…" : "Refresh printers"}</button>
       </PageHeader>
       <ErrorNote error={load.error ?? act.error} onClose={() => { load.clear(); act.clear(); }} />
       <section className="card print-mode" aria-label="Printing mode">
-        <h3>Printing mode</h3>
+        <h3>{translate(settings?.language, "printingMode")}</h3>
         <div className="mode-choice" role="radiogroup" aria-label="Printing mode">
           <button role="radio" aria-checked={digital} className={digital ? "on" : ""} disabled={act.busy} onClick={() => { if (!digital) save({ printerName: "" }); }}>
             <strong>Digital only</strong><span>Guests get digital photos. No printer needed.</span></button>
@@ -75,7 +76,7 @@ export function PrinterPage() {
 
       <div className="two-col">
         <section className="card">
-          <h3>Installed printers <span className="muted small">{pr?.driver}</span></h3>
+          <h3>{translate(settings?.language, "installedPrinters")} <span className="muted small">{pr?.driver}</span></h3>
           {pr && pr.printers.length === 0 && <p className="muted">No printers are installed. Add one in Windows Settings → Printers &amp; scanners, then press Refresh.</p>}
           <ul className="list">
             {pr?.printers.map((p) => (
@@ -136,7 +137,7 @@ export function PrinterPage() {
       <details className="advanced">
       <summary>Advanced — preview, placement, rotation and calibration</summary>
       <section className="card">
-        <h3>Preview and print</h3>
+        <h3>{translate(settings?.language, "previewPrint")}</h3>
         {recent.length === 0 ? <p className="muted">Take a photo session first, then print its strip from here or from the Gallery.</p> : (<>
           <div className="strip-row">
             {recent.map((m) => (
@@ -152,7 +153,7 @@ export function PrinterPage() {
       </details>
 
       <section className="card">
-        <h3>Print queue and history</h3>
+        <h3>{translate(settings?.language, "printHistory")}</h3>
         {jobs.length === 0 ? <p className="muted">No print jobs yet.</p> : (
           <table className="table jobs"><tbody>
             {jobs.map((j) => (

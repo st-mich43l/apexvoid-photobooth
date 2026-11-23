@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../state";
@@ -36,7 +37,7 @@ export function SettingsPage() {
 
   return (
     <div className="page">
-      <h1>Settings</h1>
+      <h1>{translate(settings?.language, "settings")}</h1>
       <ErrorNote error={save.error ?? other.error} />
       <section className="card"><h3>Language / Ngôn ngữ</h3>
         <label>Interface language<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
@@ -44,7 +45,7 @@ export function SettingsPage() {
         </select></label>
         <p className="muted small">Vietnamese translation is in progress; untranslated screens remain in English.</p>
       </section>
-      <section className="card"><h3>Photo sessions</h3>
+      <section className="card"><h3>{translate(settings?.language, "photoSessions")}</h3>
         <div className="form">
           <label>Countdown (seconds)<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
           <p className="muted small">The number of photographs comes from the frame each guest chooses (Frames page), so there is no separate setting.</p>
@@ -60,7 +61,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="card"><h3>Media library</h3>
+      <section className="card"><h3>{translate(settings?.language, "mediaLibrary")}</h3>
         <p className="big-line path">{location.path}</p>
         <p className="muted small">
           {location.source === "documents" && <Badge kind="ok">Documents\apexvoid-studio</Badge>}
@@ -76,7 +77,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="card"><h3>Preferred cameras</h3>
+      <section className="card"><h3>{translate(settings?.language, "preferredCameras")}</h3>
         <p className="muted small">Restored when the app starts. If a preferred camera is missing the app asks before using another one. Choose them on the Camera page.</p>
         <table className="table"><tbody>
           <tr><td>Photo camera</td><td>{settings.photoCamera.name || <span className="muted">not set</span>}</td>
@@ -86,7 +87,7 @@ export function SettingsPage() {
         </tbody></table>
       </section>
 
-      <section className="card"><h3>Printing defaults</h3>
+      <section className="card"><h3>{translate(settings?.language, "printingDefaults")}</h3>
         <table className="table"><tbody>
           <tr><td>Default printer</td><td>{settings.printerName || <span className="muted">Windows default printer</span>}</td></tr>
           <tr><td>Default paper size</td><td>{settings.printPaper || <span className="muted">not set</span>}</td></tr>
@@ -107,7 +108,7 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <section className="card"><h3>Storage</h3>
+      <section className="card"><h3>{translate(settings?.language, "storage")}</h3>
         <div className="form">
           <label>Custom media folder (empty = default: Documents\apexvoid-studio)
             <div className="row">
@@ -124,7 +125,7 @@ export function SettingsPage() {
         {report && <p className="muted small">Checked {report.checked}. Missing: {report.missing.length}. Corrupt: {report.corrupt.length}. Recovered: {report.recovered.length}. Interrupted sessions: {report.interrupted.length}.</p>}
       </section>
 
-      <section className="card"><h3>External components</h3>
+      <section className="card"><h3>{translate(settings?.language, "externalComponents")}</h3>
         <div className="form">
           <label>FFmpeg path (empty = next to the app, then PATH)<input value={draft.ffmpegPath} onChange={(e) => set("ffmpegPath", e.target.value)} placeholder="C:\ffmpeg\bin\ffmpeg.exe" /></label>
           <label>Canon EDSDK folder (empty = next to the app / ./sdk/canon)<input value={draft.canonSdkDir} onChange={(e) => set("canonSdkDir", e.target.value)} placeholder="C:\Canon\EDSDK_64\Dll" /></label>
@@ -132,12 +133,12 @@ export function SettingsPage() {
         <p className="muted small">The Canon SDK is proprietary and is not bundled. See the installation guide.</p>
       </section>
 
-      <section className="card"><h3>Development</h3>
+      <section className="card"><h3>{translate(settings?.language, "development")}</h3>
         <label className="check"><input type="checkbox" checked={draft.enableMock} onChange={(e) => set("enableMock", e.target.checked)} /> Show the SIMULATED camera (test patterns — never real photographs)</label>
       </section>
 
       <div className="savebar">
-        <button disabled={!dirty} onClick={() => setDraft(settings)}>Discard</button>
+        <button disabled={!dirty} onClick={() => setDraft(settings)}>{translate(settings?.language, "discard")}</button>
         <button className="primary" disabled={!dirty || save.busy} onClick={() => save.run(async () => {
           // only what this page changed is sent; the backend merges it into its current settings
           const changed: Record<string, unknown> = {};
@@ -145,7 +146,7 @@ export function SettingsPage() {
           const r = await api.patchSettings(changed as Partial<S>);
           if (r.settings) { setSettings(r.settings); setDraft(r.settings); }
           toast(r.restartRequired ? "Saved — restart the app to use the new media folder" : "Settings saved");
-        })}>Save settings</button>
+        })}>{translate(settings?.language, "saveSettings")}</button>
       </div>
       {migrate && <MigrationDialog onClose={() => setMigrate(false)} />}
       {confirmTrash && <Confirm title="Empty trash?" danger confirmLabel="Delete permanently" onNo={() => setConfirmTrash(false)}

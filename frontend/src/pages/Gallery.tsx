@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { bytes, clock, when } from "../format";
@@ -13,7 +14,7 @@ import { jobActive, jobLabel } from "../printInfo";
 const initialQuery: SessionQuery = { search: "", mode: "", status: "", simulated: "all", from: "", to: "", cursor: "", limit: 40 };
 
 export function Gallery() {
-  const { mediaUrl, libraryVersion, bumpLibrary, toast } = useApp();
+  const { mediaUrl, libraryVersion, bumpLibrary, toast, settings } = useApp();
   const [query, setQuery] = useState(initialQuery);
   const [sessions, setSessions] = useState<SessionCard[]>([]);
   const [cursor, setCursor] = useState("");
@@ -62,11 +63,11 @@ export function Gallery() {
   const activeIndex = open ? items.findIndex((m) => m.id === open.id) : -1;
 
   return <div className="page">
-    <header className="row"><h1>Gallery</h1>{selected && <button onClick={() => { setSelected(null); setOpen(null); }}>← All sessions</button>}</header>
+    <header className="row"><h1>{translate(settings?.language, "gallery")}</h1>{selected && <button onClick={() => { setSelected(null); setOpen(null); }}>← All sessions</button>}</header>
     <ErrorNote error={error} onClose={clear} />
     {!selected ? <>
       <div className="gallery-filters" aria-label="Session filters">
-        <label>Search session ID <input value={query.search} onChange={(e) => update({ search: e.target.value })} placeholder="Session ID" /></label>
+        <label>{translate(settings?.language, "searchSession")} <input value={query.search} onChange={(e) => update({ search: e.target.value })} placeholder="Session ID" /></label>
         <label>Mode <select value={query.mode} onChange={(e) => update({ mode: e.target.value })}><option value="">All modes</option><option value="photo">Photo</option><option value="video">Video</option></select></label>
         <label>Status <select value={query.status} onChange={(e) => update({ status: e.target.value })}><option value="">All statuses</option>{["active", "completed", "cancelled", "failed", "interrupted", "trashing", "trashed"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
         <label>Sessions <select value={query.simulated} onChange={(e) => update({ simulated: e.target.value })}><option value="all">All</option><option value="real">Real</option><option value="simulated">Simulated</option><option value="test">Operator tests</option></select></label>
@@ -86,12 +87,12 @@ export function Gallery() {
         <div className="row"><label className="inline"><input type="checkbox" checked={includeEdited} onChange={(e) => setIncludeEdited(e.target.checked)} /> Include edited copies in export</label><button onClick={exportSession} disabled={selected.status === "active" || selected.status === "trashing" || selected.status === "trashed"}>Export session…</button>
           {(selected.status === "trashing" || selected.status === "trashed") ? <button onClick={() => run(async () => { await api.restoreSession(selected.id); setSelected(null); bumpLibrary(); toast("Session restored"); })}>Restore session</button> : <button className="danger" disabled={selected.status === "active"} onClick={() => setTrashSession(true)}>Move session to trash…</button>}</div>
       </section>
-      <h3>Session media</h3><p className="muted small">Original captures appear in shot order, followed by compositions and videos.</p>
+      <h3>{translate(settings?.language, "sessionMedia")}</h3><p className="muted small">Original captures appear in shot order, followed by compositions and videos.</p>
       <div className="gallery">{items.map((m) => <button key={m.id} className={`tile ${m.kind}`} onClick={() => setOpen(m)} aria-label={`${m.kind} from ${when(m.capturedAt)}`}>
         {m.status === "missing" ? <div className="no-thumb err">file missing</div> : m.thumbRel ? <Thumbnail src={mediaUrl(m.id, "thumb", m.editedRel || m.thumbRel)} fallback="Thumbnail unavailable" /> : <div className="no-thumb">{m.kind}</div>}
         <span className="tag">{m.kind === "video" ? `▶ ${clock(m.durationMs)}` : m.kind === "photo" ? `photo ${m.slot + 1}` : m.kind}</span>{m.editedRel && <span className="edit-tag">edited</span>}{m.status === "partial" && <span className="sim-tag warn">partial</span>}
       </button>)}</div>
-      <section className="card"><h3>Recent print jobs</h3>{printJobs.length ? printJobs.map((j) => <div className="row" key={j.id}><span>{when(j.createdAt)} · {j.printer} · {j.paperName} · {jobLabel[j.status]}{j.parentId ? ` · reprint #${j.attempt - 1}` : ""}</span>{!jobActive(j.status) && j.status !== "unknown" && <button onClick={() => setConfirmPrint(j)}>Reprint…</button>}</div>) : <p className="muted">{jobsError ? "Print history could not be loaded." : "No print jobs for this session."}</p>}<p className="muted small">Showing up to 50 recent jobs. Windows queue status does not prove physical delivery.</p></section>
+      <section className="card"><h3>{translate(settings?.language, "recentJobs")}</h3>{printJobs.length ? printJobs.map((j) => <div className="row" key={j.id}><span>{when(j.createdAt)} · {j.printer} · {j.paperName} · {jobLabel[j.status]}{j.parentId ? ` · reprint #${j.attempt - 1}` : ""}</span>{!jobActive(j.status) && j.status !== "unknown" && <button onClick={() => setConfirmPrint(j)}>Reprint…</button>}</div>) : <p className="muted">{jobsError ? "Print history could not be loaded." : "No print jobs for this session."}</p>}<p className="muted small">Showing up to 50 recent jobs. Windows queue status does not prove physical delivery.</p></section>
       {mediaLoading && <p role="status">Loading media…</p>}{!mediaLoading && !items.length && <p className="muted">No visible media in this session.</p>}<div className="row">{mediaStart > 0 && <button onClick={() => setMediaStart(Math.max(0, mediaStart - 50))} disabled={mediaLoading}>Previous media</button>}{mediaMore && <button onClick={() => setMediaStart(mediaOffset)} disabled={mediaLoading}>Next media</button>}</div>
     </>}
     {open && <Viewer media={open} onClose={() => { pendingViewer.current = null; setOpen(null); }} onDelete={() => setConfirm(open)} onChanged={(m) => { setOpen(m); bumpLibrary(); }}
