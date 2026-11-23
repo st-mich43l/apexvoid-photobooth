@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/media"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/printing"
 	"github.com/st-mich43l/apexvoid-photobooth/internal/sessions"
 )
 
@@ -20,6 +21,14 @@ type LibrarySummary struct {
 	Recovered   int      `json:"recovered"`
 	Missing     int      `json:"missing"`
 	FreeBytes   int64    `json:"freeBytes"`
+}
+
+func (s *Service) ListSessionPrintJobs(id string, limit, offset int) ([]printing.Job, error) {
+	jobs, err := printing.NewSQLStore(s.db).ListSession(id, limit, offset)
+	if jobs == nil {
+		jobs = []printing.Job{}
+	}
+	return jobs, userErr(err)
 }
 
 func osName() string { return runtime.GOOS }
@@ -49,6 +58,12 @@ func (s *Service) ListSessions(limit, offset int) ([]sessions.Session, error) {
 	return l, userErr(err)
 }
 
+// QuerySessions returns a cursor-paginated, server-filtered session catalogue.
+func (s *Service) QuerySessions(q sessions.SessionQuery) (sessions.SessionPage, error) {
+	page, err := s.store.QuerySessions(q)
+	return page, userErr(err)
+}
+
 // ListMedia lists media of a session ("" = whole library), newest first.
 func (s *Service) ListMedia(sessionID string, limit, offset int) ([]sessions.Media, error) {
 	l, err := s.store.ListMedia(sessionID, limit, offset)
@@ -56,6 +71,12 @@ func (s *Service) ListMedia(sessionID string, limit, offset int) ([]sessions.Med
 		l = []sessions.Media{}
 	}
 	return l, userErr(err)
+}
+
+// QuerySessionMedia lists a bounded page in capture order.
+func (s *Service) QuerySessionMedia(id string, limit, offset int) (sessions.MediaPage, error) {
+	page, err := s.store.QuerySessionMedia(id, limit, offset)
+	return page, userErr(err)
 }
 
 // GetMedia returns one media record.
@@ -91,6 +112,17 @@ func (s *Service) TrashMedia(id string) error {
 	if err := s.guardWrite(); err != nil {
 		return err
 	}
+	item, err := s.store.Media(id)
+	if err != nil {
+		return userErr(err)
+	}
+	session, err := s.store.Session(item.SessionID)
+	if err != nil {
+		return userErr(err)
+	}
+	if session.Status == sessions.StatusActive {
+		return newUserErr("This session is still active.", "Finish the session before moving its media to trash.")
+	}
 	return userErr(s.store.Trash(id))
 }
 
@@ -108,6 +140,23 @@ func (s *Service) TrashSession(id string) error {
 		return err
 	}
 	return userErr(s.store.TrashSession(id))
+}
+
+// RestoreSession resumes a session moved to recoverable trash.
+func (s *Service) RestoreSession(id string) error {
+	if err := s.guardWrite(); err != nil {
+		return err
+	}
+	return userErr(s.store.RestoreSession(id))
+}
+
+// ExportSession streams a local ZIP without overwriting an existing export.
+func (s *Service) ExportSession(id, dest string, edited bool) (string, error) {
+	if err := s.guardWrite(); err != nil {
+		return "", err
+	}
+	p, err := s.store.ExportSession(id, dest, edited)
+	return p, userErr(err)
 }
 
 // EmptyTrash permanently deletes trashed items and returns how many.

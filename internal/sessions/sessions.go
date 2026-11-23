@@ -149,7 +149,9 @@ func b2i(b bool) int {
 
 // SetStatus updates a session's status and optional note.
 func (s *Store) SetStatus(id, status, note string) error {
-	res, err := s.db.Exec(`UPDATE sessions SET status=?, note=CASE WHEN ?='' THEN note ELSE ? END, updated_at=? WHERE id=?`, status, note, note, s.ts(), id)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res, err := s.db.Exec(`UPDATE sessions SET status=?, note=CASE WHEN ?='' THEN note ELSE ? END, updated_at=? WHERE id=? AND status NOT IN ('trashing','trashed')`, status, note, note, s.ts(), id)
 	if err != nil {
 		return err
 	}
@@ -173,8 +175,12 @@ type PhotoInput struct {
 func (s *Store) AddPhoto(sessionID string, in PhotoInput) (Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.Session(sessionID); err != nil {
+	sess, err := s.Session(sessionID)
+	if err != nil {
 		return Media{}, err
+	}
+	if sess.Status == "trashing" || sess.Status == "trashed" {
+		return Media{}, errors.New("session is being moved to trash")
 	}
 	w, h, err := media.Dimensions(in.Data)
 	if err != nil {
@@ -276,7 +282,7 @@ func (s *Store) List(limit, offset int) ([]Session, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	rows, err := s.db.Query(sessionSelect+` WHERE s.status<>'trashed' ORDER BY s.created_at DESC LIMIT ? OFFSET ?`, limit, offset)
+	rows, err := s.db.Query(sessionSelect+` WHERE s.status<>'trashed' ORDER BY s.created_at DESC,s.id DESC LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +315,7 @@ func (s *Store) ListMedia(sessionID string, limit, offset int) ([]Media, error) 
 		q += ` AND session_id=?`
 		args = append(args, sessionID)
 	}
-	q += ` ORDER BY captured_at DESC, slot ASC LIMIT ? OFFSET ?`
+	q += ` ORDER BY captured_at DESC, slot ASC,id DESC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
@@ -359,6 +365,9 @@ func (s *Store) NewVideoPath(sessionID string) (id, abs string, err error) {
 func (s *Store) AddVideo(sessionID, id string, in VideoInput) (Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkWritableSession(sessionID); err != nil {
+		return Media{}, err
+	}
 	st, err := os.Stat(in.AbsPath)
 	if err != nil {
 		return Media{}, err
@@ -393,6 +402,11 @@ func (s *Store) AddExport(sessionID, kind, name string, data []byte, w, h int) (
 
 // SetFrame records the frame (and its snapshot folder) the session now uses.
 func (s *Store) SetFrame(sessionID string, f FrameRef) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.checkWritableSession(sessionID); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(`UPDATE sessions SET template_id=?,frame_id=?,frame_name=?,variant_id=?,frame_rev=?,caption=?,frame_dir=?,updated_at=? WHERE id=?`,
 		f.ID, f.ID, f.Name, f.Variant, f.Revision, f.Caption, f.Dir, s.ts(), sessionID)
 	return err
@@ -402,6 +416,9 @@ func (s *Store) SetFrame(sessionID string, f FrameRef) error {
 func (s *Store) AddFrameExport(sessionID, kind, name string, data []byte, w, h int, f FrameRef) (Media, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.checkWritableSession(sessionID); err != nil {
+		return Media{}, err
+	}
 	id := "M" + randHex(6)
 	l := s.db.Layout
 	abs := filepath.Join(l.SessionDir(sessionID), "exports", fmt.Sprintf("%s_%s.jpg", name, id))
@@ -432,6 +449,12 @@ func (s *Store) SaveEdits(mediaID string, e media.Edits) (Media, error) {
 	defer s.mu.Unlock()
 	m, err := s.Media(mediaID)
 	if err != nil {
+		return Media{}, err
+	}
+	if m.Status == MediaTrashed {
+		return Media{}, errors.New("restore this media before editing")
+	}
+	if err := s.checkWritableSession(m.SessionID); err != nil {
 		return Media{}, err
 	}
 	if m.Kind == "video" {
@@ -584,69 +607,6 @@ func (s *Store) Export(id, destDir string, edited bool) (string, error) {
 	return "", errors.New("could not find a free export file name")
 }
 
-// Trash moves a media item's files to trash/ and hides it. It is recoverable
-// with Restore until EmptyTrash runs. The caller (UI) is responsible for
-// obtaining the operator's confirmation first.
-func (s *Store) Trash(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, err := s.Media(id)
-	if err != nil {
-		return err
-	}
-	l := s.db.Layout
-	for _, rel := range []string{m.RelPath, m.PreviewRel, m.ThumbRel, m.EditedRel} {
-		if rel == "" {
-			continue
-		}
-		abs, err := l.Abs(rel)
-		if err != nil {
-			continue
-		}
-		if _, err := os.Stat(abs); err != nil {
-			continue
-		}
-		dst := filepath.Join(l.TrashDir(), m.ID, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
-		if err := os.Rename(abs, dst); err != nil {
-			return fmt.Errorf("move %s to trash: %w", rel, err)
-		}
-	}
-	_, err = s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaTrashed, id)
-	return err
-}
-
-// Restore moves trashed files back.
-func (s *Store) Restore(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, err := s.Media(id)
-	if err != nil {
-		return err
-	}
-	l := s.db.Layout
-	for _, rel := range []string{m.RelPath, m.PreviewRel, m.ThumbRel, m.EditedRel} {
-		if rel == "" {
-			continue
-		}
-		abs, err := l.Abs(rel)
-		if err != nil {
-			continue
-		}
-		src := filepath.Join(l.TrashDir(), m.ID, filepath.FromSlash(rel))
-		if _, err := os.Stat(src); err != nil {
-			continue
-		}
-		if err := os.Rename(src, abs); err != nil {
-			return err
-		}
-	}
-	_, err = s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaActive, id)
-	return err
-}
-
 // EmptyTrash permanently deletes trashed media files and rows.
 func (s *Store) EmptyTrash() (int, error) {
 	s.mu.Lock()
@@ -666,7 +626,13 @@ func (s *Store) EmptyTrash() (int, error) {
 	}
 	rows.Close()
 	for _, id := range ids {
+		if !safeLocalID(id) {
+			return 0, fmt.Errorf("invalid trashed media ID %q", id)
+		}
 		if err := os.RemoveAll(filepath.Join(s.db.Layout.TrashDir(), id)); err != nil {
+			return 0, err
+		}
+		if _, err := s.db.Exec(`DELETE FROM media_trash_ops WHERE media_id=?`, id); err != nil {
 			return 0, err
 		}
 		if _, err := s.db.Exec(`DELETE FROM media WHERE id=?`, id); err != nil {
@@ -674,20 +640,6 @@ func (s *Store) EmptyTrash() (int, error) {
 		}
 	}
 	return len(ids), nil
-}
-
-// TrashSession trashes every media item of a session.
-func (s *Store) TrashSession(id string) error {
-	ms, err := s.ListMedia(id, 2000, 0)
-	if err != nil {
-		return err
-	}
-	for _, m := range ms {
-		if err := s.Trash(m.ID); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Report summarises an integrity scan.
@@ -707,6 +659,9 @@ func (s *Store) Verify(deep bool) (Report, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var rep Report
+	if err := s.recoverTrashLocked(); err != nil {
+		return rep, fmt.Errorf("recover trash operation: %w", err)
+	}
 	l := s.db.Layout
 	rows, err := s.db.Query(`SELECT id FROM sessions WHERE status=?`, StatusActive)
 	if err != nil {

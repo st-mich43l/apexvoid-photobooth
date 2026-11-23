@@ -71,6 +71,10 @@ export interface Session {
   templateId: string; simulated: boolean; note: string; mediaCount: number;
   frameId: string; frameName: string; variantId: string; frameRev: number; caption: string; frameDir: string;
 }
+export interface SessionCard extends Session { thumbnailId: string; thumbnailVersion: string; photoCount: number; hasStrip: boolean }
+export interface SessionQuery { search: string; mode: string; status: string; simulated: string; from: string; to: string; cursor: string; limit: number }
+export interface SessionPage { items: SessionCard[]; nextCursor: string; hasMore: boolean }
+export interface SessionMediaPage { items: Media[]; nextOffset: number; hasMore: boolean }
 export interface Media {
   id: string; sessionId: string; kind: "photo" | "video" | "strip" | "print"; slot: number; relPath: string; thumbRel: string;
   previewRel: string; editedRel: string; edits: string; width: number; height: number; sizeBytes: number; sha256: string;
@@ -105,7 +109,7 @@ export interface FrameDef {
   backgroundImage?: string; overlay?: string; layers?: Layer[]; variants?: Variant[];
 }
 /** A frame as listed to the UI: the definition plus derived facts. */
-export interface Frame extends FrameDef { photos: number; format: string; pixelW: number; pixelH: number }
+export interface Frame extends FrameDef { photos: number; format: string; pixelW: number; pixelH: number; favorite?: boolean }
 export interface PNGFrameImport { draft: FrameDef; asset: AssetInfo; windows: number; mode: "windows" | "background"; notes: string[] }
 export interface AssetInfo { name: string; format: string; width: number; height: number; hasAlpha: boolean; bytes: number }
 export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
