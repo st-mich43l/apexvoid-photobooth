@@ -207,7 +207,7 @@ jobs:
           }
           $lines | Set-Content -Encoding ascii dist\SHA256SUMS.txt
           Write-Host "Unsigned test build SHA-256: $exeHash"
-      - name: Exercise test installer and preserve customer files on uninstall
+      - name: Exercise test installer, upgrade and preserve customer files on uninstall
         shell: pwsh
         run: |
           $target = Join-Path $env:RUNNER_TEMP 'ApexVoid-install-test'
@@ -218,6 +218,8 @@ jobs:
           if (-not (Test-Path $app)) { throw 'Installed executable missing' }
           $keep = Join-Path $target 'customer-media-sentinel.txt'
           Set-Content $keep 'keep'
+          $upgrade = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=`"$target`"" -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0 -or -not (Test-Path $keep)) { throw 'Upgrade failed or removed unowned customer files' }
           $p = Start-Process -FilePath (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
           if ($p.ExitCode -ne 0 -or -not (Test-Path $keep)) { throw 'Uninstall failed or removed unowned customer files' }
       - name: Verify packaged checksums and build manifest
