@@ -114,3 +114,23 @@ func TestLanguageDefaultsAndValidation(t *testing.T) {
 		t.Fatal("expected unsupported language error")
 	}
 }
+
+func TestLanguagePersistsAcrossReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := m.Get()
+	cfg.Language = "vi"
+	if err := m.Save(cfg); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get().Language != "vi" {
+		t.Fatalf("language was not persisted: %q", reloaded.Get().Language)
+	}
+}

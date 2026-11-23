@@ -14,6 +14,7 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+	"golang.org/x/text/unicode/norm"
 )
 
 // Existing Go fonts preserve prior layout. Noto Sans is used for text the
@@ -90,7 +91,8 @@ func ExpandText(s string, rc RenderContext) string {
 }
 
 func drawText(canvas *image.NRGBA, t Template, l Layer, rect image.Rectangle, px func(float64) int, col color.NRGBA, rc RenderContext) {
-	txt := ExpandText(l.Text, rc)
+	// Normalize only the rendered string; the saved caption and old images stay unchanged.
+	txt := norm.NFC.String(ExpandText(l.Text, rc))
 	if strings.TrimSpace(txt) == "" || rect.Dx() <= 0 {
 		return
 	}
