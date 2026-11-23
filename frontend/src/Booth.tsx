@@ -161,7 +161,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
           <button onClick={goFullscreen}>Retry</button>
         </div>
       )}
-      {screen !== "welcome" && <GuestHeader step={step} />}
+      {screen !== "welcome" && <GuestHeader step={step} language={settings?.language} />}
       {screen === "welcome" && (
         <Welcome language={settings?.language} blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
           modeError={modeError} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />

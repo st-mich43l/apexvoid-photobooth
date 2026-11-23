@@ -1,3 +1,4 @@
+import { translate } from "../i18n";
 import { useState, type ReactNode } from "react";
 import { photosLabel } from "../frameInfo";
 import { Icon } from "../icons";
@@ -18,7 +19,7 @@ export function PhotoSteps({ total, taken, current, retaking }: { total: number;
 }
 
 export interface GuestShootProps {
-  s: ShootSnapshot; camera: CameraStatus; frame: FrameChoice; countdownSeconds?: number;
+  s: ShootSnapshot; camera: CameraStatus; frame: FrameChoice; countdownSeconds?: number; language?: string;
   busy: boolean; error: boolean; onClearError: () => void; slow: boolean;
   mediaUrl: (id: string, kind: "preview") => string; frameUrl: (id: string, variantId: string, width: number, caption?: string) => string;
   resultId?: string; finishing: boolean; print: ReactNode;
@@ -28,7 +29,7 @@ export interface GuestShootProps {
 
 /** One photo of the session with its number and its own Retake: it is obvious which photo a tap will replace.
  *  The tile takes the photo's real aspect ratio (read once it has loaded), so nothing is cropped or stretched. */
-function PhotoTile({ slot, src, disabled, onRetake }: { slot: number; src: string; disabled: boolean; onRetake: (slot: number) => void }) {
+function PhotoTile({ slot, src, disabled, onRetake, language }: { slot: number; src: string; disabled: boolean; onRetake: (slot: number) => void; language?: string }) {
   const [ar, setAr] = useState(1.5);
   return (
     <figure className="g-photo">
@@ -39,22 +40,22 @@ function PhotoTile({ slot, src, disabled, onRetake }: { slot: number; src: strin
           <span className="g-photo-num" aria-hidden="true">{slot + 1}</span>
         </div>
       </div>
-      <button type="button" className="g-btn g-secondary g-retake" aria-label={`Retake photo ${slot + 1}`} disabled={disabled} onClick={() => onRetake(slot)}>
-        <Icon name="retake" size={22} /><span>Retake</span>
+      <button type="button" className="g-btn g-secondary g-retake" aria-label={`${translate(language, "retakePhoto")} ${slot + 1}`} disabled={disabled} onClick={() => onRetake(slot)}>
+        <Icon name="retake" size={22} /><span>{translate(language, "retake")}</span>
       </button>
     </figure>
   );
 }
 
 /** The frame the guest chose: a thumbnail with its name and photo count. */
-function FrameChip({ frame, frameUrl, onChange, busy }: { frame: FrameChoice; frameUrl: GuestShootProps["frameUrl"]; onChange?: () => void; busy?: boolean }) {
+function FrameChip({ frame, frameUrl, onChange, busy, language }: { frame: FrameChoice; frameUrl: GuestShootProps["frameUrl"]; onChange?: () => void; busy?: boolean; language?: string }) {
   return (
     <div className="g-chip-frame">
       <figure aria-label={`Frame: ${frame.name}`}>
         <img src={frameUrl(frame.id, frame.variantId, 240, frame.caption)} alt="" decoding="async" draggable={false} />
         <figcaption><b>{frame.name}</b><LayoutBadge format={frame.format} /><small>{photosLabel(frame.photos)}</small></figcaption>
       </figure>
-      {onChange && <SecondaryAction icon="swap" className="g-small" disabled={busy} onClick={onChange}>Change frame</SecondaryAction>}
+      {onChange && <SecondaryAction icon="swap" className="g-small" disabled={busy} onClick={onChange}>{translate(language, "changeFrame")}</SecondaryAction>}
     </div>
   );
 }
@@ -62,6 +63,7 @@ function FrameChip({ frame, frameUrl, onChange, busy }: { frame: FrameChoice; fr
 /** Everything a guest sees between choosing a frame and finishing. Presentational: the workflow stays in ShootFlow / the Go engine. */
 export function GuestShoot(p: GuestShootProps) {
   const { s, camera, frame } = p;
+  const t = (key: Parameters<typeof translate>[1]) => translate(p.language, key);
   const live = s.state === "PREVIEW" || s.state === "COUNTDOWN" || s.state === "CAPTURING";
   const retaking = (s.state === "COUNTDOWN" || s.state === "CAPTURING") && s.taken.some((t) => t.slot === s.slot);
   const ordered = [...s.taken].sort((a, b) => a.slot - b.slot);
@@ -75,11 +77,11 @@ export function GuestShoot(p: GuestShootProps) {
       {camera.reconnecting && (
         <div className="g-reconnect" role="status">
           <div className="g-spinner" aria-hidden="true" />
-          <div><strong>Reconnecting the camera…</strong><span>Your photos are safe. This usually takes a few seconds.{p.slow ? " Still working — please ask the host if this takes much longer." : ""}</span></div>
+          <div><strong>{t("reconnecting")}</strong><span>{t("safePhotos")}{p.slow ? " Still working — please ask the host if this takes much longer." : ""}</span></div>
         </div>
       )}
-      {p.error && <GuestMessage kind="warn" role="alert" action={<button type="button" className="g-btn g-secondary g-small" onClick={p.onClearError}>OK</button>}>That didn’t work. Please try again, or ask the host.</GuestMessage>}
-      {!camera.device && !camera.reconnecting && <GuestMessage kind="warn">The camera is not ready. Please ask the host.</GuestMessage>}
+      {p.error && <GuestMessage kind="warn" role="alert" action={<button type="button" className="g-btn g-secondary g-small" onClick={p.onClearError}>OK</button>}>{t("errorGuest")}</GuestMessage>}
+      {!camera.device && !camera.reconnecting && <GuestMessage kind="warn">{t("cameraNotReady")}</GuestMessage>}
 
       {live && (
         <>
@@ -88,33 +90,33 @@ export function GuestShoot(p: GuestShootProps) {
               <LivePreview className="g-live" />
               {s.state !== "PREVIEW" && <PhotoSteps total={s.shots} taken={s.taken.length} current={s.slot} retaking={retaking} />}
               {s.state === "COUNTDOWN" && s.remaining > 0 && (
-                <div className="g-count" key={`${s.slot}-${s.remaining}`} aria-live="assertive"><span>{s.remaining}</span><small>Get ready!</small></div>
+                <div className="g-count" key={`${s.slot}-${s.remaining}`} aria-live="assertive"><span>{s.remaining}</span><small>{t("getReady")}</small></div>
               )}
               {s.state === "CAPTURING" && (
                 <>
                   <div className="g-flash" key={`flash-${s.slot}`} aria-hidden="true" />
-                  <div className="g-smile" aria-live="polite"><span>Smile!</span></div>
+                  <div className="g-smile" aria-live="polite"><span>{t("smile")}</span></div>
                 </>
               )}
             </div>
-            <FrameChip frame={frame} frameUrl={p.frameUrl} onChange={s.state === "PREVIEW" ? p.onChangeFrame : undefined} busy={p.busy} />
+            <FrameChip language={p.language} frame={frame} frameUrl={p.frameUrl} onChange={s.state === "PREVIEW" ? p.onChangeFrame : undefined} busy={p.busy} />
           </div>
           <div className="g-actions">
             {s.state === "PREVIEW" && (
               <>
-                <div className="g-prompt"><b>Get ready!</b><span>We’ll take {photosLabel(frame.photos)}{cd ? `, with a ${cd}-second countdown before each` : ""}.</span></div>
+                <div className="g-prompt"><b>{t("getReady")}</b><span>We’ll take {photosLabel(frame.photos)}{cd ? `, with a ${cd}-second countdown before each` : ""}.</span></div>
                 <PrimaryAction icon="camera" className="g-start" disabled={p.busy || !camera.liveView || camera.reconnecting} onClick={p.onStart}>
-                  Start shooting<small>{photosLabel(frame.photos)}</small>
+                  {t("startShooting")}<small>{photosLabel(frame.photos)}</small>
                 </PrimaryAction>
               </>
             )}
-            {s.state === "COUNTDOWN" && <SecondaryAction disabled={p.busy} onClick={p.onCancel}>Cancel</SecondaryAction>}
-            {s.state === "CAPTURING" && <p className="g-prompt"><b>Hold still…</b></p>}
+            {s.state === "COUNTDOWN" && <SecondaryAction disabled={p.busy} onClick={p.onCancel}>{t("cancel")}</SecondaryAction>}
+            {s.state === "CAPTURING" && <p className="g-prompt"><b>{t("holdStill")}</b></p>}
           </div>
         </>
       )}
 
-      {s.state === "IDLE" && !p.error && <LoadingState>Getting the camera ready…</LoadingState>}
+      {s.state === "IDLE" && !p.error && <LoadingState>{t("cameraPreparing")}</LoadingState>}
       {s.state === "IDLE" && p.error && (
         <div className="g-center"><p>We couldn’t start the camera.</p><PrimaryAction onClick={p.onRetryPreview}>Try again</PrimaryAction></div>
       )}
@@ -124,28 +126,28 @@ export function GuestShoot(p: GuestShootProps) {
           <div className="g-review">
             {s.warning && <GuestMessage kind="warn">{s.warning}</GuestMessage>}
             <div className="g-review-head">
-              <div><h2>How do they look?</h2><p>Not happy with one? Tap Retake under that photo — the others stay.</p></div>
+              <div><h2>{t("reviewHeading")}</h2><p>{t("reviewHint")}</p></div>
               <div className="g-review-frame">
-                <FrameChip frame={frame} frameUrl={p.frameUrl} />
+                <FrameChip language={p.language} frame={frame} frameUrl={p.frameUrl} />
                 <div className="g-review-tools">
-                  <SecondaryAction icon="swap" className="g-small" disabled={p.busy} onClick={p.onChangeDesign}>Change design</SecondaryAction>
-                  <SecondaryAction icon="retake" className="g-small" disabled={p.busy} onClick={p.onCancel}>Start over</SecondaryAction>
+                  <SecondaryAction icon="swap" className="g-small" disabled={p.busy} onClick={p.onChangeDesign}>{t("changeDesign")}</SecondaryAction>
+                  <SecondaryAction icon="retake" className="g-small" disabled={p.busy} onClick={p.onCancel}>{t("startOver")}</SecondaryAction>
                 </div>
               </div>
             </div>
             <div className="g-photos" style={grid}>
               {ordered.map((t) => (
-                <PhotoTile key={t.mediaId} slot={t.slot} src={p.mediaUrl(t.mediaId, "preview")} disabled={p.busy || camera.reconnecting} onRetake={p.onRetake} />
+                <PhotoTile language={p.language} key={t.mediaId} slot={t.slot} src={p.mediaUrl(t.mediaId, "preview")} disabled={p.busy || camera.reconnecting} onRetake={p.onRetake} />
               ))}
             </div>
           </div>
           <div className="g-actions">
-            <PrimaryAction icon="check" disabled={p.busy} onClick={p.onAccept}>Looks good</PrimaryAction>
+            <PrimaryAction icon="check" disabled={p.busy} onClick={p.onAccept}>{t("looksGood")}</PrimaryAction>
           </div>
         </>
       )}
 
-      {s.state === "SAVING" && <LoadingState>Saving your photos…</LoadingState>}
+      {s.state === "SAVING" && <LoadingState>{t("saving")}</LoadingState>}
 
       {s.state === "COMPLETED" && (
         <>
@@ -158,17 +160,17 @@ export function GuestShoot(p: GuestShootProps) {
             </div>
             <div className="g-result-side">
               <span className="g-done-badge" aria-hidden="true"><Icon name="check" size={34} /></span>
-              <h2>All done!</h2>
-              <p>Your photos are ready.</p>
+              <h2>{t("allDone")}</h2>
+              <p>{t("photosReady")}</p>
               {s.warning && <GuestMessage kind="warn">{s.warning}</GuestMessage>}
               <div className="g-result-tools">
                 {p.print}
-                <SecondaryAction icon="swap" disabled={p.busy || p.finishing} onClick={p.onChangeDesign}>Change design</SecondaryAction>
+                <SecondaryAction icon="swap" disabled={p.busy || p.finishing} onClick={p.onChangeDesign}>{t("changeDesign")}</SecondaryAction>
               </div>
             </div>
           </div>
           <div className="g-actions">
-            <PrimaryAction icon="check" disabled={p.finishing} onClick={p.onFinish}>Finish</PrimaryAction>
+            <PrimaryAction icon="check" disabled={p.finishing} onClick={p.onFinish}>{t("finish")}</PrimaryAction>
           </div>
         </>
       )}
