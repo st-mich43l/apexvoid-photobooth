@@ -1,6 +1,7 @@
 package templates
 
 import (
+	_ "embed"
 	"image"
 	"image/color"
 	"strings"
@@ -15,8 +16,12 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// Text uses the Go fonts (BSD-licensed, embedded). They cover Latin scripts;
-// characters outside that range render as the font's "missing glyph" box.
+// Existing Go fonts preserve prior layout. Noto Sans is used for text the
+// selected font cannot render, when Noto covers every rune in that text.
+//
+//go:embed fonts/NotoSans-Regular.ttf
+var notoSans []byte
+
 var (
 	fontOnce sync.Once
 	fontSet  map[string]*opentype.Font
@@ -24,7 +29,7 @@ var (
 
 func loadFonts() {
 	fontSet = map[string]*opentype.Font{}
-	for name, ttf := range map[string][]byte{"sans": goregular.TTF, "bold": gobold.TTF, "italic": goitalic.TTF, "mono": gomono.TTF} {
+	for name, ttf := range map[string][]byte{"sans": goregular.TTF, "bold": gobold.TTF, "italic": goitalic.TTF, "mono": gomono.TTF, "vietnamese": notoSans} {
 		if f, err := opentype.Parse(ttf); err == nil {
 			fontSet[name] = f
 		}
@@ -90,6 +95,30 @@ func drawText(canvas *image.NRGBA, t Template, l Layer, rect image.Rectangle, px
 		return
 	}
 	size := l.SizeIn * float64(t.DPI) // em height in pixels
+	fontName := l.Font
+	if primary, fallback := face(fontName, size), face("vietnamese", size); primary != nil && fallback != nil {
+		missing, covered := false, true
+		for _, r := range txt {
+			if _, ok := primary.GlyphAdvance(r); !ok {
+				missing = true
+			}
+			if _, ok := fallback.GlyphAdvance(r); !ok {
+				covered = false
+			}
+		}
+		_ = primary.Close()
+		_ = fallback.Close()
+		if missing && covered {
+			fontName = "vietnamese"
+		}
+	} else {
+		if primary != nil {
+			_ = primary.Close()
+		}
+		if fallback != nil {
+			_ = fallback.Close()
+		}
+	}
 	var fc font.Face
 	// shrink the text until it fits the layer width (never below 40 %)
 	var width fixed.Int26_6
@@ -97,7 +126,7 @@ func drawText(canvas *image.NRGBA, t Template, l Layer, rect image.Rectangle, px
 		if fc != nil {
 			_ = fc.Close()
 		}
-		if fc = face(l.Font, size); fc == nil {
+		if fc = face(fontName, size); fc == nil {
 			return
 		}
 		width = font.MeasureString(fc, txt)

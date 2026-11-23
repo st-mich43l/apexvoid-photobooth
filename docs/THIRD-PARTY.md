@@ -1,7 +1,7 @@
 # Third-party software
 
 ## FFmpeg (single-file build only)
-The CI artifact `ApexVoidPhotobooth-windows-x64` (the only one) contains an **unmodified FFmpeg n8.1.3 (LGPL build)** by the
+The standard CI artifact `ApexVoidPhotobooth-windows-x64` contains an **unmodified FFmpeg n8.1.3 (LGPL build)** by the
 BtbN FFmpeg-Builds project (`ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1`), stored gzip-compressed inside the executable.
 
 * It is **not linked** into the application. At first use it is unpacked to
@@ -17,4 +17,8 @@ BtbN FFmpeg-Builds project (`ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1`), stor
 A local `go build` without `-tags embedffmpeg` contains no third-party binary.
 
 ## Canon EDSDK
-Not included and never committed or redistributed: copy the DLLs from your own Canon download (docs/CAMERAS.md).
+The standard build does not include Canon DLLs. Existing Canon-enabled CI artifacts contain extractable SDK binaries. The jobs creating them are disabled in this change pending review of the applicable Canon agreement and documented distribution permission. Use an independently authorized SDK installation; see docs/CAMERAS.md and docs/UX6_RELEASE_PLAN.md.
+
+## Noto Sans
+
+The frame renderer embeds Noto Sans Regular as a fallback for text that its selected Go font cannot render, including Vietnamese characters. Copyright 2018 The Noto Project Authors; distributed under the SIL Open Font License 1.1. The font and full license are included in `internal/templates/fonts/`. Source: https://github.com/notofonts/noto-fonts/tree/main/hinted/ttf/NotoSans.

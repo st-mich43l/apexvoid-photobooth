@@ -65,6 +65,11 @@ describe("Welcome", () => {
     expect(screen.queryByRole("button", { name: /video/i })).toBeNull();
     expect(screen.getAllByRole("button")).toHaveLength(1);
   });
+  it("renders the welcome action in Vietnamese when requested", () => {
+    render(<Welcome {...W({ language: "vi" })} />);
+    expect(screen.getByText("Cười lên nào!")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Chụp ảnh" })).toBeTruthy();
+  });
   it("blocked: the reason is on screen and the button is disabled", () => {
     const p = W({ blocked: true, guestText: "The photo booth is not ready yet. Please ask the host.", readiness: { status: "setup_required", canStart: false, headline: "Setup required", guest: "", items: [], at: "" } });
     render(<Welcome {...p} />);

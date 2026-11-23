@@ -32,7 +32,7 @@ export const IDLE_DONE_MS = 120_000;
  *  - Home is ignored while a photo is being taken or saved;
  *  - every way out goes through one coordinated reset (sessionGate), so repeated taps cannot overlap. */
 export function Booth({ onExited }: { onExited: () => void }) {
-  const { camera, shoot, readiness } = useApp();
+  const { camera, shoot, readiness, settings } = useApp();
   const gate = useGate();
   const orientation = useOrientation();
   // #booth/photo deep-links into the frame choice (support, screenshots)
@@ -163,7 +163,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
       )}
       {screen !== "welcome" && <GuestHeader step={step} />}
       {screen === "welcome" && (
-        <Welcome blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
+        <Welcome language={settings?.language} blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
           modeError={modeError} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />
       )}
       {screen === "frames" && (
