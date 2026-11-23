@@ -9,6 +9,7 @@ import type { Report, Settings as S } from "../types";
 
 export function SettingsPage() {
   const { settings, setSettings, toast, bumpLibrary, location } = useApp();
+  const t = (key: Parameters<typeof translate>[1]) => translate(settings?.language, key);
   const [migrate, setMigrate] = useState(false);
   const [pinCur, setPinCur] = useState("");
   const [pinNew, setPinNew] = useState("");
@@ -40,24 +41,24 @@ export function SettingsPage() {
       <h1>{translate(settings?.language, "settings")}</h1>
       <ErrorNote error={save.error ?? other.error} />
       <section className="card"><h3>Language / Ngôn ngữ</h3>
-        <label>Interface language<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
+        <label>{t("interfaceLanguage")}<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
           <option value="en">English</option><option value="vi">Tiếng Việt (preview — partial)</option>
         </select></label>
-        <p className="muted small">Vietnamese translation is in progress; untranslated screens remain in English.</p>
+        <p className="muted small">{t("translationPreview")}</p>
       </section>
       <section className="card"><h3>{translate(settings?.language, "photoSessions")}</h3>
         <div className="form">
-          <label>Countdown (seconds)<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
-          <p className="muted small">The number of photographs comes from the frame each guest chooses (Frames page), so there is no separate setting.</p>
-          <label>Print resolution of the built-in frames
+          <label>{t("countdownSeconds")}<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
+          <p className="muted small">{t("shotsFromFrame")}</p>
+          <label>{t("outputResolution")}
             <select aria-label="Print resolution" value={draft.outputDpi || 300} onChange={(e) => set("outputDpi", Number(e.target.value))}>
               <option value={300}>300 dpi — standard (2×6 strip = 600×1800 px)</option>
               <option value={600}>600 dpi — high (2×6 strip = 1200×3600 px; larger files, slower)</option>
             </select>
           </label>
-          <p className="muted small">Applies to the next photo session. Custom frames keep the resolution set in the Frame Builder. Finished sessions are never changed.</p>
-          <label className="check"><input type="checkbox" checked={!!draft.previewMirror} onChange={(e) => set("previewMirror", e.target.checked)} /> Mirror the live preview (like a mirror). Saved photos are never mirrored.</label>
-          <label className="check"><input type="checkbox" checked={draft.autoReconnect} onChange={(e) => set("autoReconnect", e.target.checked)} /> Reconnect the camera automatically after a USB drop</label>
+          <p className="muted small">{t("resolutionNext")}</p>
+          <label className="check"><input type="checkbox" checked={!!draft.previewMirror} onChange={(e) => set("previewMirror", e.target.checked)} /> {t("mirrorPreview")}</label>
+          <label className="check"><input type="checkbox" checked={draft.autoReconnect} onChange={(e) => set("autoReconnect", e.target.checked)} /> {t("autoReconnect")}</label>
         </div>
       </section>
 
@@ -72,39 +73,39 @@ export function SettingsPage() {
         </p>
         {location.warning && <div className="note warn"><div>{location.warning}</div></div>}
         <div className="row">
-          <button onClick={() => other.run(() => api.openLibraryFolder())}>Open Library Folder</button>
-          {location.migrationPending && <button className="primary" onClick={() => setMigrate(true)}>Move library to Documents…</button>}
+          <button onClick={() => other.run(() => api.openLibraryFolder())}>{t("openLibrary")}</button>
+          {location.migrationPending && <button className="primary" onClick={() => setMigrate(true)}>{t("moveDocuments")}</button>}
         </div>
       </section>
 
       <section className="card"><h3>{translate(settings?.language, "preferredCameras")}</h3>
-        <p className="muted small">Restored when the app starts. If a preferred camera is missing the app asks before using another one. Choose them on the Camera page.</p>
+        <p className="muted small">{t("preferencesHint")}</p>
         <table className="table"><tbody>
-          <tr><td>Photo camera</td><td>{settings.photoCamera.name || <span className="muted">not set</span>}</td>
-            <td>{settings.photoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("photo"); toast("Photo camera cleared"); })}>Clear</button>}</td></tr>
-          <tr><td>Video camera</td><td>{settings.videoCamera.name || <span className="muted">not set</span>}</td>
-            <td>{settings.videoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("video"); toast("Video camera cleared"); })}>Clear</button>}</td></tr>
+          <tr><td>{t("photoCamera")}</td><td>{settings.photoCamera.name || <span className="muted">{t("notSet")}</span>}</td>
+            <td>{settings.photoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("photo"); toast("Photo camera cleared"); })}>{t("clear")}</button>}</td></tr>
+          <tr><td>{t("videoCamera")}</td><td>{settings.videoCamera.name || <span className="muted">{t("notSet")}</span>}</td>
+            <td>{settings.videoCamera.name && <button className="ghost" onClick={() => other.run(async () => { await api.clearPreferredCamera("video"); toast("Video camera cleared"); })}>{t("clear")}</button>}</td></tr>
         </tbody></table>
       </section>
 
       <section className="card"><h3>{translate(settings?.language, "printingDefaults")}</h3>
         <table className="table"><tbody>
-          <tr><td>Default printer</td><td>{settings.printerName || <span className="muted">Windows default printer</span>}</td></tr>
-          <tr><td>Default paper size</td><td>{settings.printPaper || <span className="muted">not set</span>}</td></tr>
+          <tr><td>{t("defaultPrinter")}</td><td>{settings.printerName || <span className="muted">Windows default printer</span>}</td></tr>
+          <tr><td>{t("defaultPaper")}</td><td>{settings.printPaper || <span className="muted">{t("notSet")}</span>}</td></tr>
         </tbody></table>
-        <p className="muted small">Change them on the Printer page, where the printer's real paper sizes are listed.</p>
+        <p className="muted small">{t("printerPageHint")}</p>
       </section>
 
-      <section className="card"><h3>Kiosk exit PIN</h3>
-        <p className="muted small">When set, leaving Booth Mode requires this PIN (4–8 digits). Five wrong attempts lock the PIN prompt for 30 seconds. Leave empty to protect nothing.</p>
+      <section className="card"><h3>{t("kioskPin")}</h3>
+        <p className="muted small">{t("kioskPinHint")}</p>
         <ErrorNote error={pin.error} onClose={pin.clear} />
         <div className="form">
-          {settings.kioskPinSet && <label>Current PIN<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinCur} onChange={(e) => setPinCur(e.target.value.replace(/\D/g, ""))} /></label>}
-          <label>{settings.kioskPinSet ? "New PIN" : "PIN"}<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinNew} onChange={(e) => setPinNew(e.target.value.replace(/\D/g, ""))} /></label>
+          {settings.kioskPinSet && <label>{t("currentPin")}<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinCur} onChange={(e) => setPinCur(e.target.value.replace(/\D/g, ""))} /></label>}
+          <label>{settings.kioskPinSet ? t("newPin") : "PIN"}<input type="password" inputMode="numeric" autoComplete="off" maxLength={8} value={pinNew} onChange={(e) => setPinNew(e.target.value.replace(/\D/g, ""))} /></label>
         </div>
         <div className="row">
           <button className="primary" disabled={pin.busy || pinNew.length < 4} onClick={() => pin.run(async () => { await api.setKioskPin(pinCur, pinNew); setPinCur(""); setPinNew(""); toast(settings.kioskPinSet ? "PIN changed" : "PIN set"); })}>{settings.kioskPinSet ? "Change PIN" : "Set PIN"}</button>
-          {settings.kioskPinSet && <button className="danger" disabled={pin.busy || pinCur.length < 4} onClick={() => pin.run(async () => { await api.setKioskPin(pinCur, ""); setPinCur(""); toast("PIN removed"); })}>Remove PIN</button>}
+          {settings.kioskPinSet && <button className="danger" disabled={pin.busy || pinCur.length < 4} onClick={() => pin.run(async () => { await api.setKioskPin(pinCur, ""); setPinCur(""); toast("PIN removed"); })}>{t("removePin")}</button>}
         </div>
       </section>
 
@@ -113,14 +114,14 @@ export function SettingsPage() {
           <label>Custom media folder (empty = default: Documents\apexvoid-studio)
             <div className="row">
               <input value={draft.mediaDir} placeholder="Default application data folder" onChange={(e) => set("mediaDir", e.target.value)} />
-              <button onClick={() => other.run(async () => { const p = await api.pickFolder(); if (p) set("mediaDir", p); })}>Browse…</button>
+              <button onClick={() => other.run(async () => { const p = await api.pickFolder(); if (p) set("mediaDir", p); })}>{t("browse")}</button>
             </div>
           </label>
         </div>
-        <p className="muted small">Changing the folder takes effect after restarting the application; existing media is not moved automatically.</p>
+        <p className="muted small">{t("folderRestart")}</p>
         <div className="row">
-          <button onClick={() => other.run(async () => { setReport(await api.verifyLibrary(true)); bumpLibrary(); })}>Verify library</button>
-          <button className="danger" onClick={() => setConfirmTrash(true)}>Empty trash…</button>
+          <button onClick={() => other.run(async () => { setReport(await api.verifyLibrary(true)); bumpLibrary(); })}>{t("verifyLibrary")}</button>
+          <button className="danger" onClick={() => setConfirmTrash(true)}>{t("emptyTrash")}</button>
         </div>
         {report && <p className="muted small">Checked {report.checked}. Missing: {report.missing.length}. Corrupt: {report.corrupt.length}. Recovered: {report.recovered.length}. Interrupted sessions: {report.interrupted.length}.</p>}
       </section>
@@ -134,7 +135,7 @@ export function SettingsPage() {
       </section>
 
       <section className="card"><h3>{translate(settings?.language, "development")}</h3>
-        <label className="check"><input type="checkbox" checked={draft.enableMock} onChange={(e) => set("enableMock", e.target.checked)} /> Show the SIMULATED camera (test patterns — never real photographs)</label>
+        <label className="check"><input type="checkbox" checked={draft.enableMock} onChange={(e) => set("enableMock", e.target.checked)} /> {t("simulatedCamera")}</label>
       </section>
 
       <div className="savebar">
