@@ -126,7 +126,7 @@ func MigrateLibrary(ctx context.Context, src, dst Layout, o MigrateOptions) (Mig
 			return nil
 		}
 		base := filepath.Base(p)
-		if strings.HasPrefix(base, ".tmp-") || base == inProgressMarker || base == ".write-test" || base == "MIGRATED_TO.txt" {
+		if strings.HasPrefix(base, ".tmp-") || strings.HasPrefix(base, ".write-test-") || base == inProgressMarker || base == ".write-test" || base == ".apexvoid.lock" || base == "MIGRATED_TO.txt" {
 			return nil
 		}
 		slash := filepath.ToSlash(rel)

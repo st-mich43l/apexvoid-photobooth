@@ -47,20 +47,23 @@ type Options struct {
 
 // Service is the bound application object. Its exported methods are the UI API.
 type Service struct {
-	opts     Options
-	log      *slog.Logger
-	logFile  *os.File
-	settings *settings.Manager
-	db       *storage.DB
-	store    *sessions.Store
-	tpl      *templates.Library
-	mgr      *camera.Manager
-	eng      *capture.Engine
-	prn      *printing.Manager
-	prnStore printing.Store
-	prnStop  chan struct{}
-	edsdk    *edsdk.Driver
-	httpd    *mediaServer
+	opts        Options
+	log         *slog.Logger
+	logFile     *os.File
+	settings    *settings.Manager
+	db          *storage.DB
+	owner       *storage.Ownership
+	store       *sessions.Store
+	tpl         *templates.Library
+	mgr         *camera.Manager
+	eng         *capture.Engine
+	prn         *printing.Manager
+	prnStore    printing.Store
+	prnStop     chan struct{}
+	prnDone     chan struct{}
+	restoreDone chan struct{}
+	edsdk       *edsdk.Driver
+	httpd       *mediaServer
 
 	mu       sync.Mutex
 	frames   frameCache // frame preview renders
@@ -102,6 +105,33 @@ func New(o Options) (*Service, error) {
 	}
 	s.libRes = res
 	layout := storage.Layout{Root: res.Path}
+	owner, err := storage.AcquireOwnership(layout.Root)
+	if err != nil {
+		if errors.Is(err, storage.ErrLibraryOwned) {
+			return nil, fmt.Errorf("%w; close the other instance and try again", err)
+		}
+		return nil, fmt.Errorf("cannot obtain exclusive library access: %w", err)
+	}
+	s.owner = owner
+	started := false
+	defer func() {
+		if !started {
+			if s.httpd != nil {
+				s.httpd.Close()
+			}
+			if s.prnStop != nil {
+				close(s.prnStop)
+				<-s.prnDone
+			}
+			if s.db != nil {
+				_ = s.db.Close()
+			}
+			if s.logFile != nil {
+				_ = s.logFile.Close()
+			}
+			_ = owner.Close()
+		}
+	}()
 	if err := layout.Ensure(); err != nil {
 		return nil, fmt.Errorf("the media library folder %s is not usable: %w (choose another folder in %s)", res.Path, err, sm.Path)
 	}
@@ -113,7 +143,7 @@ func New(o Options) (*Service, error) {
 	s.db = db
 	s.store = sessions.New(db)
 	if rep, err := s.store.Verify(false); err != nil {
-		s.log.Error("library verification failed", "err", err)
+		return nil, fmt.Errorf("library recovery failed; originals have been retained: %w", err)
 	} else {
 		s.library = rep
 		if len(rep.Interrupted)+len(rep.Recovered)+len(rep.Missing) > 0 {
@@ -165,15 +195,20 @@ func New(o Options) (*Service, error) {
 	if js := s.prn.Recover(context.Background()); len(js) > 0 {
 		s.log.Warn("print jobs recovered after restart", "count", len(js))
 	}
-	go s.pollPrints(s.prnStop)
+	s.prnDone = make(chan struct{})
+	go func() { defer close(s.prnDone); s.pollPrints(s.prnStop) }()
 
 	if s.httpd, err = startMediaServer(s); err != nil {
 		return nil, fmt.Errorf("start local preview server: %w", err)
 	}
+	s.restoreDone = make(chan struct{})
 	if !o.SkipRestore {
-		go s.RestorePreferred()
+		go func() { defer close(s.restoreDone); s.RestorePreferred() }()
+	} else {
+		close(s.restoreDone)
 	}
 	s.log.Info("started", "version", o.Version, "dataDir", layout.Root, "librarySource", res.Source, "migrationPending", res.MigrationPending, "os", runtime.GOOS+"/"+runtime.GOARCH)
+	started = true
 	return s, nil
 }
 
@@ -215,6 +250,8 @@ func (s *Service) Shutdown() error {
 	s.mu.Unlock()
 	var errs []error
 	close(s.prnStop)
+	<-s.prnDone
+	<-s.restoreDone
 	s.eng.Shutdown()
 	s.stopRecordingForShutdown()
 	if err := s.mgr.Shutdown(); err != nil {
@@ -228,6 +265,9 @@ func (s *Service) Shutdown() error {
 	s.log.Info("shutdown complete")
 	if s.logFile != nil {
 		_ = s.logFile.Close()
+	}
+	if err := s.owner.Close(); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }

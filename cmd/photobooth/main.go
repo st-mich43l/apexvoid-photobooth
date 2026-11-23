@@ -8,10 +8,13 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/st-mich43l/apexvoid-photobooth/internal/app"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/settings"
+	"github.com/st-mich43l/apexvoid-photobooth/internal/storage"
 )
 
 //go:embed all:frontend_dist
@@ -33,6 +36,15 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--print-selftest" {
 		os.Exit(app.PrintSelfTest(version, os.Args[2:]))
 	}
+	// Claim the user-level application instance before loading settings, opening
+	// a library, or touching any devices. The library lock also protects shared
+	// libraries opened from other user accounts or configurations.
+	instance, err := storage.AcquireOwnership(filepath.Join(filepath.Dir(settings.DefaultPath()), ".instance"))
+	if err != nil {
+		startupError("ApexVoid Photobooth could not start. Another instance may already be running: " + err.Error())
+		os.Exit(1)
+	}
+	defer instance.Close()
 	var wapp *application.App
 
 	svc, err := app.New(app.Options{
@@ -49,12 +61,16 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("ApexVoid Photobooth could not start: %v", err)
+		startupError("ApexVoid Photobooth could not start: " + err.Error())
+		_ = instance.Close()
+		os.Exit(1)
 	}
 
+	defer svc.Shutdown()
 	dist, err := fs.Sub(assets, "frontend_dist")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	wapp = application.New(application.Options{
 		Name:        "ApexVoid Photobooth",
@@ -82,6 +98,7 @@ func main() {
 		URL:              "/",
 	})
 	if err := wapp.Run(); err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 }
