@@ -2,7 +2,16 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ S: {} as Record<string, unknown>, api: { boothReadiness: vi.fn() } }));
-vi.mock("./state", () => ({ useApp: () => h.S }));
+vi.mock("./state", async () => {
+  const { translate, formatTranslation } = await import("./i18n");
+  return {
+    useApp: () => h.S,
+    useT: () => ({
+      t: (key: Parameters<typeof translate>[1]) => translate((h.S.settings as { language?: string } | undefined)?.language, key),
+      tf: (key: Parameters<typeof formatTranslation>[1], values: Record<string, string | number>) => formatTranslation((h.S.settings as { language?: string } | undefined)?.language, key, values),
+    }),
+  };
+});
 vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => ({ message: String(e), action: "" }) }));
 vi.mock("./pages/CameraPage", () => ({ CameraPage: () => <div data-testid="page-CameraPage" /> }));
 vi.mock("./pages/Dashboard", () => ({ Dashboard: () => <div data-testid="page-Dashboard" /> }));

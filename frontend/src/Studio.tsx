@@ -1,6 +1,5 @@
-import { translate, type TranslationKey } from "./i18n";
 import { useCallback, useState } from "react";
-import { useApp } from "./state";
+import { useApp, useT } from "./state";
 import { Badge } from "./ui";
 import { MigrationDialog } from "./MigrationDialog";
 import { CameraPage } from "./pages/CameraPage";
@@ -23,7 +22,8 @@ const NAV = [...NAV_MAIN, ...NAV_TOOLS];
 
 /** Studio Mode — the operator interface. */
 export function Studio({ onBooth }: { onBooth: () => void }) {
-  const { camera, boot, location, settings } = useApp();
+  const { camera, boot, location } = useApp();
+  const { t } = useT();
   const [migrateOpen, setMigrateOpen] = useState(true);
   // #camera, #gallery … deep-link straight to a page (handy for support and screenshots)
   const [page, setPage] = useState(() => (NAV.some(([id]) => id === window.location.hash.slice(1).split("/")[0]) ? window.location.hash.slice(1).split("/")[0] : "dashboard"));
@@ -33,28 +33,28 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
   const booth = useOpenBooth(onBooth, go);
   const navButton = ([id, label]: [string, string]) => (
     <button key={id} className={page === id ? "active" : ""} onClick={() => go(id)} aria-current={page === id ? "page" : undefined}>
-      <Icon name={id} /><span className="nav-label">{translate(settings?.language, id as TranslationKey) || label}</span>
+      <Icon name={id} /><span className="nav-label">{t(id as Parameters<typeof t>[0]) || label}</span>
     </button>
   );
 
   return (
     <div className="studio">
-      <nav aria-label="Studio navigation">
+      <nav aria-label={t("studioNav")}>
         <div className="brand"><span className="logo"><Icon name="camera" size={22} /></span><div><b>ApexVoid</b><small>Photobooth Studio</small></div></div>
-        <div className="nav-group" role="group" aria-label="Daily">{NAV_MAIN.map(navButton)}</div>
-        <div className="nav-group tools" role="group" aria-label="Tools"><small className="nav-head">Tools</small>{NAV_TOOLS.map(navButton)}</div>
+        <div className="nav-group" role="group" aria-label={t("dailyNav")}>{NAV_MAIN.map(navButton)}</div>
+        <div className="nav-group tools" role="group" aria-label={t("toolsNav")}><small className="nav-head">{t("toolsNav")}</small>{NAV_TOOLS.map(navButton)}</div>
         <div className="spacer" />
-        <button className="booth-btn" onClick={booth.open} disabled={booth.busy} aria-label="Open Booth Mode" title="Open Booth Mode"><Icon name="play" size={16} /><span className="nav-label">Open Booth Mode</span></button>
+        <button className="booth-btn" onClick={booth.open} disabled={booth.busy} aria-label={t("boothOpenLabel")} title={t("boothOpenLabel")}><Icon name="play" size={16} /><span className="nav-label">{t("boothOpenLabel")}</span></button>
         <small className="ver">v{boot.version}</small>
       </nav>
       <main>
         <header className="topbar">
-          <span>{ok ? <Badge kind={camera.device!.simulated ? "sim" : "ok"}>{camera.device!.simulated ? "DEMO · SIMULATED camera" : camera.device!.name}</Badge>
-            : camera.reconnecting ? <Badge kind="warn">Camera reconnecting…</Badge> : <Badge kind="err">No camera</Badge>}</span>
+          <span>{ok ? <Badge kind={camera.device!.simulated ? "sim" : "ok"}>{camera.device!.simulated ? t("demoCameraBadge") : camera.device!.name}</Badge>
+            : camera.reconnecting ? <Badge kind="warn">{t("reconnectingBadge")}</Badge> : <Badge kind="err">{t("noCameraBadge")}</Badge>}</span>
         </header>
         {location.warning && <div className="note warn banner" role="alert"><div>{location.warning}</div></div>}
-        {location.restartRequired && <div className="note warn banner" role="alert"><div><strong>Restart required.</strong> The library was copied to {location.defaultPath}. Close and reopen the app; capturing is paused until then.</div></div>}
-        {location.migrationPending && !migrateOpen && <div className="note warn banner"><div>Your library is still in the old folder.</div><button onClick={() => setMigrateOpen(true)}>Move to Documents…</button></div>}
+        {location.restartRequired && <div className="note warn banner" role="alert"><div><strong>{t("restartRequiredBanner")}</strong> {t("libraryCopiedTo")} {location.defaultPath}. {t("closeReopenCapturePaused")}</div></div>}
+        {location.migrationPending && !migrateOpen && <div className="note warn banner"><div>{t("libraryStillOld")}</div><button onClick={() => setMigrateOpen(true)}>{t("moveToDocuments")}</button></div>}
         {page === "dashboard" && <Dashboard go={go} onBooth={booth.open} />}
         {page === "prepare" && <PreparePage go={go} onOpenBooth={booth.open} opening={booth.busy} />}
         {page === "camera" && <CameraPage />}
