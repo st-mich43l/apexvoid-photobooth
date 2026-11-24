@@ -11,5 +11,7 @@ describe("language resources", () => {
     expect(translate("vi", "framesIntro")).toContain("Khung xác định bố cục");
     expect(translate("vi", "frameDeletedToast")).toContain("Ảnh và các phiên trước không bị ảnh hưởng");
     expect(translate("vi", "deleteFrameHelp")).toContain("mỗi phiên vẫn giữ bản sao khung riêng");
+    expect(translate("vi", "builderTitle")).toBe("Trình tạo khung");
+    expect(translate("vi", "builderRepeatPhoto")).toContain("Lặp số ảnh");
   });
 });
