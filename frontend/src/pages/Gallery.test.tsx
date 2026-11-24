@@ -2,7 +2,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ api: { querySessions: vi.fn(), querySessionMedia: vi.fn(), listSessionPrintJobs: vi.fn(), trashSession: vi.fn(), restoreSession: vi.fn(), pickFolder: vi.fn(), exportSession: vi.fn(), trashMedia: vi.fn(), restoreMedia: vi.fn() }, state: { mediaUrl: (id: string) => `/media/${id}`, libraryVersion: 0, bumpLibrary: vi.fn(), toast: vi.fn() } }));
 vi.mock("../api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(String(e)), { action: "" }) }));
-vi.mock("../state", () => ({ useApp: () => h.state }));
+vi.mock("../state", async () => {
+  const { translate, formatTranslation } = await import("../i18n");
+  return { useApp: () => h.state, useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
+});
 vi.mock("./Editor", () => ({ Editor: () => null }));
 vi.mock("../PrintPanel", () => ({ PrintPanel: () => null }));
 vi.mock("../FrameSelection", () => ({ FrameSelection: () => null }));
@@ -28,7 +31,7 @@ describe("session gallery", () => {
  it("navigates images with the keyboard and handles a missing thumbnail", async () => {
   h.api.querySessionMedia.mockResolvedValue({ items: [item, { ...item, id: "M2", slot: 1 }], nextOffset: 2, hasMore: false });
   render(<Gallery />); await screen.findByText("S001");
-  fireEvent.error(document.querySelector(".session-card img")!); expect(screen.getByText("No thumbnail")).toBeTruthy();
+  fireEvent.error(document.querySelector(".session-card img")!); expect(await screen.findByText("No thumbnail")).toBeTruthy();
   fireEvent.click(screen.getByText("S001")); await screen.findAllByRole("button", { name: /photo from/ });
   fireEvent.click(screen.getAllByRole("button", { name: /photo from/ })[0]);
   expect((screen.getByAltText("Selected photo") as HTMLImageElement).src).toContain("/media/M1");
