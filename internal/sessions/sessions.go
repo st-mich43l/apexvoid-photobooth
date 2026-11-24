@@ -723,6 +723,7 @@ func (s *Store) Verify(deep bool) (Report, error) {
 			if _, err := s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaMissing, m.ID); err != nil {
 				return rep, fmt.Errorf("mark media %s missing: %w", m.ID, err)
 			}
+			continue
 		case err != nil:
 			return rep, fmt.Errorf("inspect media %s: %w", m.ID, err)
 		case m.Status == MediaMissing:
