@@ -1,6 +1,6 @@
 # Windows release plan
 
-Status: **not production-ready**. UX6-1 runtime hardening, UX6-2/3/4 validation tooling and diagnostics, and the initial UX6-7/9 localization and packaging work are merged in PRs #39–#41. The ownership ordering correction in PR #43 is merged; final audit and artifact-policy updates are under review in PR #44. Physical hardware acceptance, actual WebView2 kiosk testing, Canon redistribution review, trusted signing and remaining localization coverage block production release. Do not label CI artifacts as production releases.
+Status: **not production-ready**. UX6-1 runtime hardening, UX6-2/3/4 validation tooling and diagnostics, and the initial UX6-7/9 localization and packaging work are merged in PRs #39–#41. Ownership ordering and read-only startup recovery corrections in PRs #43 and #45 are merged. The final audit and artifact-policy updates in PR #44 are also merged. Physical hardware acceptance, actual WebView2 kiosk testing, Canon redistribution review, trusted signing and complete localization coverage block production release. Do not label CI artifacts as production releases.
 
 The standard Windows CI artifact contains the application with pinned FFmpeg, not Canon binaries. It is an unsigned test build; `BUILD-MANIFEST.json` records commit, version, UTC build time, architecture, FFmpeg version and executable SHA-256, and `SHA256SUMS.txt` lists packaged file checksums. Check the hash on the target machine before testing. These records identify a build; they do not prove bit-for-bit reproducibility or publisher identity.
 

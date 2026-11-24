@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, on, toAppError, AppError } from "./api";
+import { formatTranslation, translate, type TranslationKey } from "./i18n";
 import type { BoothReadiness, BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
 
 export interface Ctx {
@@ -29,6 +30,14 @@ export const useApp = (): Ctx => {
   if (!c) throw new Error("AppProvider missing");
   return c;
 };
+
+export function useT() {
+  const { settings } = useApp();
+  return {
+    t: (key: TranslationKey) => translate(settings.language, key),
+    tf: (key: TranslationKey, values: Record<string, string | number>) => formatTranslation(settings.language, key, values),
+  };
+}
 
 interface Toast { id: number; msg: string; kind: "ok" | "err"; undo?: () => void }
 

@@ -6,7 +6,19 @@ const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
   api: { listMedia: vi.fn(), librarySummary: vi.fn(), listPrinters: vi.fn() },
 }));
-vi.mock("../state", () => ({ useApp: () => h.S }));
+vi.mock("../state", async () => {
+  const { translate, formatTranslation } = await import("../i18n");
+  return {
+    useApp: () => h.S,
+    useT: () => {
+      const language = (h.S.settings as { language?: string } | undefined)?.language;
+      return {
+        t: (key: Parameters<typeof translate>[1]) => translate(language, key),
+        tf: (key: Parameters<typeof formatTranslation>[1], values: Record<string, string | number>) => formatTranslation(language, key, values),
+      };
+    },
+  };
+});
 vi.mock("../api", () => ({ api: h.api, toAppError: (e: unknown) => e }));
 import { Dashboard } from "./Dashboard";
 
@@ -48,7 +60,7 @@ describe("Studio dashboard shows whether the booth can take guests", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Setup required");
     const todo = screen.getByRole("region", { name: "Needs attention" });
     expect(todo.textContent).toMatch(/Connect a camera/);
-    fireEvent.click(screen.getByRole("button", { name: "Camera setup" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Camera setup" })[0]);
     expect(go).toHaveBeenCalledWith("camera");
   });
 
@@ -67,7 +79,7 @@ describe("Studio dashboard shows whether the booth can take guests", () => {
     await draw();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Reconnecting");
     expect(document.querySelector(".dash-hero.status-reconnecting")).toBeTruthy();
-    expect(screen.getByText("Reconnecting…")).toBeTruthy();
+    expect(screen.getAllByText("Reconnecting…").length).toBeGreaterThan(0);
   });
 
   it("no printer chosen is digital-only: not a problem, not on the attention list, guests are not blocked", async () => {
@@ -85,7 +97,7 @@ describe("Studio dashboard shows whether the booth can take guests", () => {
     await draw();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Ready/);
     expect(screen.getByRole("heading", { level: 1 }).textContent).not.toMatch(/Setup required/);
-    fireEvent.click(screen.getByRole("button", { name: "Printer setup" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Printer setup" })[0]);
     expect(go).toHaveBeenCalledWith("printer");
     expect(screen.getByText("Not found")).toBeTruthy();
   });
