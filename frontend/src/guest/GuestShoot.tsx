@@ -65,6 +65,10 @@ export function GuestShoot(p: GuestShootProps) {
   const { s, camera, frame } = p;
   const t = (key: Parameters<typeof translate>[1]) => translate(p.language, key);
   const live = s.state === "PREVIEW" || s.state === "COUNTDOWN" || s.state === "CAPTURING";
+  const shotSlot = frame.photoSlots?.find((slot) => slot.photo === s.slot && slot.w > 0 && slot.h > 0);
+  // Go's compositor treats a zero focus coordinate as the default center.
+  const focusX = shotSlot?.focusX || 0.5;
+  const focusY = shotSlot?.focusY || 0.5;
   const retaking = (s.state === "COUNTDOWN" || s.state === "CAPTURING") && s.taken.some((t) => t.slot === s.slot);
   const ordered = [...s.taken].sort((a, b) => a.slot - b.slot);
   const cd = p.countdownSeconds;
@@ -87,7 +91,11 @@ export function GuestShoot(p: GuestShootProps) {
         <>
           <div className="g-stage-wrap">
             <div className="g-stage">
-              <LivePreview className="g-live" />
+              {shotSlot ? (
+                <div className="g-shot-target" style={{ ["--shot-ar" as string]: shotSlot.w / shotSlot.h }} aria-label="Camera framing guide">
+                  <LivePreview className="g-live" fit="cover" objectPosition={`${focusX * 100}% ${focusY * 100}%`} />
+                </div>
+              ) : <LivePreview className="g-live" />}
               {s.state !== "PREVIEW" && <PhotoSteps language={p.language} total={s.shots} taken={s.taken.length} current={s.slot} retaking={retaking} />}
               {s.state === "COUNTDOWN" && s.remaining > 0 && (
                 <div className="g-count" key={`${s.slot}-${s.remaining}`} aria-live="assertive"><span>{s.remaining}</span><small>{t("getReady")}</small></div>
