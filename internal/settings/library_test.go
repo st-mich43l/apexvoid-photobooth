@@ -104,12 +104,11 @@ func TestDocumentsUnavailableFallsBackWithClearWarning(t *testing.T) {
 
 func TestResolutionDoesNotWriteBeforeLibraryOwnership(t *testing.T) {
 	f := newFixture(t)
-	// "Documents" is a file, so apexvoid-studio cannot be created below it
-	file := filepath.Join(t.TempDir(), "Documents")
-	_ = os.WriteFile(file, []byte("x"), 0o644)
-	f.e.documents = func() (string, error) { return file, nil }
+	// An absent Documents folder lets the test detect any resolver-side mkdir.
+	documents := filepath.Join(t.TempDir(), "Documents")
+	f.e.documents = func() (string, error) { return documents, nil }
 	r := f.m.resolve(f.e)
-	if r.Source != SourceDocuments || r.Path != filepath.Join(file, LibraryFolderName) {
+	if r.Source != SourceDocuments || r.Path != filepath.Join(documents, LibraryFolderName) {
 		t.Fatalf("resolution should be read-only and defer access checks: %+v", r)
 	}
 	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
