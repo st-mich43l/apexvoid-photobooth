@@ -719,6 +719,9 @@ func (s *Store) Verify(deep bool) (Report, error) {
 		st, err := os.Stat(abs)
 		switch {
 		case errors.Is(err, os.ErrNotExist):
+			if _, parentErr := os.Stat(filepath.Dir(abs)); parentErr != nil {
+				return rep, fmt.Errorf("inspect media folder for %s: %w", m.ID, parentErr)
+			}
 			rep.Missing = append(rep.Missing, m.ID)
 			if _, err := s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaMissing, m.ID); err != nil {
 				return rep, fmt.Errorf("mark media %s missing: %w", m.ID, err)
