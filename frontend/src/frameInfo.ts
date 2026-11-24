@@ -35,4 +35,5 @@ export function explainFit(f: Fit, name: string): string {
 }
 
 export const choiceOf = (f: Frame, variantId: string, caption: string): FrameChoice =>
-  ({ id: f.id, name: f.name, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format });
+  ({ id: f.id, name: f.name, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format,
+    photoSlots: f.slots.map(({ photo, w, h, focusX, focusY }) => ({ photo, w, h, focusX, focusY })) });
