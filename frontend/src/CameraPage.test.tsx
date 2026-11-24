@@ -9,7 +9,10 @@ const h = vi.hoisted(() => ({
     setCameraMode: vi.fn(), startLiveView: vi.fn(), stopLiveView: vi.fn(),
   },
 }));
-vi.mock("./state", () => ({ useApp: () => h.S }));
+vi.mock("./state", async () => {
+  const { translate, formatTranslation } = await import("./i18n");
+  return { useApp: () => h.S, useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
+});
 vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: "" }) }));
 vi.mock("./ui", async (orig) => ({ ...(await orig<typeof import("./ui")>()), LivePreview: () => <div data-testid="preview" />, SimulatedRibbon: () => null }));
 
