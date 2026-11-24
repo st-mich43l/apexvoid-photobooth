@@ -1,10 +1,10 @@
 # Windows release plan
 
-Status: **not production-ready**. Physical hardware acceptance, WebView2 deployment, signing and the remaining UX-6 implementation are release blockers. Do not label CI artifacts as production releases.
+Status: **not production-ready**. UX6-1 runtime hardening, UX6-2/3/4 validation tooling and diagnostics, and the initial UX6-7/9 localization and packaging work are merged in PRs #39–#41. The ownership ordering correction in PR #43 is merged; final audit and artifact-policy updates are under review in PR #44. Physical hardware acceptance, actual WebView2 kiosk testing, Canon redistribution review, trusted signing and remaining localization coverage block production release. Do not label CI artifacts as production releases.
 
 The standard Windows CI artifact contains the application with pinned FFmpeg, not Canon binaries. It is an unsigned test build; `BUILD-MANIFEST.json` records commit, version, UTC build time, architecture, FFmpeg version and executable SHA-256, and `SHA256SUMS.txt` lists packaged file checksums. Check the hash on the target machine before testing. These records identify a build; they do not prove bit-for-bit reproducibility or publisher identity.
 
-Trusted master CI also produces a separate Canon-enabled artifact containing extractable EDSDK DLLs. Pull-request workflows do not receive the vault password. The normal portable artifact uses an SDK installed separately.
+Trusted master CI creates a one-day intermediate Canon-enabled artifact for a camera-free Windows compatibility smoke test. It is not exposed as a release download; pull-request workflows do not receive the vault password. The normal portable artifact uses an SDK installed separately. The actual Canon agreement applicable to the developer has not been reviewed for permission to redistribute these DLLs. Canon-enabled public distribution remains blocked until that review is recorded; SDK availability or vault access does not establish permission.
 
 An eventual signed release must use a trusted code-signing identity held in an approved signing service or protected CI secret; never commit a certificate private key or password. Verify signatures with Windows `Get-AuthenticodeSignature` and publish verified checksums over a trusted channel. Do not disable SmartScreen or other Windows security to distribute unsigned executables.
 
