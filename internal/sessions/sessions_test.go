@@ -221,6 +221,52 @@ func TestVerifyRecoversOrphansAndInterrupted(t *testing.T) {
 	}
 }
 
+func TestVerifyStopsWhenInterruptedSessionRecoveryCannotPersist(t *testing.T) {
+	s, db := open(t, t.TempDir())
+	sess, err := s.Create("photo", 1, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TRIGGER reject_interrupted BEFORE UPDATE OF status ON sessions WHEN NEW.status='interrupted' BEGIN SELECT RAISE(ABORT,'simulated write failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(false); err == nil {
+		t.Fatal("Verify must fail when interrupted-session recovery cannot be saved")
+	}
+	got, err := s.Session(sess.ID)
+	if err != nil || got.Status != StatusActive {
+		t.Fatalf("failed recovery must not claim success: session=%+v err=%v", got, err)
+	}
+}
+
+func TestVerifyDoesNotMarkUninspectableMediaAsMissing(t *testing.T) {
+	root := t.TempDir()
+	s, db := open(t, root)
+	sess, err := s.Create("photo", 1, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := s.AddPhoto(sess.ID, PhotoInput{Data: jpegBytes(t, 48, 48, color.NRGBA{12, 34, 56, 255})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessionsDir := db.Layout.SessionsDir()
+	savedDir := sessionsDir + ".saved"
+	if err := os.Rename(sessionsDir, savedDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sessionsDir, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Verify(false); err == nil {
+		t.Fatal("Verify must stop when it cannot inspect a media path")
+	}
+	got, err := s.Media(m.ID)
+	if err != nil || got.Status != MediaActive {
+		t.Fatalf("an access error must not mark media missing: media=%+v err=%v", got, err)
+	}
+}
+
 func TestRejectsUndecodableCameraData(t *testing.T) {
 	s, _ := open(t, t.TempDir())
 	sess, _ := s.Create("photo", 1, "", false)

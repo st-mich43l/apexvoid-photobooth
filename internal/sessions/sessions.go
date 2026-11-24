@@ -669,12 +669,23 @@ func (s *Store) Verify(deep bool) (Report, error) {
 	}
 	for rows.Next() {
 		var id string
-		_ = rows.Scan(&id)
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return rep, fmt.Errorf("read active session: %w", err)
+		}
 		rep.Interrupted = append(rep.Interrupted, id)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return rep, fmt.Errorf("read active sessions: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return rep, fmt.Errorf("close active session query: %w", err)
+	}
 	for _, id := range rep.Interrupted {
-		_, _ = s.db.Exec(`UPDATE sessions SET status=?, updated_at=? WHERE id=?`, StatusInterrupted, s.ts(), id)
+		if _, err := s.db.Exec(`UPDATE sessions SET status=?, updated_at=? WHERE id=?`, StatusInterrupted, s.ts(), id); err != nil {
+			return rep, fmt.Errorf("mark session %s interrupted: %w", id, err)
+		}
 	}
 
 	rows, err = s.db.Query(`SELECT ` + mediaCols + ` FROM media WHERE status IN ('active','partial','missing')`)
@@ -691,59 +702,91 @@ func (s *Store) Verify(deep bool) (Report, error) {
 		}
 		all = append(all, m)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return rep, fmt.Errorf("read media records: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return rep, fmt.Errorf("close media query: %w", err)
+	}
 	for _, m := range all {
 		rep.Checked++
 		abs, err := l.Abs(m.RelPath)
 		known[filepath.ToSlash(m.RelPath)] = true
 		if err != nil {
-			continue
+			return rep, fmt.Errorf("invalid media path for %s: %w", m.ID, err)
 		}
 		st, err := os.Stat(abs)
 		switch {
-		case err != nil:
+		case errors.Is(err, os.ErrNotExist):
 			rep.Missing = append(rep.Missing, m.ID)
-			_, _ = s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaMissing, m.ID)
+			if _, err := s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaMissing, m.ID); err != nil {
+				return rep, fmt.Errorf("mark media %s missing: %w", m.ID, err)
+			}
+		case err != nil:
+			return rep, fmt.Errorf("inspect media %s: %w", m.ID, err)
 		case m.Status == MediaMissing:
-			_, _ = s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaActive, m.ID)
+			if _, err := s.db.Exec(`UPDATE media SET status=? WHERE id=?`, MediaActive, m.ID); err != nil {
+				return rep, fmt.Errorf("restore media %s status: %w", m.ID, err)
+			}
 		}
-		if err == nil && deep && m.SHA256 != "" && m.Kind == "photo" {
-			if data, err := os.ReadFile(abs); err == nil {
-				sum := sha256.Sum256(data)
-				if hex.EncodeToString(sum[:]) != m.SHA256 || st.Size() != m.SizeBytes {
-					rep.Corrupt = append(rep.Corrupt, m.ID)
-				}
+		if deep && m.SHA256 != "" && m.Kind == "photo" {
+			data, err := os.ReadFile(abs)
+			if err != nil {
+				return rep, fmt.Errorf("read media %s for checksum verification: %w", m.ID, err)
+			}
+			sum := sha256.Sum256(data)
+			if hex.EncodeToString(sum[:]) != m.SHA256 || st.Size() != m.SizeBytes {
+				rep.Corrupt = append(rep.Corrupt, m.ID)
 			}
 		}
 	}
 	// orphan originals: written to disk but the row never landed
-	sdirs, _ := os.ReadDir(l.SessionsDir())
+	sdirs, err := os.ReadDir(l.SessionsDir())
+	if err != nil {
+		return rep, fmt.Errorf("scan session folders for orphan originals: %w", err)
+	}
 	for _, sd := range sdirs {
 		if !sd.IsDir() {
 			continue
 		}
 		var exists int
-		if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id=?`, sd.Name()).Scan(&exists); err != nil || exists == 0 {
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE id=?`, sd.Name()).Scan(&exists); err != nil {
+			return rep, fmt.Errorf("check session folder %s: %w", sd.Name(), err)
+		}
+		if exists == 0 {
 			continue
 		}
-		files, _ := os.ReadDir(filepath.Join(l.SessionsDir(), sd.Name(), "originals"))
+		originalsDir := filepath.Join(l.SessionsDir(), sd.Name(), "originals")
+		files, err := os.ReadDir(originalsDir)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return rep, fmt.Errorf("scan originals for session %s: %w", sd.Name(), err)
+		}
 		for _, f := range files {
 			if f.IsDir() || strings.HasPrefix(f.Name(), ".tmp-") {
 				continue
 			}
 			abs := filepath.Join(l.SessionsDir(), sd.Name(), "originals", f.Name())
-			rel, _ := l.Rel(abs)
+			rel, err := l.Rel(abs)
+			if err != nil {
+				return rep, fmt.Errorf("resolve orphan original %s: %w", abs, err)
+			}
 			if known[rel] {
 				continue
 			}
 			var n int
-			_ = s.db.QueryRow(`SELECT COUNT(*) FROM media WHERE rel_path=?`, rel).Scan(&n)
+			if err := s.db.QueryRow(`SELECT COUNT(*) FROM media WHERE rel_path=?`, rel).Scan(&n); err != nil {
+				return rep, fmt.Errorf("check orphan original %s: %w", rel, err)
+			}
 			if n > 0 {
 				continue
 			}
 			data, err := os.ReadFile(abs)
 			if err != nil {
-				continue
+				return rep, fmt.Errorf("read orphan original %s: %w", rel, err)
 			}
 			w, h, err := media.Dimensions(data)
 			if err != nil {
@@ -762,9 +805,10 @@ func (s *Store) Verify(deep bool) (Report, error) {
 					m.ThumbRel, _ = l.Rel(ta)
 				}
 			}
-			if s.insertMedia(m) == nil {
-				rep.Recovered = append(rep.Recovered, id)
+			if err := s.insertMedia(m); err != nil {
+				return rep, fmt.Errorf("register orphan original %s: %w", rel, err)
 			}
+			rep.Recovered = append(rep.Recovered, id)
 		}
 	}
 	return rep, nil
