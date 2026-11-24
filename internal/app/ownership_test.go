@@ -36,6 +36,40 @@ func TestLibraryOwnershipBeforeDatabaseOpen(t *testing.T) {
 	_ = second.Shutdown()
 }
 
+func TestResolvedDocumentsLibraryFallsBackOnlyWhenUnavailable(t *testing.T) {
+	docs := filepath.Join(t.TempDir(), "Documents")
+	if err := os.MkdirAll(docs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	defaultRoot := filepath.Join(docs, "apexvoid-studio")
+	fallbackRoot := filepath.Join(t.TempDir(), "legacy")
+	res := settings.Resolution{Path: defaultRoot, Source: settings.SourceDocuments, DefaultPath: defaultRoot, LegacyPath: fallbackRoot}
+	active, err := storage.AcquireOwnership(defaultRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := acquireLibrary(res); !errors.Is(err, storage.ErrLibraryOwned) {
+		t.Fatalf("a held Documents lock must block startup rather than open a second library: %v", err)
+	}
+	_ = active.Close()
+
+	// A path that cannot be initialized may safely fall back after the failed
+	// ownership attempt; the resulting library is still exclusively locked.
+	blocked := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocked, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res.Path, res.DefaultPath = filepath.Join(blocked, "library"), filepath.Join(blocked, "library")
+	layout, fallbackOwner, resolved, err := acquireLibrary(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fallbackOwner.Close()
+	if resolved.Source != settings.SourceFallback || layout.Root != fallbackRoot {
+		t.Fatalf("expected fallback library under ownership: layout=%+v resolution=%+v", layout, resolved)
+	}
+}
+
 // TestLargeLibraryStartup exercises the current synchronous safety scan. The
 // fixture uses tiny synthetic files and is not a Windows hardware benchmark.
 func TestLargeLibraryStartup(t *testing.T) {

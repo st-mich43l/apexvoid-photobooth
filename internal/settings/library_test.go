@@ -102,14 +102,22 @@ func TestDocumentsUnavailableFallsBackWithClearWarning(t *testing.T) {
 	}
 }
 
-func TestReadOnlyDocumentsFallsBack(t *testing.T) {
+func TestResolutionDoesNotWriteBeforeLibraryOwnership(t *testing.T) {
 	f := newFixture(t)
 	// "Documents" is a file, so apexvoid-studio cannot be created below it
 	file := filepath.Join(t.TempDir(), "Documents")
 	_ = os.WriteFile(file, []byte("x"), 0o644)
 	f.e.documents = func() (string, error) { return file, nil }
-	if r := f.m.resolve(f.e); r.Source != SourceFallback || r.Warning == "" {
-		t.Fatalf("%+v", r)
+	r := f.m.resolve(f.e)
+	if r.Source != SourceDocuments || r.Path != filepath.Join(file, LibraryFolderName) {
+		t.Fatalf("resolution should be read-only and defer access checks: %+v", r)
+	}
+	if _, err := os.Stat(r.Path); !os.IsNotExist(err) {
+		t.Fatalf("resolution touched the library before ownership: %v", err)
+	}
+	fallback := FallbackLibrary(r, errors.New("not a directory"))
+	if fallback.Source != SourceFallback || fallback.Warning == "" || fallback.Path != filepath.Join(f.local, AppDirName) {
+		t.Fatalf("fallback resolution: %+v", fallback)
 	}
 }
 
