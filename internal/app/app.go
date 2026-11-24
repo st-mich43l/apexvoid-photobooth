@@ -103,15 +103,11 @@ func New(o Options) (*Service, error) {
 	if o.ResolveLibrary != nil {
 		res = o.ResolveLibrary(sm)
 	}
-	s.libRes = res
-	layout := storage.Layout{Root: res.Path}
-	owner, err := storage.AcquireOwnership(layout.Root)
+	layout, owner, res, err := acquireLibrary(res)
 	if err != nil {
-		if errors.Is(err, storage.ErrLibraryOwned) {
-			return nil, fmt.Errorf("%w; close the other instance and try again", err)
-		}
-		return nil, fmt.Errorf("cannot obtain exclusive library access: %w", err)
+		return nil, err
 	}
+	s.libRes = res
 	s.owner = owner
 	started := false
 	defer func() {
@@ -132,9 +128,6 @@ func New(o Options) (*Service, error) {
 			_ = owner.Close()
 		}
 	}()
-	if err := layout.Ensure(); err != nil {
-		return nil, fmt.Errorf("the media library folder %s is not usable: %w (choose another folder in %s)", res.Path, err, sm.Path)
-	}
 	s.initLogger(layout)
 	db, err := storage.Open(layout)
 	if err != nil {
@@ -222,6 +215,43 @@ func New(o Options) (*Service, error) {
 	s.log.Info("started", "version", o.Version, "dataDir", layout.Root, "librarySource", res.Source, "migrationPending", res.MigrationPending, "os", runtime.GOOS+"/"+runtime.GOARCH)
 	started = true
 	return s, nil
+}
+
+// acquireLibrary locks the resolved library before creating directories,
+// probing writability, migrating SQLite, or recovering any library state. A
+// Documents folder that cannot be locked or initialized falls back only when
+// the failure is not evidence that another ApexVoid process owns it.
+func acquireLibrary(res settings.Resolution) (storage.Layout, *storage.Ownership, settings.Resolution, error) {
+	layout := storage.Layout{Root: res.Path}
+	owner, err := storage.AcquireOwnership(layout.Root)
+	if err != nil {
+		if errors.Is(err, storage.ErrLibraryOwned) {
+			return storage.Layout{}, nil, res, fmt.Errorf("%w; close the other instance and try again", err)
+		}
+		if res.Source != settings.SourceDocuments {
+			return storage.Layout{}, nil, res, fmt.Errorf("cannot obtain exclusive library access: %w", err)
+		}
+		res = settings.FallbackLibrary(res, err)
+		layout = storage.Layout{Root: res.Path}
+		owner, err = storage.AcquireOwnership(layout.Root)
+		if err != nil {
+			return storage.Layout{}, nil, res, fmt.Errorf("cannot obtain exclusive library access at fallback %s: %w", layout.Root, err)
+		}
+	}
+	if err = layout.Ensure(); err != nil && res.Source == settings.SourceDocuments {
+		_ = owner.Close()
+		res = settings.FallbackLibrary(res, err)
+		layout = storage.Layout{Root: res.Path}
+		owner, err = storage.AcquireOwnership(layout.Root)
+		if err == nil {
+			err = layout.Ensure()
+		}
+	}
+	if err != nil {
+		_ = owner.Close()
+		return storage.Layout{}, nil, res, fmt.Errorf("the media library folder %s is not usable: %w", res.Path, err)
+	}
+	return layout, owner, res, nil
 }
 
 func (s *Service) emit(name string, v any) {
