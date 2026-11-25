@@ -396,17 +396,7 @@ func (s *Service) SetSessionFrame(sessionID, frameID, variantID, caption string,
 }
 
 func (s *Service) countPhotos(sessionID string) (int, error) {
-	ms, err := s.store.ListMedia(sessionID, 100, 0)
-	if err != nil {
-		return 0, err
-	}
-	n := 0
-	for _, m := range ms {
-		if m.Kind == "photo" {
-			n++
-		}
-	}
-	return n, nil
+	return s.store.SessionPhotoCount(sessionID)
 }
 
 // ComposeSession gives a finished session another design: it switches the

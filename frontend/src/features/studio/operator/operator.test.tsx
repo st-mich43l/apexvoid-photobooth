@@ -6,12 +6,12 @@ const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
   api: {
     listPrinters: vi.fn(), listFrames: vi.fn(), librarySummary: vi.fn(), listCameraSources: vi.fn(), openLibraryFolder: vi.fn(), testPrint: vi.fn(), printJobs: vi.fn(),
-    boothReadiness: vi.fn(), patchSettings: vi.fn(), shootState: vi.fn(), startPreview: vi.fn(), startShooting: vi.fn(), accept: vi.fn(), labelTestSession: vi.fn(),
+    boothReadiness: vi.fn(), patchSettings: vi.fn(), shootState: vi.fn(), startPreview: vi.fn(), startShooting: vi.fn(), startShootingWithCount: vi.fn(), accept: vi.fn(), labelTestSession: vi.fn(),
     recoverShooting: vi.fn(), startLiveView: vi.fn(), stopLiveView: vi.fn(), connectCamera: vi.fn(), disconnectCamera: vi.fn(), setPreferredCamera: vi.fn(), clearPreferredCamera: vi.fn(),
     diagnostics: vi.fn(), diagnosticSummary: vi.fn(), pickFolder: vi.fn(), exportSupportBundle: vi.fn(), listMedia: vi.fn(), printerCapabilities: vi.fn(),
   },
 }));
-vi.mock("../state", async () => {
+vi.mock("../../../app/state", async () => {
   const { translate, formatTranslation } = await import("../../../shared/i18n");
   return {
     useApp: () => h.S,
@@ -24,9 +24,9 @@ vi.mock("../state", async () => {
     },
   };
 });
-vi.mock("../api", () => ({ api: h.api, on: () => () => {}, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
+vi.mock("../../../shared/api", () => ({ api: h.api, on: () => () => {}, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
 vi.mock("../../../shared/ui", async (orig) => ({ ...(await orig<typeof import("../../../shared/ui")>()), LivePreview: () => <div data-testid="preview" /> }));
-vi.mock("../CanonPanel", () => ({ CanonPanel: () => null }));
+vi.mock("../../camera/CanonPanel", () => ({ CanonPanel: () => null }));
 
 import { sessionGate } from "../../booth/sessionGate";
 import { CameraPage } from "../../camera/pages/CameraPage";
@@ -353,7 +353,7 @@ describe("camera test", () => {
     fireEvent.click(screen.getByRole("button", { name: /Run camera test/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Take test photo" }));
     expect(await screen.findByText("Test photo saved", {}, { timeout: 5000 })).toBeTruthy();
-    expect(h.api.startShooting).toHaveBeenCalledWith("single", "", "");
+    expect(h.api.startShootingWithCount).toHaveBeenCalledWith("single", "", "", 1);
     expect(h.api.labelTestSession).toHaveBeenCalledWith("S9");
     expect(h.api.accept).toHaveBeenCalled();
     expect(h.api.recoverShooting).toHaveBeenCalled(); // the one safe way back to idle (sessionGate)

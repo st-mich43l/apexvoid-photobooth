@@ -351,6 +351,14 @@ func (s *Store) ListMedia(sessionID string, limit, offset int) ([]Media, error) 
 	return out, rows.Err()
 }
 
+// SessionPhotoCount includes temporary candidates during an active review but
+// excludes replaced captures and other media that cannot be selected.
+func (s *Store) SessionPhotoCount(sessionID string) (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM media WHERE session_id=? AND kind='photo' AND status IN (?,?)`, sessionID, MediaActive, MediaCandidate).Scan(&count)
+	return count, err
+}
+
 // KeepSelectedPhotos moves the selected captures to the start of the session's
 // photo order and permanently removes all other candidate photos, including
 // replaced retake candidates. The frame compositor consumes the remaining

@@ -261,7 +261,7 @@ func TestSettingsPersistAndFolderChangeNeedsRestart(t *testing.T) {
 	if res, _ := s.SaveSettings(n); !res.RestartRequired {
 		t.Fatal("changing the media folder must require a restart")
 	}
-	n.Shots = 5
+	n.Shots = 13
 	if _, err := s.SaveSettings(n); err == nil {
 		t.Fatal("invalid settings accepted")
 	}
@@ -287,7 +287,7 @@ func TestInterruptedSessionIsRecoveredOnNextStart(t *testing.T) {
 	cfg := filepath.Join(t.TempDir(), "s.json")
 	sm, _ := settings.Load(cfg)
 	st := sm.Get()
-	st.MediaDir, st.EnableMock, st.CountdownSeconds = root, true, 1
+	st.MediaDir, st.EnableMock, st.CountdownSeconds, st.Shots = root, true, 1, 3
 	_ = sm.Save(st)
 	mk := func() *Service {
 		s, err := New(Options{ConfigPath: cfg, Tick: 5 * time.Millisecond, DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}})
@@ -313,7 +313,7 @@ func TestInterruptedSessionIsRecoveredOnNextStart(t *testing.T) {
 	s2 := mk()
 	defer s2.Shutdown()
 	ls := s2.LibrarySummary()
-	if len(ls.Interrupted) != 1 || ls.Photos != 1 {
+	if len(ls.Interrupted) != 1 || ls.Photos != 3 {
 		t.Fatalf("crash recovery: %+v", ls)
 	}
 }

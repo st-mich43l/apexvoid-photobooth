@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings } from "../../../shared/types";
 
 const h = vi.hoisted(() => ({ S: {} as Record<string, unknown>, api: { patchSettings: vi.fn(), saveSettings: vi.fn() } }));
-vi.mock("../state", () => ({ useApp: () => h.S }));
-vi.mock("../api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(String(e)), { action: "" }) }));
+vi.mock("../../../app/state", () => ({ useApp: () => h.S }));
+vi.mock("../../../shared/api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(String(e)), { action: "" }) }));
 vi.mock("../MigrationDialog", () => ({ MigrationDialog: () => null }));
 import { SettingsPage } from "./Settings";
 

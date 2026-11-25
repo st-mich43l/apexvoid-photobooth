@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FrameDef } from "../../../shared/types";
 
 const h = vi.hoisted(() => ({ api: { previewDraft: vi.fn(), saveFrame: vi.fn(), importFrameImage: vi.fn(), newFrameDraft: vi.fn() } }));
-vi.mock("../api", () => ({
+vi.mock("../../../shared/api", () => ({
   api: h.api,
   AppError: class extends Error { action: string; constructor(m: string, a = "") { super(m); this.action = a; } },
   toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }),
 }));
-vi.mock("../state", async () => {
+vi.mock("../../../app/state", async () => {
   const { translate, formatTranslation } = await import("../../../shared/i18n");
   return { useApp: () => ({}), useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
 });

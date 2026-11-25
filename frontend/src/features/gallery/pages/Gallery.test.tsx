@@ -1,14 +1,14 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ api: { querySessions: vi.fn(), querySessionMedia: vi.fn(), listSessionPrintJobs: vi.fn(), trashSession: vi.fn(), restoreSession: vi.fn(), pickFolder: vi.fn(), exportSession: vi.fn(), trashMedia: vi.fn(), restoreMedia: vi.fn() }, state: { mediaUrl: (id: string) => `/media/${id}`, libraryVersion: 0, bumpLibrary: vi.fn(), toast: vi.fn() } }));
-vi.mock("../api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(String(e)), { action: "" }) }));
-vi.mock("../state", async () => {
+vi.mock("../../../shared/api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(String(e)), { action: "" }) }));
+vi.mock("../../../app/state", async () => {
   const { translate, formatTranslation } = await import("../../../shared/i18n");
   return { useApp: () => h.state, useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
 });
 vi.mock("./Editor", () => ({ Editor: () => null }));
-vi.mock("../PrintPanel", () => ({ PrintPanel: () => null }));
-vi.mock("../FrameSelection", () => ({ FrameSelection: () => null }));
+vi.mock("../../printer/PrintPanel", () => ({ PrintPanel: () => null }));
+vi.mock("../../frames/FrameSelection", () => ({ FrameSelection: () => null }));
 import { Gallery } from "./Gallery";
 const card = { id: "S001", createdAt: "2026-01-02T12:00:00Z", updatedAt: "2026-01-02T12:00:00Z", status: "completed", mode: "photo", shotsPlanned: 4, templateId: "", simulated: false, note: "", mediaCount: 1, frameId: "", frameName: "Classic", variantId: "", frameRev: 0, caption: "", frameDir: "", thumbnailId: "M1", thumbnailVersion: "thumb", photoCount: 1, hasStrip: false };
 const item = { id: "M1", sessionId: "S001", kind: "photo", slot: 0, relPath: "", thumbRel: "thumb", previewRel: "", editedRel: "", edits: "", width: 100, height: 100, sizeBytes: 1, sha256: "", durationMs: 0, simulated: false, source: "camera", status: "active", capturedAt: "2026-01-02T12:00:00Z", frameId: "", frameName: "", variantId: "", frameRev: 0, frameDir: "" };
