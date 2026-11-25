@@ -1,0 +1,26 @@
+/* Operator shell: navigation floats above the page without taking its width. */
+.studio-shell { display: block; height: 100%; }
+.studio-shell main { height: 100%; min-width: 0; overflow: auto; padding-bottom: 112px; }
+.studio-shell .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 32px 10px; }
+.studio-shell .brand { flex: 0 0 auto; padding: 0; }
+.studio-shell .brand div { display: block; }
+.studio-shell .topbar-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.studio-shell .app-version { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.studio-shell .fullscreen-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 14px; }
+.studio-shell .booth-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 14px; color: #2a1020; font-weight: 750; background: linear-gradient(135deg, #e0809f, #f6b3ca); border-color: transparent; box-shadow: 0 8px 22px rgba(224,128,159,.25); white-space: nowrap; }
+.studio-shell .page { max-width: 1400px; margin-inline: auto; }
+.studio-shell .bottom-nav { position: fixed; z-index: 30; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 24px); display: flex; flex-direction: row; align-items: center; gap: 4px; padding: 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; border: 1px solid rgba(167,139,250,.28); border-radius: 24px; background: rgba(24,17,43,.94); backdrop-filter: blur(18px); box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.08) inset; }
+.studio-shell .bottom-nav .nav-group { display: flex; flex-direction: row; flex: 0 0 auto; gap: 3px; }
+.studio-shell .bottom-nav .nav-group.tools { margin-left: 5px; padding-left: 8px; border-left: 1px solid var(--line-soft); }
+.studio-shell .bottom-nav button { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 72px; min-height: 56px; padding: 6px 9px; font-size: 11px; text-align: center; white-space: nowrap; }
+.studio-shell .bottom-nav button .nav-label { width: auto; color: inherit; font-size: 11px; }
+.studio-shell .bottom-nav button.active::before { left: 14px; right: 14px; top: auto; bottom: 2px; width: auto; height: 3px; border-radius: 3px; }
+.studio-shell .bottom-nav button:focus-visible, .studio-shell .topbar button:focus-visible { outline: 3px solid var(--rose); outline-offset: -2px; }
+@media (max-width: 760px), (orientation: portrait) {
+  .studio-shell .topbar { padding: 12px 16px 8px; }
+  .studio-shell .brand small { display: none; }
+  .studio-shell .camera-status { display: none; }
+  .studio-shell .topbar-actions { gap: 7px; }
+  .studio-shell .bottom-nav { justify-content: flex-start; }
+  .studio-shell .page { padding-inline: 16px; }
+}
