@@ -27,7 +27,7 @@ A local-first Windows photobooth for events: connect a camera, guide guests thro
 
 Official releases, when published, are at **https://photobooth.apexvoid.net/download/** with their SHA-256 checksums,
 release notes and third-party notices; see [Releasing](docs/RELEASING.md) for how a release is approved and published.
-None has been published yet. Until then, use a CI build:
+Development builds from CI are also available:
 
 1. Open the latest **successful master** [CI run](https://github.com/st-mich43l/apexvoid-photobooth/actions/workflows/ci.yml?query=branch%3Amaster) and download **ApexVoidPhotobooth-windows-x64**. GitHub wraps the artifact in a ZIP; the ZIP contains one file: `ApexVoidPhotobooth.exe`.
 2. Extract and run the executable on Windows 10 or 11 x64. The build is unsigned. Microsoft Edge WebView2 Evergreen Runtime must be installed; see [installation instructions](docs/INSTALL.md) for online and offline setup.
@@ -77,3 +77,9 @@ The production-style CI build embeds both dependencies and Windows resources. Ru
 ### Interface languages
 
 Studio and Booth support English and Vietnamese. The operator language persists independently from the configurable guest default; guests may choose a temporary language at the Booth welcome screen. Native Windows and hardware acceptance procedures are documented in [Hardware tests](docs/HARDWARE_TESTS.md).
+
+## License
+
+ApexVoid Photobooth is released under the [MIT License](LICENSE). The license covers the application's own code. The
+built-in FFmpeg (LGPL v3), the Canon EDSDK (proprietary, Canon) and the Noto Sans font (SIL OFL 1.1) keep their own
+licences; see [third-party notices](docs/THIRD-PARTY.md).

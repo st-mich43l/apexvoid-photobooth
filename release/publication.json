@@ -1,19 +1,19 @@
 {
   "$comment": "Publication approval for official releases (docs/RELEASING.md). CI publishes only when enabled is true AND every required gate is approved by the owner. Never set approved to true without the decision recorded in note.",
-  "enabled": false,
-  "variant": "standard",
+  "enabled": true,
+  "variant": "canon",
   "gates": {
     "applicationLicense": {
-      "approved": false,
-      "note": "BLOCKED: the application has no published licence (no LICENSE file). The owner must choose the terms under which the executable may be downloaded and used, and add the licence text."
+      "approved": true,
+      "note": "Owner decision 2026-11-25: the application is released under the MIT License (LICENSE, shipped as LICENSE.txt). It covers the application's own code only; bundled third-party components keep their own licences (THIRD-PARTY-NOTICES.txt)."
     },
     "ffmpegLgpl": {
-      "approved": false,
-      "note": "BLOCKED: the executable embeds an unmodified LGPL FFmpeg build. The package ships the LGPL text (THIRD-PARTY-NOTICES.txt) and the source pointers (SOURCE.md); the owner must confirm this meets the obligations for public distribution."
+      "approved": true,
+      "note": "Owner decision 2026-11-25: approved as is. The unmodified LGPL v3 FFmpeg build runs as a separate, user-replaceable process; each release ships the LGPL text (THIRD-PARTY-NOTICES.txt) and the source and build pointers (SOURCE.md)."
     },
     "canonRedistribution": {
-      "approved": false,
-      "note": "BLOCKED for the canon variant: no written authorization from Canon to redistribute the EDSDK publicly. The standard variant does not contain the SDK and does not need this gate."
+      "approved": true,
+      "note": "Owner decision 2026-11-25: the owner confirmed holding Canon's authorization to redistribute the embedded Canon EDSDK DLLs with the application. The EDSDK stays proprietary to Canon and is not covered by the MIT License."
     },
     "codeSigning": {
       "signed": false,

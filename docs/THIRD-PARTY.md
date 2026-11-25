@@ -1,5 +1,8 @@
 # Third-party software
 
+ApexVoid Photobooth itself is MIT-licensed (`LICENSE`). The components below are not covered by that licence; each
+keeps its own terms.
+
 ## FFmpeg (single-file build only)
 The single-file CI artifact `ApexVoidPhotobooth-windows-x64` contains an **unmodified FFmpeg n8.1.3 (LGPL build)** by the
 BtbN FFmpeg-Builds project (`ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1`), stored gzip-compressed inside the executable.
@@ -17,7 +20,7 @@ BtbN FFmpeg-Builds project (`ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1`), stor
 A local `go build` without `-tags embedffmpeg` contains no third-party binary.
 
 ## Canon EDSDK
-Trusted master CI builds one portable executable with the Canon EDSDK DLLs embedded. The app extracts those DLLs to the user cache when the Canon driver is used. Pull-request jobs do not receive the SDK vault password or publish the portable artifact. See docs/CAMERAS.md.
+Trusted master CI builds one portable executable with the Canon EDSDK DLLs embedded. The EDSDK is proprietary to Canon and is redistributed with the application under Canon's authorization; it is not covered by the MIT License. The app extracts those DLLs to the user cache when the Canon driver is used. Pull-request jobs do not receive the SDK vault password or publish the portable artifact. See docs/CAMERAS.md.
 
 ## Noto Sans
 
