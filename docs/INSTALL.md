@@ -57,7 +57,7 @@ The password file contains only the vault password. The script verifies the DLL 
 
 ### Gallery, export and trash
 
-Gallery pages sessions and their media on demand; search, date (UTC), mode, status, simulated and operator-test filters are applied locally in SQLite. Open a session to export a new ZIP or move it to recoverable trash. The Trashed status filter provides Restore; permanent deletion remains an explicit Empty Trash action in Settings. Active sessions cannot be trashed. See [UX5_AUDIT.md](UX5_AUDIT.md) for recovery behavior and filesystem limitations.
+Gallery pages sessions and their media on demand; search, date (UTC), mode, status, simulated and operator-test filters are applied locally in SQLite. Open a session to export a new ZIP or move it to recoverable trash. The Trashed status filter provides Restore; permanent deletion remains an explicit Empty Trash action in Settings. Active sessions cannot be trashed.
 
 ### Offline support bundle
 

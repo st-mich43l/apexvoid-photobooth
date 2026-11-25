@@ -36,7 +36,7 @@ The portable executable keeps photos, session metadata and settings outside the 
 
 CI runs Go tests and race checks, frontend type checking and tests, simulated session endurance, Windows builds, executable self-tests, and Windows spooler/GDI checks where a file-port printer is available. Trusted master builds also validate Canon SDK extraction and initialization on Windows. Pull requests do not receive the vault password and do not publish the Canon-enabled artifact.
 
-The Canon EOS R50, real webcams, physical printer output, Windows touchscreen/WebView2 journey, and power-loss recovery require testing on the target hardware. Software tests and a software printer do not establish physical delivery or production readiness. See [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md), [hardware results](docs/UX6_HARDWARE_RESULTS.md), and [release checklist](docs/UX6_RELEASE_CHECKLIST.md).
+The Canon EOS R50, real webcams, physical printer output, Windows touchscreen/WebView2 journey, and power-loss recovery require testing on the target hardware. Software tests and a software printer do not establish physical delivery or production readiness. See [Hardware tests](docs/HARDWARE_TESTS.md).
 
 ## Development
 
@@ -66,10 +66,10 @@ The production-style CI build embeds both dependencies and Windows resources. Ru
 | [Cameras](docs/CAMERAS.md) | Canon and webcam setup, supported behavior and limitations |
 | [Printing](docs/PRINTING.md) | Printer setup, calibration, spooler status and reprints |
 | [Frames](docs/FRAMES.md) | Frame layouts, the builder and custom artwork |
-| [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md) | Device, touchscreen, filesystem and endurance test procedures |
+| [Hardware tests](docs/HARDWARE_TESTS.md) | Device, touchscreen, filesystem and endurance test procedures |
 | [Architecture](docs/ARCHITECTURE.md) | Application components and design decisions |
 | [Third-party notices](docs/THIRD-PARTY.md) | Embedded components and their notices |
 
 ### Interface languages
 
-Studio and Booth support English and Vietnamese. The operator language persists independently from the configurable guest default; guests may choose a temporary language at the Booth welcome screen. See [the UX7 implementation audit](docs/UX7_AUDIT.md) for translation architecture, coverage, screenshots and remaining native Windows/hardware acceptance.
+Studio and Booth support English and Vietnamese. The operator language persists independently from the configurable guest default; guests may choose a temporary language at the Booth welcome screen. Native Windows and hardware acceptance procedures are documented in [Hardware tests](docs/HARDWARE_TESTS.md).
