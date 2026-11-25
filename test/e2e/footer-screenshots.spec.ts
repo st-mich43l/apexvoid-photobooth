@@ -12,14 +12,14 @@ test.describe("footer screenshots", () => {
   ];
 
   for (const scenario of cases) {
-    test(`before: ${scenario.name}`, async ({ page }) => {
-      await mkdir("artifacts/footer-shots/before", { recursive: true });
+    test(`after: ${scenario.name}`, async ({ page }) => {
+      await mkdir("artifacts/footer-shots/after", { recursive: true });
       await page.setViewportSize({ width: scenario.width, height: scenario.height });
       await page.emulateMedia({ colorScheme: scenario.scheme });
       await page.goto(scenario.path);
       const footer = page.locator("footer");
       await expect(footer).toBeVisible();
-      await footer.screenshot({ path: `artifacts/footer-shots/before/${scenario.name}.png` });
+      await footer.screenshot({ path: `artifacts/footer-shots/after/${scenario.name}.png` });
     });
   }
 });
