@@ -148,6 +148,6 @@ Every row is **UNVERIFIED** until a person fills it in.
 | G14 | Tab through a dialog with a keyboard; press Escape | Focus stays inside; Escape closes only that dialog; focus returns to the opener | ☐ |
 | G15 | Change a setting on Settings, then (before saving) choose a camera or preselect a frame on another page, then Save | The camera/frame choice is still there afterwards | ☐ |
 
-## UX-6 acceptance
+## Language acceptance
 
-Use [UX6_WINDOWS_ACCEPTANCE.md](UX6_WINDOWS_ACCEPTANCE.md) for the expanded Windows, Canon, webcam, printer, filesystem and endurance protocol. Record actual results in [UX6_HARDWARE_RESULTS.md](UX6_HARDWARE_RESULTS.md); its scenarios remain UNVERIFIED until performed on physical hardware. The existing software-printer CI result is not evidence of physical paper delivery.
+Repeat the desktop and kiosk flows above in English and Vietnamese, switching the operator language with unsaved settings and selecting the guest language separately. Confirm language persistence after restart, reset between guests, keyboard/touch operation, unclipped Vietnamese diacritics and labels, and all three resolutions and scaling levels. Record actual results on the target machine; these scenarios remain UNVERIFIED until performed on physical hardware. The existing software-printer CI result is not evidence of physical paper delivery.
