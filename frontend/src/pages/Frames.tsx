@@ -9,7 +9,14 @@ import { Icon } from "../icons";
 import { Confirm } from "../ui";
 import type { AssetInfo, Frame, FrameDef } from "../types";
 
-/** Studio: every frame (built-in and custom). The operator chooses which ones guests can pick in Booth Mode. */
+// Keep the catalogue manageable while retaining saved choices and custom work.
+// The underlying built-ins remain available for existing sessions and layouts.
+const SAMPLE_FRAME_IDS = new Set([
+  "plain.strip4", "plain.strip3", "plain.strip2", "plain.single", "plain.sheet6",
+  "rose-pink.strip4", "film-strip.strip4",
+]);
+
+/** Studio: sample, custom, and previously chosen frames. */
 export function Frames() {
   const { settings, setSettings, toast, frameUrl } = useApp();
   const { t, tf } = useT();
@@ -25,6 +32,7 @@ export function Frames() {
   const [layoutFilter, setLayoutFilter] = useState("");
   const [source, setSource] = useState("all");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [showAllBuiltins, setShowAllBuiltins] = useState(false);
   const [pendingHide, setPendingHide] = useState<Frame | "bulk" | null>(null);
   const [bulkError, setBulkError] = useState("");
   const { error, run, busy } = useAction();
@@ -40,7 +48,11 @@ export function Frames() {
   }), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [load]);
 
-  const shown = useMemo(() => filterFrames(frames ?? [], { category, photos: count }).filter((f) => (visibility === "all" || (visibility === "offered" ? f.enabled : !f.enabled)) && (!search || f.name.toLowerCase().includes(search.toLowerCase())) && (!layoutFilter || f.format === layoutFilter) && (source === "all" || (source === "builtin" ? f.builtin : !f.builtin)) && (!onlyFavorites || f.favorite)), [frames, category, count, visibility, search, layoutFilter, source, onlyFavorites]);
+  const displayFrames = useMemo(() => (frames ?? []).filter((f) =>
+    showAllBuiltins || !f.builtin || SAMPLE_FRAME_IDS.has(f.id) || f.enabled || f.favorite || f.id === settings.templateId
+  ), [frames, settings.templateId, showAllBuiltins]);
+  const displayCategories = useMemo(() => categories.filter((c) => displayFrames.some((f) => f.category === c)), [categories, displayFrames]);
+  const shown = useMemo(() => filterFrames(displayFrames, { category, photos: count }).filter((f) => (visibility === "all" || (visibility === "offered" ? f.enabled : !f.enabled)) && (!search || f.name.toLowerCase().includes(search.toLowerCase())) && (!layoutFilter || f.format === layoutFilter) && (source === "all" || (source === "builtin" ? f.builtin : !f.builtin)) && (!onlyFavorites || f.favorite)), [displayFrames, category, count, visibility, search, layoutFilter, source, onlyFavorites]);
   const enabledCount = (frames ?? []).filter((f) => f.enabled).length;
 
   const toggle = (f: Frame, on: boolean) => run(async () => {
@@ -63,7 +75,16 @@ export function Frames() {
       await api.setFrameCatalogue(next.map((f) => f.id), favorites); setFrames(next);
     } finally { catalogueSaving.current = false; } });
   };
-  const move = (f: Frame, delta: number) => { if (!frames) return; const i = frames.findIndex((x) => x.id === f.id), j = i + delta; if (j < 0 || j >= frames.length) return; const next = [...frames]; [next[i], next[j]] = [next[j], next[i]]; saveCatalogue(next); };
+  const move = (f: Frame, delta: number) => {
+    if (!frames) return;
+    const visibleIndex = shown.findIndex((x) => x.id === f.id);
+    const neighbor = shown[visibleIndex + delta];
+    if (visibleIndex < 0 || !neighbor) return;
+    const i = frames.findIndex((x) => x.id === f.id);
+    const j = frames.findIndex((x) => x.id === neighbor.id);
+    if (i < 0 || j < 0) return;
+    const next = [...frames]; [next[i], next[j]] = [next[j], next[i]]; saveCatalogue(next);
+  };
   const favorite = (f: Frame) => { if (frames) saveCatalogue(frames.map((x) => x.id === f.id ? { ...x, favorite: !x.favorite } : x)); };
   const layouts = useMemo(() => (frames ?? []).filter((f) => f.design === "plain"), [frames]);
   // #frames/new opens the builder straight away (support and screenshots)
@@ -123,20 +144,21 @@ export function Frames() {
         </div>
         <div className="gallery-filters">
           <label>{t("searchFrames")} <input value={search} onChange={(e) => setSearch(e.target.value)} /></label>
-          <label>{t("layout")} <select value={layoutFilter} onChange={(e) => setLayoutFilter(e.target.value)}><option value="">{t("allLayouts")}</option>{[...new Set((frames ?? []).map((f) => f.format))].map((f) => <option key={f} value={f}>{f}</option>)}</select></label>
+          <label>{t("layout")} <select value={layoutFilter} onChange={(e) => setLayoutFilter(e.target.value)}><option value="">{t("allLayouts")}</option>{[...new Set(displayFrames.map((f) => f.format))].map((f) => <option key={f} value={f}>{f}</option>)}</select></label>
           <label>{t("source")} <select value={source} onChange={(e) => setSource(e.target.value)}><option value="all">{t("allFrames")}</option><option value="builtin">{t("builtIn")}</option><option value="custom">{t("custom")}</option></select></label>
           <label className="inline"><input type="checkbox" checked={onlyFavorites} onChange={(e) => setOnlyFavorites(e.target.checked)} /> {t("favoritesOnly")}</label>
+          <label className="inline"><input type="checkbox" checked={showAllBuiltins} onChange={(e) => { const checked = e.target.checked; setShowAllBuiltins(checked); if (!checked) { setCategory("All"); setLayoutFilter(""); } }} /> {t("showAllBuiltins")}</label>
         </div>
         <div className="filters" role="group" aria-label={t("categoriesLabel")}>
-          {["All", ...categories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
+          {["All", ...displayCategories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
         </div>
         <div className="filters" role="group" aria-label={t("photoCountFilter")}>
           <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>{t("anyPhotos")}</button>
-          {photoCounts(frames ?? []).map((n) => <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photosLabel(n)}</button>)}
+          {photoCounts(displayFrames).map((n) => <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photosLabel(n)}</button>)}
         </div>
         <div className="row">
           <label>{t("visibility")} <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="all">{t("all")}</option><option value="offered">{t("offered")}</option><option value="hidden">{t("hidden")}</option></select></label>
-          <span className="muted small">{tf("offeredSummary", { enabled: enabledCount, total: frames?.length ?? 0, shown: shown.length })}</span>
+          <span className="muted small">{tf("offeredSummary", { enabled: enabledCount, total: displayFrames.length, shown: shown.length })}</span>
           <button onClick={() => bulk(true)} disabled={busy || !shown.length}>{t("offerAll")}</button>
           <button onClick={() => { if (shown.filter((f) => f.enabled).length === enabledCount && enabledCount > 0) setPendingHide("bulk"); else void bulk(false); }} disabled={busy || !shown.length}>{t("hideAll")}</button>
         </div>
@@ -154,8 +176,8 @@ export function Frames() {
             <label className="inline"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => { if (!e.target.checked && enabledCount === 1 && f.enabled) setPendingHide(f); else void toggle(f, e.target.checked); }} aria-label={`Offer ${f.name} ${f.format} in Booth Mode`} /> {t("offeredInBooth")}</label>
             <div className="row">
               <button aria-label={tf(f.favorite ? "unpinFrame" : "pinFrame", { name: f.name })} onClick={() => favorite(f)} disabled={busy}>{f.favorite ? `★ ${t("favorite")}` : `☆ ${t("favorite")}`}</button>
-              <button aria-label={tf("moveFrameEarlier", { name: f.name })} onClick={() => move(f, -1)} disabled={busy || frames?.[0]?.id === f.id}>↑</button>
-              <button aria-label={tf("moveFrameLater", { name: f.name })} onClick={() => move(f, 1)} disabled={busy || frames?.at(-1)?.id === f.id}>↓</button>
+              <button aria-label={tf("moveFrameEarlier", { name: f.name })} onClick={() => move(f, -1)} disabled={busy || shown[0]?.id === f.id}>↑</button>
+              <button aria-label={tf("moveFrameLater", { name: f.name })} onClick={() => move(f, 1)} disabled={busy || shown.at(-1)?.id === f.id}>↓</button>
               <button className={settings.templateId === f.id ? "" : "primary"} disabled={settings.templateId === f.id || !f.enabled} onClick={() => makeDefault(f)}>
                 {settings.templateId === f.id ? t("framePreselected") : t("preselect")}
               </button>

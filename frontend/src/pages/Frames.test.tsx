@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Frame } from "../types";
 
@@ -64,6 +64,54 @@ describe("Frames page: import a PNG as a frame", () => {
     expect(h.api.importPngFrame).not.toHaveBeenCalled();
     expect((h.S.toast as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("That image is larger than 15 MB.", "err");
   });
+  it("shows a small sample set while keeping all layouts available in the builder", async () => {
+    const layouts = ["strip4", "strip3", "strip2", "twoup4", "sheet6", "sheet4", "sheet2", "p57", "single"];
+    const designs = ["plain", "rose-pink", "film-strip", ...Array.from({ length: 14 }, (_, i) => `extra${i}`)];
+    const samples = new Set(["plain.strip4", "plain.strip3", "plain.strip2", "plain.single", "plain.sheet6", "rose-pink.strip4", "film-strip.strip4"]);
+    const frames = designs.flatMap((design) => layouts.map((layout) => ({ ...fr(`${design}.${layout}`, design, 4), category: design === "extra0" ? "Extra" : "Plain", enabled: design === "plain" && samples.has(`${design}.${layout}`) })));
+    h.api.listFrames.mockResolvedValue({ frames, categories: ["Plain", "Extra"], errors: [], dir: "", default: "plain.strip4" });
+    render(<Frames />);
+    await screen.findByText("plain.strip4");
+    expect(document.querySelectorAll(".grid.templates .tpl")).toHaveLength(7);
+    expect(screen.getByText("rose-pink.strip4")).toBeTruthy();
+    expect(screen.getByText("film-strip.strip4")).toBeTruthy();
+    expect(screen.queryByText("extra0.strip4")).toBeNull();
+    expect(within(screen.getAllByRole("combobox", { name: "Layout" })[0]).getAllByRole("option")).toHaveLength(9);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show all built-in designs" }));
+    expect(document.querySelectorAll(".grid.templates .tpl")).toHaveLength(153);
+    expect(screen.getByText("extra0.strip4")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Extra" }));
+    expect(document.querySelectorAll(".grid.templates .tpl")).toHaveLength(9);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show all built-in designs" }));
+    expect(document.querySelectorAll(".grid.templates .tpl")).toHaveLength(7);
+  });
+
+  it("keeps custom, offered, favorite and preselected frames visible", async () => {
+    const frames = [
+      fr("plain.strip4", "plain", 4),
+      { ...fr("previously-offered", "old", 4), enabled: true },
+      { ...fr("favorite", "old", 4), enabled: false, favorite: true },
+      { ...fr("my-custom", "custom", 4), enabled: false, builtin: false, editable: true },
+      { ...fr("preselected", "old", 4), enabled: false },
+      { ...fr("unused", "old", 4), enabled: false },
+    ];
+    h.S.settings = { templateId: "preselected" };
+    h.api.listFrames.mockResolvedValue({ frames, categories: ["Plain"], errors: [], dir: "", default: "preselected" });
+    render(<Frames />);
+    await screen.findByText("previously-offered");
+    for (const name of ["favorite", "my-custom", "preselected"]) expect(screen.getByText(name)).toBeTruthy();
+    expect(screen.queryByText("unused")).toBeNull();
+  });
+
+  it("reorders adjacent visible frames without dropping hidden catalogue entries", async () => {
+    const frames = [fr("plain.strip4", "plain", 4), { ...fr("hidden-built-in", "old", 4), enabled: false }, { ...fr("rose-pink.strip4", "rose-pink", 4), enabled: false }];
+    h.api.listFrames.mockResolvedValue({ frames, categories: ["Plain"], errors: [], dir: "", default: "plain.strip4" });
+    h.api.setFrameCatalogue.mockResolvedValue(undefined);
+    render(<Frames />); await screen.findByText("rose-pink.strip4");
+    fireEvent.click(screen.getByRole("button", { name: "Move rose-pink.strip4 earlier" }));
+    await waitFor(() => expect(h.api.setFrameCatalogue).toHaveBeenCalledWith(["rose-pink.strip4", "hidden-built-in", "plain.strip4"], {}));
+  });
+
   it("filters frames by name and persists ordering", async () => {
     h.api.listFrames.mockResolvedValue({ frames: [fr("plain.strip4", "plain", 4), fr("rose", "rose", 3)], categories: ["Plain"], errors: [], dir: "", default: "plain.strip4" });
     h.api.setFrameCatalogue.mockResolvedValue(undefined);
