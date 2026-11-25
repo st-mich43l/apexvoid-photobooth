@@ -25,6 +25,10 @@ A local-first Windows photobooth for events: connect a camera, guide guests thro
 
 ## Download and run
 
+Official releases, when published, are at **https://photobooth.apexvoid.net/download/** with their SHA-256 checksums,
+release notes and third-party notices; see [Releasing](docs/RELEASING.md) for how a release is approved and published.
+None has been published yet. Until then, use a CI build:
+
 1. Open the latest **successful master** [CI run](https://github.com/st-mich43l/apexvoid-photobooth/actions/workflows/ci.yml?query=branch%3Amaster) and download **ApexVoidPhotobooth-windows-x64**. GitHub wraps the artifact in a ZIP; the ZIP contains one file: `ApexVoidPhotobooth.exe`.
 2. Extract and run the executable on Windows 10 or 11 x64. The build is unsigned. Microsoft Edge WebView2 Evergreen Runtime must be installed; see [installation instructions](docs/INSTALL.md) for online and offline setup.
 3. On first use, the app automatically extracts its embedded Canon EDSDK DLLs and FFmpeg into the current user's cache. No separate SDK or FFmpeg installation is required for this build. An explicitly configured or nearby SDK/FFmpeg can take precedence.

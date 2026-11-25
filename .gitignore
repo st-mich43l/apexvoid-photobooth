@@ -21,3 +21,5 @@ frontend/dist-harness
 
 # SDK files supplied only when building an SDK-enabled executable
 internal/camera/edsdk/embedded/
+
+__pycache__/

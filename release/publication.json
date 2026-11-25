@@ -1,0 +1,23 @@
+{
+  "$comment": "Publication approval for official releases (docs/RELEASING.md). CI publishes only when enabled is true AND every required gate is approved by the owner. Never set approved to true without the decision recorded in note.",
+  "enabled": false,
+  "variant": "standard",
+  "gates": {
+    "applicationLicense": {
+      "approved": false,
+      "note": "BLOCKED: the application has no published licence (no LICENSE file). The owner must choose the terms under which the executable may be downloaded and used, and add the licence text."
+    },
+    "ffmpegLgpl": {
+      "approved": false,
+      "note": "BLOCKED: the executable embeds an unmodified LGPL FFmpeg build. The package ships the LGPL text (THIRD-PARTY-NOTICES.txt) and the source pointers (SOURCE.md); the owner must confirm this meets the obligations for public distribution."
+    },
+    "canonRedistribution": {
+      "approved": false,
+      "note": "BLOCKED for the canon variant: no written authorization from Canon to redistribute the EDSDK publicly. The standard variant does not contain the SDK and does not need this gate."
+    },
+    "codeSigning": {
+      "signed": false,
+      "note": "No code-signing certificate. Releases are published with signed: false and the website says the executable is not code-signed."
+    }
+  }
+}
