@@ -35,7 +35,9 @@ const legalLinks = [
 ---
 
 <footer class="border-t border-line bg-elevated">
-  <div class="container-site py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-[calc(2.5rem+env(safe-area-inset-bottom))]">
+  class:list={[
+    "container-site py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-[calc(2.5rem+env(safe-area-inset-bottom))]",
+  ]}
     <div class="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] lg:gap-x-8 lg:gap-y-0">
       <div class="col-span-2 lg:col-span-1">
         <Logo />
@@ -52,7 +54,9 @@ const legalLinks = [
               <li>
                 <a
                   href={l.href}
-                  class="inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                  class:list={[
+                    "inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
+                  ]}
                   {...("external" in l ? { target: "_blank", rel: "noopener" } : {})}
                 >
                   {l.label}
@@ -71,7 +75,9 @@ const legalLinks = [
             <li>
               <a
                 href={l.href}
-                class="inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                class:list={[
+                  "inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
+                ]}
               >
                 {l.label}
               </a>
@@ -88,7 +94,9 @@ const legalLinks = [
             <li>
               <a
                 href={l.href}
-                class="inline-flex min-h-11 items-center text-sm text-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                class:list={[
+                  "inline-flex min-h-11 items-center text-sm text-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
+                ]}
               >
                 {l.label}
               </a>

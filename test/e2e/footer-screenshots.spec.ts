@@ -38,7 +38,8 @@ test.describe("footer behavior", () => {
       for (const href of ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"]) {
         expect(visibleLinkHrefs.filter((value) => value === href), `${href} visible at ${width}px`).toHaveLength(1);
       }
-      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `overflow at ${width}px`).toBeLessThanOrEqual(0);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, `overflow at ${width}px`).toBeLessThanOrEqual(0);
       const clipped = await footer.locator("a:visible").evaluateAll((links) =>
         links.filter((link) => {
           const rect = link.getBoundingClientRect();
