@@ -35,6 +35,10 @@ jobs:
           GOOS=windows GOARCH=amd64 go vet ./...
       - name: test
         run: go test -count=1 ./internal/...
+      - name: 100 simulated sessions (not physical hardware acceptance)
+        env:
+          UX6_ENDURANCE: '1'
+        run: go test -count=1 -v ./internal/capture -run '^TestSimulatedEndurance100Sessions$'
       - name: test with race detector (concurrency-critical packages)
         run: go test -race -count=1 ./internal/camera/... ./internal/capture/... ./internal/sessions/... ./internal/video/... ./internal/storage/...
 
