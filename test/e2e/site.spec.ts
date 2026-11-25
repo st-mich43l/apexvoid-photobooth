@@ -244,7 +244,7 @@ test.describe("download", () => {
     await expect(page.locator('main a[href*="/downloads/releases/"]')).toHaveCount(0);
     await serveManifest(page, manifest("manifest-valid.json"));
     await panel(page).getByRole("button", { name: "Try again" }).click();
-    await expect(page.locator("[data-download-panel]")).toHaveAttribute("data-state", "available");
+    await expect(panel(page)).toHaveAttribute("data-state", "available");
   });
 
   for (const [label, body] of [
@@ -315,7 +315,7 @@ test.describe("layout", () => {
     for (const width of [320, 360, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 840 });
       await page.goto("/download/");
-      await expect(panel(page)).toHaveAttribute("data-state", "available");
+      await expect(page.locator("[data-download-panel]")).toHaveAttribute("data-state", "available");
       const overflow = await page.evaluate(() => {
         const viewport = document.documentElement.clientWidth;
         return Array.from(document.querySelectorAll("main *"))
