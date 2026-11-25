@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
+import { useLocale } from "../locale";
+import { translate } from "../i18n";
 import { Icon } from "../icons";
 import { Badge } from "../ui";
-import { VIEW_LABEL, VIEW_TONE, type View } from "./status";
+import { VIEW_TONE, type View } from "./status";
 
 /** The same pill for the same state on every Studio page. */
 export function StatusPill({ view, label }: { view: View; label?: string }) {
-  return <Badge kind={VIEW_TONE[view]}>{label ?? VIEW_LABEL[view]}</Badge>;
+  const language = useLocale();
+  const keys = { ready: "viewReady", setup: "viewSetup", warning: "warning", unavailable: "viewUnavailable", unverified: "viewUnverified", demo: "viewDemo", info: "viewInfo" } as const;
+  return <Badge kind={VIEW_TONE[view]}>{label ?? translate(language, keys[view])}</Badge>;
 }
 
 /** One header for every Studio page: title, an optional one-line purpose, and the page's actions on the right. */

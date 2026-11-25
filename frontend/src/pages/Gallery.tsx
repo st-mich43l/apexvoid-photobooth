@@ -9,12 +9,17 @@ import { PrintPanel } from "../PrintPanel";
 import { FrameSelection } from "../FrameSelection";
 import type { FrameChoice } from "../types";
 import { jobActive } from "../printInfo";
+import type { TranslationKey } from "../i18n";
 
 const initialQuery: SessionQuery = { search: "", mode: "", status: "", simulated: "all", from: "", to: "", cursor: "", limit: 40 };
 const jobStatusKey = { submitting: "jobStatusSubmitting", queued: "jobStatusQueued", printing: "jobStatusPrinting", completed: "jobStatusCompleted", removed: "jobStatusRemoved", failed: "jobStatusFailed", unknown: "jobStatusUnknown" } as const;
+const sessionStatusKeys: Record<string, TranslationKey> = {
+  active: "sessionActive", completed: "sessionCompleted", cancelled: "statusSessionCancelled", failed: "sessionFailed",
+  interrupted: "sessionInterrupted", trashing: "sessionTrashing", trashed: "sessionTrashed",
+};
 
 export function Gallery() {
-  const { mediaUrl, libraryVersion, bumpLibrary, toast } = useApp();
+  const { mediaUrl, libraryVersion, bumpLibrary, toast, settings } = useApp();
   const { t, tf } = useT();
   const [query, setQuery] = useState(initialQuery);
   const [sessions, setSessions] = useState<SessionCard[]>([]);
@@ -62,7 +67,7 @@ export function Gallery() {
   const exportSession = () => selected && run(async () => { const folder = await api.pickFolder(); if (!folder) return; const p = await api.exportSession(selected.id, folder, includeEdited); toast(tf("sessionExported", { path: p })); });
   const trash = () => selected && run(async () => { const id = selected.id; try { await api.trashSession(id); } catch (e) { setTrashSession(false); setSelected(null); bumpLibrary(); throw e; } setTrashSession(false); setSelected(null); bumpLibrary(); toast(t("sessionMovedToTrash"), "ok", () => { void run(async () => { await api.restoreSession(id); bumpLibrary(); }); }); });
   const activeIndex = open ? items.findIndex((m) => m.id === open.id) : -1;
-  const sessionStatusLabel = (status: string) => t(status === "cancelled" ? "statusSessionCancelled" : (`session${status.charAt(0).toUpperCase()}${status.slice(1)}` as Parameters<typeof t>[0]));
+  const sessionStatusLabel = (status: string) => sessionStatusKeys[status] ? t(sessionStatusKeys[status]) : status;
 
   return <div className="page">
     <header className="row"><h1>{t("gallery")}</h1>{selected && <button onClick={() => { setSelected(null); setOpen(null); }}>{t("allSessions")}</button>}</header>
@@ -79,18 +84,18 @@ export function Gallery() {
       {!loading && sessions.length === 0 && <p className="muted empty-state">{t("noSessions")}</p>}
       <div className="session-cards">{sessions.map((s) => <button className="session-card" key={s.id} onClick={() => { pendingViewer.current = null; setMediaStart(0); setSelected(s); }}>
         <div className="session-card-image">{s.thumbnailId ? <Thumbnail src={mediaUrl(s.thumbnailId, "thumb", s.thumbnailVersion)} fallback={t("noThumbnail")} /> : <span className="muted">{t("noThumbnail")}</span>}</div>
-        <strong>{when(s.createdAt)}</strong><span>{t(s.mode === "photo" ? "photoMode" : "videoMode")} · {tf(s.photoCount === 1 ? "onePhoto" : "photosCount", { count: s.photoCount })} {s.hasStrip ? `· ${t("composition")}` : `· ${t("compositionMissing")}`}</span><span>{s.frameName || t("noFrame")} · {sessionStatusLabel(s.status)}</span><small>{s.id}</small>{s.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}{s.note === "Operator camera test" && <Badge kind="info">{t("testBadge")}</Badge>}
+        <strong>{when(s.createdAt, settings?.language)}</strong><span>{t(s.mode === "photo" ? "photoMode" : "videoMode")} · {tf(s.photoCount === 1 ? "onePhoto" : "photosCount", { count: s.photoCount })} {s.hasStrip ? `· ${t("composition")}` : `· ${t("compositionMissing")}`}</span><span>{s.frameName || t("noFrame")} · {sessionStatusLabel(s.status)}</span><small>{s.id}</small>{s.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}{s.note === "Operator camera test" && <Badge kind="info">{t("testBadge")}</Badge>}
       </button>)}</div>
       {loading && <p role="status">{t("loadingSessions")}</p>}<div className="row">{history.length > 0 && <button onClick={previousPage} disabled={loading}>{t("previousSessions")}</button>}{more && <button onClick={nextPage} disabled={loading}>{t("nextSessions")}</button>}</div>
     </> : <>
-      <section className="card session-summary"><h2>{when(selected.createdAt)} {selected.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}</h2>
+      <section className="card session-summary"><h2>{when(selected.createdAt, settings?.language)} {selected.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}</h2>
         <p>{selected.id} · {t(selected.mode === "photo" ? "photoMode" : "videoMode")} · {sessionStatusLabel(selected.status)} · {selected.frameName || t("noFrame")} · {tf(selected.photoCount === 1 ? "onePhoto" : "photosCount", { count: selected.photoCount })}</p>
         {selected.note && <p className="note warn">{selected.note}</p>}
         <div className="row"><label className="inline"><input type="checkbox" checked={includeEdited} onChange={(e) => setIncludeEdited(e.target.checked)} /> {t("includeEdits")}</label><button onClick={exportSession} disabled={selected.status === "active" || selected.status === "trashing" || selected.status === "trashed"}>{t("exportSession")}</button>
           {(selected.status === "trashing" || selected.status === "trashed") ? <button onClick={() => run(async () => { await api.restoreSession(selected.id); setSelected(null); bumpLibrary(); toast(t("sessionRestored")); })}>{t("restoreSession")}</button> : <button className="danger" disabled={selected.status === "active"} onClick={() => setTrashSession(true)}>{t("trashSession")}</button>}</div>
       </section>
       <h3>{t("sessionMedia")}</h3><p className="muted small">{t("originalsOrder")}</p>
-      <div className="gallery">{items.map((m) => <button key={m.id} className={`tile ${m.kind}`} onClick={() => setOpen(m)} aria-label={`${m.kind} from ${when(m.capturedAt)}`}>
+      <div className="gallery">{items.map((m) => <button key={m.id} className={`tile ${m.kind}`} onClick={() => setOpen(m)} aria-label={tf("mediaFrom", { kind: m.kind === "photo" ? t("photo").toLowerCase() : m.kind === "video" ? t("video").toLowerCase() : t("photoStrip").toLowerCase(), date: when(m.capturedAt, settings?.language) })}>
         {m.status === "missing" ? <div className="no-thumb err">{t("fileMissing")}</div> : m.thumbRel ? <Thumbnail src={mediaUrl(m.id, "thumb", m.editedRel || m.thumbRel)} fallback={t("thumbUnavailable")} /> : <div className="no-thumb">{m.kind}</div>}
         <span className="tag">{m.kind === "video" ? `▶ ${clock(m.durationMs)}` : m.kind === "photo" ? tf("photoSlot", { number: m.slot + 1 }) : m.kind}</span>{m.editedRel && <span className="edit-tag">{t("editedTag")}</span>}{m.status === "partial" && <span className="sim-tag warn">{t("partialRecording")}</span>}
       </button>)}</div>
@@ -100,7 +105,7 @@ export function Gallery() {
           <>
             {printJobs.map((j) => (
               <div className="row" key={j.id}>
-                <span>{when(j.createdAt)} · {j.printer} · {j.paperName} · {t(jobStatusKey[j.status])}{j.parentId ? ` · reprint #${j.attempt - 1}` : ""}</span>
+                <span>{when(j.createdAt, settings?.language)} · {j.printer} · {j.paperName} · {t(jobStatusKey[j.status])}{j.parentId ? ` · ${tf("reprintNumber", { number: j.attempt - 1 })}` : ""}</span>
                 {!jobActive(j.status) && j.status !== "unknown" && <button onClick={() => setConfirmPrint(j)}>{t("reprint")}</button>}
               </div>
             ))}
@@ -119,13 +124,12 @@ export function Gallery() {
 }
 
 function Thumbnail({ src, fallback }: { src: string; fallback: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  return failed ? <span className="no-thumb">{fallback}</span> : <img loading="lazy" decoding="async" src={src} alt="" onError={() => setFailed(true)} />;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  return failedSrc === src ? <span className="no-thumb">{fallback}</span> : <img loading="lazy" decoding="async" src={src} alt="" onError={() => setFailedSrc(src)} />;
 }
 
 function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { media: Media; onClose: () => void; onDelete: () => void; onChanged: (m: Media) => void; onPrevious?: () => void; onNext?: () => void }) {
-  const { mediaUrl, toast } = useApp();
+  const { mediaUrl, toast, settings } = useApp();
   const { t, tf } = useT();
   const [editing, setEditing] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -148,8 +152,8 @@ function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { m
           : imageFailed ? <div className="note err">{t("viewerPreviewFailed")}</div>
           : <div className="viewer-image-viewport"><img style={{ zoom }} src={mediaUrl(media.id, showOriginal ? "original" : "preview", ver + (showOriginal ? "o" : ""))} alt={t("selectedPhoto")} onError={() => setImageFailed(true)} /></div>}
         <dl className="meta">
-          <dt>{t("capturedAt")}</dt><dd>{when(media.capturedAt)}</dd>
-          <dt>{t("size")}</dt><dd>{media.width}×{media.height}{isVideo ? ` · ${clock(media.durationMs)}` : ""} · {bytes(media.sizeBytes)}</dd>
+          <dt>{t("capturedAt")}</dt><dd>{when(media.capturedAt, settings?.language)}</dd>
+          <dt>{t("size")}</dt><dd>{media.width}×{media.height}{isVideo ? ` · ${clock(media.durationMs)}` : ""} · {bytes(media.sizeBytes, settings?.language)}</dd>
           {media.frameName && <><dt>{t("frame")}</dt><dd>{media.frameName}{media.variantId ? ` · ${media.variantId}` : ""}</dd></>}
           <dt>{t("sourceLabel")}</dt><dd>{media.source || "—"} {media.simulated && <Badge kind="sim">{t("simulatedNotPhoto")}</Badge>} {media.status === "partial" && <Badge kind="warn">{t("partialRecording")}</Badge>}</dd>
         </dl>

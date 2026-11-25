@@ -1,3 +1,5 @@
+import { useLocale } from "../locale";
+import { translate } from "../i18n";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FrameDef } from "../types";
 import type { Selection } from "./draft";
@@ -30,6 +32,7 @@ const same = (a: Selection, b: Selection) => a.type === b.type && (a.type === "f
 
 /** The editing surface. The picture is rendered by the Go renderer; boxes and handles are drawn on top in percent of the canvas, so screen pixels always map exactly to print inches. */
 export function Canvas({ draft, imageSrc, zoom, selection, snap, showGrid, busy, onSelect, onChange }: Props) {
+  const language = useLocale();
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 600, h: 600 });
@@ -91,7 +94,7 @@ export function Canvas({ draft, imageSrc, zoom, selection, snap, showGrid, busy,
     <div className="fb-stage" ref={stageRef} onPointerDown={() => onSelect({ type: "frame" })} data-testid="fb-stage">
       <div className="fb-canvas" ref={canvasRef} style={{ width: shownW, height: shownH }} data-testid="fb-canvas"
         data-w={shownW} data-h={shownH}>
-        {imageSrc ? <img src={imageSrc} alt="Frame preview" draggable={false} className={busy ? "busy" : ""} /> : <div className="fb-loading"><div className="spinner" /></div>}
+        {imageSrc ? <img src={imageSrc} alt={translate(language, "builderFramePreview")} draggable={false} className={busy ? "busy" : ""} /> : <div className="fb-loading"><div className="spinner" /></div>}
         {showGrid && <div className="fb-grid" style={{ backgroundSize: `${(GRID / W) * 100}% ${(GRID / H) * 100}%` }} />}
         {list.filter((i) => !i.hidden).map((it) => {
           const isSel = same(it.sel, selection);

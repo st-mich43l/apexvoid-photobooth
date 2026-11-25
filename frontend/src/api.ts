@@ -6,13 +6,31 @@ import type {
 
 // Wails addresses a bound method by "<go package path>.<type>.<method>".
 const SVC = "github.com/st-mich43l/apexvoid-photobooth/internal/app.Service";
+// Categorise failures from the operation that failed, never by parsing English text.
+// The original message/action are retained for support and unknown operations.
+const failureCodes: Record<string, string> = {};
+for (const [code, methods] of Object.entries({
+  camera_error: ["ListCameras", "ListCameraSources", "CanonStatus", "PrepareMode", "ConnectCamera", "DisconnectCamera", "StartLiveView", "StopLiveView", "SetCameraMode", "SetPreferredCamera", "ClearPreferredCamera"],
+  capture_error: ["StartPreview", "StartShooting", "RetakePhoto", "AcceptPhotos", "CancelShooting", "ResetShooting", "RecoverShooting"],
+  frame_error: ["ListFrames", "PreviewFrame", "PreviewDraft", "SaveFrame", "DeleteFrame", "ImportFrameImage", "ImportPNGFrame", "SetSessionFrame", "ComposeSession"],
+  printer_error: ["ListPrinters", "PrinterCapabilities", "PrintPreview", "PrintMedia", "PrintResult", "TestPrint", "PrintJobs", "Reprint"],
+  storage_error: ["GetSettings", "PatchSettings", "SaveSettings", "VerifyLibrary", "MigrateLibrary", "KeepLegacyLibrary", "OpenLibraryFolder", "EmptyTrash", "TrashMedia", "TrashSession", "RestoreMedia", "RestoreSession"],
+  recording_error: ["VideoDevices", "VideoState", "StartRecording", "StopRecording"],
+  export_error: ["ExportSession", "ExportMedia", "ExportSupportBundle", "RevealMedia", "PickFolder"],
+})) for (const method of methods) failureCodes[method] = code;
 const call = <T>(method: string, ...args: unknown[]): Promise<T> =>
-  Call.ByName(`${SVC}.${method}`, ...args) as unknown as Promise<T>;
+  (Call.ByName(`${SVC}.${method}`, ...args) as unknown as Promise<T>).catch((error: unknown) => {
+    const result = toAppError(error);
+    result.code ??= failureCodes[method];
+    throw result;
+  });
 
 /** An operator-facing error: what happened + what to do about it. */
 export class AppError extends Error {
   action: string;
-  constructor(message: string, action = "") { super(message); this.action = action; }
+  code?: string;
+  params?: Record<string, string | number>;
+  constructor(message: string, action = "", code?: string, params?: Record<string, string | number>) { super(message); this.action = action; this.code = code; this.params = params; }
 }
 
 /** Go sends "message\naction" (see app.UserError). */
@@ -77,8 +95,14 @@ export const api = {
   migrateLibrary: () => wrap(call<MigrationReport>("MigrateLibrary")),
   keepLegacyLibrary: () => wrap(call<void>("KeepLegacyLibrary")),
   openLibraryFolder: () => wrap(call<void>("OpenLibraryFolder")),
-  setKioskPin: (current: string, next: string) => wrap(call<void>("SetKioskPin", current, next)),
-  verifyKioskPin: (pin: string) => wrap(call<void>("VerifyKioskPin", pin)),
+  setKioskPin: async (current: string, next: string) => {
+    const result = await wrap(call<{ ok: boolean; code?: string; retrySeconds?: number; diagnostic?: string }>("SetKioskPinDetailed", current, next));
+    if (!result.ok) throw new AppError(result.diagnostic || "PIN could not be updated.", "", result.code, { seconds: result.retrySeconds ?? 0 });
+  },
+  verifyKioskPin: async (pin: string) => {
+    const result = await wrap(call<{ ok: boolean; code?: string; retrySeconds?: number }>("VerifyKioskPinDetailed", pin));
+    if (!result.ok) throw new AppError(result.code === "pin_wrong" ? "Wrong PIN." : "PIN verification unavailable or locked.", "", result.code, { seconds: result.retrySeconds ?? 0 });
+  },
   librarySummary: () => wrap(call<LibrarySummary>("LibrarySummary")),
 
   listFrames: (includeDisabled = false) => wrap(call<FramesResult>("ListFrames", includeDisabled)),

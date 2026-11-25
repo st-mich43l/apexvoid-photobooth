@@ -21,7 +21,7 @@ A local-first Windows photobooth for events: connect a camera, guide guests thro
 - **Cameras:** Canon EDSDK integration for compatible EOS cameras, Windows webcam capture through FFmpeg, and a clearly labelled simulated camera for testing.
 - **Frames and printing:** built-in layouts, a frame builder, custom PNG frames, 300/600 DPI composition, Windows printer setup, print history and reprints.
 - **Media library:** local SQLite metadata and files, paginated session browsing, search, editing, session ZIP export, recoverable trash and restoration.
-- **Operator tools:** setup and readiness checks, English and Vietnamese interface resources, offline support diagnostics, and library backup and recovery guidance.
+- **Operator tools:** setup and readiness checks, a complete English/Vietnamese interface, an independent guest-language preference, offline support diagnostics, and library backup and recovery guidance.
 
 ## Download and run
 
@@ -69,3 +69,7 @@ The production-style CI build embeds both dependencies and Windows resources. Ru
 | [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md) | Device, touchscreen, filesystem and endurance test procedures |
 | [Architecture](docs/ARCHITECTURE.md) | Application components and design decisions |
 | [Third-party notices](docs/THIRD-PARTY.md) | Embedded components and their notices |
+
+### Interface languages
+
+Studio and Booth support English and Vietnamese. The operator language persists independently from the configurable guest default; guests may choose a temporary language at the Booth welcome screen. See [the UX7 implementation audit](docs/UX7_AUDIT.md) for translation architecture, coverage, screenshots and remaining native Windows/hardware acceptance.

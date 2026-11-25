@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import { api, toAppError } from "../api";
-import { Modal } from "../ui";
+import { translate } from "../i18n";
+import { useLocale } from "../locale";
+import { LocalizedDiagnostic, Modal } from "../ui";
 import { useApp } from "../state";
 import type { ReadinessItem } from "../types";
-import { blockers, FIX } from "./status";
+import { blockers, FIX, readinessTranslation } from "./status";
 
 /**
  * "Open Booth Mode" for the operator, with a fresh check first.
@@ -14,7 +16,13 @@ import { blockers, FIX } from "./status";
  * Booth Mode itself still asks the backend before every guest session (startCheck), so this is a convenience, not the guard.
  */
 export function useOpenBooth(launch: () => void, go: (page: string) => void): { open: () => void; busy: boolean; dialog: ReactNode } {
-  const { refreshReadiness } = useApp();
+  const { refreshReadiness, settings } = useApp();
+  const language = useLocale(settings?.language);
+  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
+  const fixLabels: Record<string, Parameters<typeof translate>[1]> = {
+    camera: "cameraSetup", capture: "cameraSetup", storage: "librarySettings", library: "librarySettings", space: "librarySettings",
+    frames: "manageFrames", printer: "printerSetup", session: "openSession", interrupted: "openGallery",
+  };
   const [busy, setBusy] = useState(false);
   const [failing, setFailing] = useState<ReadinessItem[] | null>(null);
   const [error, setError] = useState("");
@@ -37,22 +45,22 @@ export function useOpenBooth(launch: () => void, go: (page: string) => void): { 
   }, [launch, refreshReadiness]);
 
   const dialog = failing && (
-    <Modal title="Booth Mode is not ready yet" onClose={() => setFailing(null)}>
+    <Modal title={t("readinessBlockedTitle")} onClose={() => setFailing(null)}>
       <div className="modal-body">
-        <p>Guests cannot take photos until this is fixed:</p>
-        {error && <div className="note err" role="alert"><div>{error}</div></div>}
+        <p>{t("readinessBlockedBody")}</p>
+        {error && <div className="note err" role="alert"><div><LocalizedDiagnostic text={error} summary="errorCamera" /></div></div>}
         <ul className="blockers">
           {failing.map((it) => (
             <li key={it.key}>
-              <strong>{it.label}</strong><span>{it.detail}</span>{it.action && <em>{it.action}</em>}
-              {FIX[it.key] && <button onClick={() => { setFailing(null); go(FIX[it.key][0]); }}>{FIX[it.key][1]}</button>}
+              {language === "vi" ? <><strong>{readinessTranslation(it, t).label}</strong><span>{readinessTranslation(it, t).detail}</span><em>{readinessTranslation(it, t).action}</em><details><summary>{t("technicalDetails")}</summary>{it.detail} {it.action}</details></> : <><strong>{it.label}</strong><span>{it.detail}</span>{it.action && <em>{it.action}</em>}</>}
+              {FIX[it.key] && <button onClick={() => { setFailing(null); go(FIX[it.key][0]); }}>{language === "vi" ? t(fixLabels[it.key] ?? "settings") : FIX[it.key][1]}</button>}
             </li>
           ))}
         </ul>
       </div>
       <footer>
-        <button onClick={() => setFailing(null)}>Close</button>
-        <button className="primary" disabled={busy} onClick={open}>{busy ? "Checking…" : "Check again"}</button>
+        <button onClick={() => setFailing(null)}>{t("close")}</button>
+        <button className="primary" disabled={busy} onClick={open}>{busy ? t("checkingStatus") : t("checkAgain")}</button>
       </footer>
     </Modal>
   );

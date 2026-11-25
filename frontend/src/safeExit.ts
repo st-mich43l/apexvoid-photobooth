@@ -1,5 +1,7 @@
 import type { ShootSnapshot, VideoState } from "./types";
 
+export type ExitProgress = "savingVideo" | "stoppingVideo" | "finishingPhoto" | "savingPhotos" | "closingSession" | "restoringWindow";
+
 export interface ExitDeps {
   /** always the latest state (read through refs, not captured values) */
   getVideo(): VideoState;
@@ -10,9 +12,12 @@ export interface ExitDeps {
   sleep?(ms: number): Promise<void>;
   /** progress text for the dialog */
   onStep?(text: string): void;
+  onProgress?(step: ExitProgress): void;
 }
 
 export class ExitBlockedError extends Error {}
+/** The session was closed safely, but the native window could not be restored. */
+export class ExitWindowError extends Error {}
 
 const real = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -43,14 +48,14 @@ export function exitImpact(video: VideoState, shoot: ShootSnapshot): { recording
  */
 export async function safeExit(d: ExitDeps): Promise<void> {
   const sleep = d.sleep ?? real;
-  const step = d.onStep ?? (() => {});
+  const step = (code: ExitProgress, text: string) => { d.onStep?.(text); d.onProgress?.(code); };
 
   if (d.getVideo().state === "saving") {
-    step("Waiting for the video to finish saving…");
+    step("savingVideo", "Waiting for the video to finish saving…");
     if (!(await waitUntil(() => d.getVideo().state !== "saving", sleep, 30_000))) throw new ExitBlockedError("The video is still being saved. Try again in a moment.");
   }
   if (d.getVideo().state === "recording") {
-    step("Stopping and saving the recording…");
+    step("stoppingVideo", "Stopping and saving the recording…");
     await d.stopRecording();
     if (!(await waitUntil(() => !["recording", "saving"].includes(d.getVideo().state), sleep, 30_000))) throw new ExitBlockedError("The recording is still being saved. Try again in a moment.");
     const v = d.getVideo();
@@ -58,18 +63,18 @@ export async function safeExit(d: ExitDeps): Promise<void> {
   }
 
   if (d.getShoot().state === "CAPTURING") {
-    step("Finishing the photo being taken…");
+    step("finishingPhoto", "Finishing the photo being taken…");
     await waitUntil(() => d.getShoot().state !== "CAPTURING", sleep, 15_000);
   }
   if (d.getShoot().state === "SAVING") {
-    step("Waiting for the photos to finish saving…");
+    step("savingPhotos", "Waiting for the photos to finish saving…");
     if (!(await waitUntil(() => d.getShoot().state !== "SAVING", sleep, 30_000))) throw new ExitBlockedError("The photos are still being saved. Try again in a moment.");
   }
   if (["COUNTDOWN", "CAPTURING", "REVIEW"].includes(d.getShoot().state)) {
-    step("Closing the photo session (photos already taken are kept)…");
+    step("closingSession", "Closing the photo session (photos already taken are kept)…");
     await d.cancelShooting();
   }
 
-  step("Restoring the desktop window…");
-  await d.leaveFullscreen();
+  step("restoringWindow", "Restoring the desktop window…");
+  try { await d.leaveFullscreen(); } catch (e) { throw new ExitWindowError(e instanceof Error ? e.message : String(e)); }
 }

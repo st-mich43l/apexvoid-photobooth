@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { photoCount } from "../i18n";
 import { api } from "../api";
-import { filterFrames, photoCounts, photosLabel } from "../frameInfo";
+import { filterFrames, categoryLabel, frameDisplayName, variantDisplayName, layoutLabel, photoCounts } from "../frameInfo";
 import { useApp, useT } from "../state";
 import { Badge, ErrorNote, useAction } from "../ui";
 import { FrameBuilder } from "../builder/FrameBuilder";
@@ -52,7 +53,7 @@ export function Frames() {
     showAllBuiltins || !f.builtin || SAMPLE_FRAME_IDS.has(f.id) || f.enabled || f.favorite || f.id === settings.templateId
   ), [frames, settings.templateId, showAllBuiltins]);
   const displayCategories = useMemo(() => categories.filter((c) => displayFrames.some((f) => f.category === c)), [categories, displayFrames]);
-  const shown = useMemo(() => filterFrames(displayFrames, { category, photos: count }).filter((f) => (visibility === "all" || (visibility === "offered" ? f.enabled : !f.enabled)) && (!search || f.name.toLowerCase().includes(search.toLowerCase())) && (!layoutFilter || f.format === layoutFilter) && (source === "all" || (source === "builtin" ? f.builtin : !f.builtin)) && (!onlyFavorites || f.favorite)), [displayFrames, category, count, visibility, search, layoutFilter, source, onlyFavorites]);
+  const shown = useMemo(() => filterFrames(displayFrames, { category, photos: count }).filter((f) => (visibility === "all" || (visibility === "offered" ? f.enabled : !f.enabled)) && (!search || f.name.toLowerCase().includes(search.toLowerCase()) || frameDisplayName(f, settings.language).toLowerCase().includes(search.toLowerCase())) && (!layoutFilter || f.format === layoutFilter) && (source === "all" || (source === "builtin" ? f.builtin : !f.builtin)) && (!onlyFavorites || f.favorite)), [displayFrames, category, count, visibility, search, layoutFilter, source, onlyFavorites, settings.language]);
   const enabledCount = (frames ?? []).filter((f) => f.enabled).length;
 
   const toggle = (f: Frame, on: boolean) => run(async () => {
@@ -104,9 +105,9 @@ export function Frames() {
   };
   const edit = (f: Frame) => run(async () => setBuilding({ def: await api.getFrame(f.id), isNew: false }));
   const duplicate = (f: Frame) => run(async () => setBuilding({ def: await api.newFrameDraft(f.id), isNew: true }));
-  const remove = (f: Frame) => run(async () => { await api.deleteFrame(f.id); setRemoving(null); await load(); toast(tf("frameDeletedToast", { name: f.name })); });
+  const remove = (f: Frame) => run(async () => { await api.deleteFrame(f.id); setRemoving(null); await load(); toast(tf("frameDeletedToast", { name: frameDisplayName(f, settings.language) })); });
   const makeDefault = (f: Frame) => run(async () => {
-    const r = await api.patchSettings({ templateId: f.id }); setSettings(r.settings ?? { ...settings, templateId: f.id }); toast(tf("framePreselectedToast", { name: f.name }));
+    const r = await api.patchSettings({ templateId: f.id }); setSettings(r.settings ?? { ...settings, templateId: f.id }); toast(tf("framePreselectedToast", { name: frameDisplayName(f, settings.language) }));
   });
 
   return (
@@ -125,8 +126,8 @@ export function Frames() {
               <p>{t("designHint")}</p>
             </div>
             <div className="make-actions">
-              <select aria-label="Layout" value={layout} onChange={(e) => setLayout(e.target.value)}>
-                {layouts.map((f) => <option key={f.id} value={f.id}>{f.format} · {photosLabel(f.photos)}</option>)}
+              <select aria-label={t("layout")} value={layout} onChange={(e) => setLayout(e.target.value)}>
+                {layouts.map((f) => <option key={f.id} value={f.id}>{layoutLabel(f.format, settings.language)} · {photoCount(settings.language, f.photos)}</option>)}
               </select>
               <button className="primary" onClick={startNew} disabled={!layouts.length}>{t("createFrame")}</button>
             </div>
@@ -150,11 +151,11 @@ export function Frames() {
           <label className="inline"><input type="checkbox" checked={showAllBuiltins} onChange={(e) => { const checked = e.target.checked; setShowAllBuiltins(checked); if (!checked) { setCategory("All"); setLayoutFilter(""); } }} /> {t("showAllBuiltins")}</label>
         </div>
         <div className="filters" role="group" aria-label={t("categoriesLabel")}>
-          {["All", ...displayCategories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
+          {["All", ...displayCategories].map((c) => <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c === "All" ? t("all") : categoryLabel(c, settings.language)}</button>)}
         </div>
         <div className="filters" role="group" aria-label={t("photoCountFilter")}>
           <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>{t("anyPhotos")}</button>
-          {photoCounts(displayFrames).map((n) => <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photosLabel(n)}</button>)}
+          {photoCounts(displayFrames).map((n) => <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photoCount(settings.language, n)}</button>)}
         </div>
         <div className="row">
           <label>{t("visibility")} <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="all">{t("all")}</option><option value="offered">{t("offered")}</option><option value="hidden">{t("hidden")}</option></select></label>
@@ -169,21 +170,21 @@ export function Frames() {
       <div className="grid templates">
         {shown.map((f) => (
           <section key={f.id} className={`card tpl ${settings.templateId === f.id ? "selected" : ""} ${f.enabled ? "" : "off"}`}>
-            <div className="tpl-preview"><img src={frameUrl(f.id, variants[f.id] ?? "", 220)} alt={tf("framePreviewAlt", { name: f.name })} loading="lazy" /></div>
-            <h3>{f.name} {f.editable ? <Badge kind="info">{t("customBadge")}</Badge> : !f.builtin ? <Badge kind="warn">{t("fileBadge")}</Badge> : null}</h3>
-            <p className="muted small">{f.category} · {f.format} · {photosLabel(f.photos)} · {f.pixelW}×{f.pixelH} px @ {f.dpi} dpi</p>
-            {f.variants && f.variants.length > 1 && <label>{t("previewColor")} <select value={variants[f.id] ?? ""} onChange={(e) => setVariants((cur) => ({ ...cur, [f.id]: e.target.value }))}><option value="">{t("defaultLabel")}</option>{f.variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>}
-            <label className="inline"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => { if (!e.target.checked && enabledCount === 1 && f.enabled) setPendingHide(f); else void toggle(f, e.target.checked); }} aria-label={`Offer ${f.name} ${f.format} in Booth Mode`} /> {t("offeredInBooth")}</label>
+            <div className="tpl-preview"><img src={frameUrl(f.id, variants[f.id] ?? "", 220)} alt={tf("framePreviewAlt", { name: frameDisplayName(f, settings.language) })} loading="lazy" /></div>
+            <h3>{frameDisplayName(f, settings.language)} {f.editable ? <Badge kind="info">{t("customBadge")}</Badge> : !f.builtin ? <Badge kind="warn">{t("fileBadge")}</Badge> : null}</h3>
+            <p className="muted small">{categoryLabel(f.category, settings.language)} · {layoutLabel(f.format, settings.language)} · {photoCount(settings.language, f.photos)} · {f.pixelW}×{f.pixelH} px @ {f.dpi} dpi</p>
+            {f.variants && f.variants.length > 1 && <label>{t("previewColor")} <select value={variants[f.id] ?? ""} onChange={(e) => setVariants((cur) => ({ ...cur, [f.id]: e.target.value }))}><option value="">{t("defaultLabel")}</option>{f.variants.map((v) => <option key={v.id} value={v.id}>{variantDisplayName(f, v, settings.language)}</option>)}</select></label>}
+            <label className="inline"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => { if (!e.target.checked && enabledCount === 1 && f.enabled) setPendingHide(f); else void toggle(f, e.target.checked); }} aria-label={tf("offerFrameAria", { name: frameDisplayName(f, settings.language), format: layoutLabel(f.format, settings.language) })} /> {t("offeredInBooth")}</label>
             <div className="row">
-              <button aria-label={tf(f.favorite ? "unpinFrame" : "pinFrame", { name: f.name })} onClick={() => favorite(f)} disabled={busy}>{f.favorite ? `★ ${t("favorite")}` : `☆ ${t("favorite")}`}</button>
-              <button aria-label={tf("moveFrameEarlier", { name: f.name })} onClick={() => move(f, -1)} disabled={busy || shown[0]?.id === f.id}>↑</button>
-              <button aria-label={tf("moveFrameLater", { name: f.name })} onClick={() => move(f, 1)} disabled={busy || shown.at(-1)?.id === f.id}>↓</button>
+              <button aria-label={tf(f.favorite ? "unpinFrame" : "pinFrame", { name: frameDisplayName(f, settings.language) })} onClick={() => favorite(f)} disabled={busy}>{f.favorite ? `★ ${t("favorite")}` : `☆ ${t("favorite")}`}</button>
+              <button aria-label={tf("moveFrameEarlier", { name: frameDisplayName(f, settings.language) })} onClick={() => move(f, -1)} disabled={busy || shown[0]?.id === f.id}>↑</button>
+              <button aria-label={tf("moveFrameLater", { name: frameDisplayName(f, settings.language) })} onClick={() => move(f, 1)} disabled={busy || shown.at(-1)?.id === f.id}>↓</button>
               <button className={settings.templateId === f.id ? "" : "primary"} disabled={settings.templateId === f.id || !f.enabled} onClick={() => makeDefault(f)}>
                 {settings.templateId === f.id ? t("framePreselected") : t("preselect")}
               </button>
-              {f.editable && <button onClick={() => edit(f)} aria-label={`Edit ${f.name}`}>{t("edit")}</button>}
-              <button onClick={() => duplicate(f)} aria-label={`Duplicate ${f.name}`}>{t("duplicateAction")}</button>
-              {f.editable && <button className="danger" onClick={() => setRemoving(f)} aria-label={`Delete ${f.name}`}>{t("deleteAction")}</button>}
+              {f.editable && <button onClick={() => edit(f)} aria-label={tf("editNamed", { name: frameDisplayName(f, settings.language) })}>{t("edit")}</button>}
+              <button onClick={() => duplicate(f)} aria-label={tf("duplicateNamed", { name: frameDisplayName(f, settings.language) })}>{t("duplicateAction")}</button>
+              {f.editable && <button className="danger" onClick={() => setRemoving(f)} aria-label={tf("deleteNamed", { name: frameDisplayName(f, settings.language) })}>{t("deleteAction")}</button>}
             </div>
           </section>
         ))}

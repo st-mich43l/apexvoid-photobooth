@@ -1,8 +1,9 @@
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { formatTranslation, translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../state";
-import { Badge, Confirm, ErrorNote, useAction } from "../ui";
+import { Badge, Confirm, ErrorNote, LocalizedDiagnostic, useAction } from "../ui";
 import { bytes } from "../format";
 import { MigrationDialog } from "../MigrationDialog";
 import type { Report, Settings as S } from "../types";
@@ -42,8 +43,9 @@ export function SettingsPage() {
       <h1>{translate(settings?.language, "settings")}</h1>
       <ErrorNote error={save.error ?? other.error} />
       <section className="card"><h3>{t("languageSection")}</h3>
-        <label>{t("interfaceLanguage")}<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
-          <option value="en">English</option><option value="vi">{t("vietnamesePreview")}</option>
+        <label>{t("interfaceLanguage")}<LanguageSwitcher /></label>
+        <label>{t("guestLanguage")}<select value={draft.guestLanguage ?? "en"} onChange={(e) => set("guestLanguage", e.target.value as "en" | "vi")}>
+          <option value="en">English — EN</option><option value="vi">Tiếng Việt — VI</option>
         </select></label>
         <p className="muted small">{t("translationPreview")}</p>
       </section>
@@ -52,9 +54,9 @@ export function SettingsPage() {
           <label>{t("countdownSeconds")}<input type="number" min={1} max={10} value={draft.countdownSeconds} onChange={(e) => set("countdownSeconds", Number(e.target.value))} /></label>
           <p className="muted small">{t("shotsFromFrame")}</p>
           <label>{t("outputResolution")}
-            <select aria-label="Print resolution" value={draft.outputDpi || 300} onChange={(e) => set("outputDpi", Number(e.target.value))}>
-              <option value={300}>300 dpi — standard (2×6 strip = 600×1800 px)</option>
-              <option value={600}>600 dpi — high (2×6 strip = 1200×3600 px; larger files, slower)</option>
+            <select aria-label={t("outputResolution")} value={draft.outputDpi || 300} onChange={(e) => set("outputDpi", Number(e.target.value))}>
+              <option value={300}>{t("printDpiStandard")}</option>
+              <option value={600}>{t("printDpiHigh")}</option>
             </select>
           </label>
           <p className="muted small">{t("resolutionNext")}</p>
@@ -70,9 +72,9 @@ export function SettingsPage() {
           {location.source === "custom" && <Badge kind="info">{t("customFolder")}</Badge>}
           {location.source === "legacy" && <Badge kind="warn">{t("legacyFolder")}</Badge>}
           {location.source === "fallback" && <Badge kind="err">{t("fallbackFolder")}</Badge>}
-          {" "}{bytes(location.freeBytes)} {t("freeBytes")}. {t("mediaContentsAndConfig")} <code>{location.configPath}</code>.
+          {" "}{bytes(location.freeBytes, settings.language)} {t("freeBytes")}. {t("mediaContentsAndConfig")} <code>{location.configPath}</code>.
         </p>
-        {location.warning && <div className="note warn"><div>{location.warning}</div></div>}
+        {location.warning && <div className="note warn"><div><LocalizedDiagnostic text={location.warning} summary="storageWarning" /></div></div>}
         <div className="row">
           <button onClick={() => other.run(() => api.openLibraryFolder())}>{t("openLibrary")}</button>
           {location.migrationPending && <button className="primary" onClick={() => setMigrate(true)}>{t("moveDocuments")}</button>}

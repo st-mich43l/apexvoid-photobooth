@@ -15,6 +15,7 @@ import (
 
 // Check is one diagnostics line.
 type Check struct {
+	Code   string `json:"code"`
 	Name   string `json:"name"`
 	OK     bool   `json:"ok"` // false only for a real problem or warning; informational lines are OK
 	Detail string `json:"detail"`
@@ -45,8 +46,8 @@ type Diagnostics struct {
 func (s *Service) RunDiagnostics() Diagnostics {
 	d := Diagnostics{Platform: runtime.GOOS + "/" + runtime.GOARCH, Drivers: s.mgr.Drivers(), Library: s.librarySummary(), LogDir: s.db.Layout.LogsDir(),
 		Network: "not used: the application makes no network connections (the preview server listens on loopback only)", Conflicts: []string{}}
-	add := func(scope, name, state, detail, action string, blocks bool) {
-		d.Checks = append(d.Checks, Check{Name: name, OK: state == "ok" || state == "info", State: state, Detail: detail, Action: action, BlocksGuests: blocks, Scope: scope})
+	add := func(scope, code, name, state, detail, action string, blocks bool) {
+		d.Checks = append(d.Checks, Check{Code: code, Name: name, OK: state == "ok" || state == "info", State: state, Detail: detail, Action: action, BlocksGuests: blocks, Scope: scope})
 	}
 	cfg := s.settings.Get()
 	cs := s.mgr.Status()
@@ -57,32 +58,32 @@ func (s *Service) RunDiagnostics() Diagnostics {
 	canon, webcam := uses("canon-edsdk"), uses("uvc")
 
 	if err := s.db.Layout.Ensure(); err == nil {
-		add("storage", "Media folder writable", "ok", s.db.Layout.Root, "", false)
+		add("storage", "media_writable", "Media folder writable", "ok", s.db.Layout.Root, "", false)
 	} else {
-		add("storage", "Media folder writable", "problem", s.db.Layout.Root, "Choose another media folder in Settings.", true)
+		add("storage", "media_writable", "Media folder writable", "problem", s.db.Layout.Root, "Choose another media folder in Settings.", true)
 	}
 	switch free := freeSpace(s.db.Layout.Root); {
 	case free < 0:
-		add("storage", "Free disk space", "info", "unknown", "", false)
+		add("storage", "disk_space", "Free disk space", "info", "unknown", "", false)
 	case free < minFreeBytes:
-		add("storage", "Free disk space", "problem", humanBytes(free)+" free — too little to save photos safely.", "Free some disk space or choose another media folder.", true)
+		add("storage", "disk_space", "Free disk space", "problem", humanBytes(free)+" free — too little to save photos safely.", "Free some disk space or choose another media folder.", true)
 	case free < warnFreeBytes:
-		add("storage", "Free disk space", "warn", humanBytes(free)+" free.", "Free at least 2 GB before an event.", false)
+		add("storage", "disk_space", "Free disk space", "warn", humanBytes(free)+" free.", "Free at least 2 GB before an event.", false)
 	default:
-		add("storage", "Free disk space", "ok", humanBytes(free), "", false)
+		add("storage", "disk_space", "Free disk space", "ok", humanBytes(free), "", false)
 	}
 	for _, dr := range d.Drivers {
 		switch {
 		case dr.Name == "mock":
 			if dr.Available && cfg.EnableMock {
-				add("camera", "Simulated camera", "info", "Enabled (demo/test only — never a real camera check).", "", false)
+				add("camera", "sim_camera", "Simulated camera", "info", "Enabled (demo/test only — never a real camera check).", "", false)
 			}
 		case dr.Available:
-			add(driverScope(dr.Name), "Camera driver: "+dr.Name, "ok", "ready", "", false)
+			add(driverScope(dr.Name), "camera_driver", "Camera driver: "+dr.Name, "ok", "ready", "", false)
 		case uses(dr.Name):
-			add(driverScope(dr.Name), "Camera driver: "+dr.Name, "problem", orDash(dr.Problem, "unavailable"), "Fix this, or choose a different photo camera on the Camera page.", true)
+			add(driverScope(dr.Name), "camera_driver", "Camera driver: "+dr.Name, "problem", orDash(dr.Problem, "unavailable"), "Fix this, or choose a different photo camera on the Camera page.", true)
 		default:
-			add(driverScope(dr.Name), "Camera driver: "+dr.Name, "info", "Not available, and not needed for your current camera. "+dr.Problem, "", false)
+			add(driverScope(dr.Name), "camera_driver", "Camera driver: "+dr.Name, "info", "Not available, and not needed for your current camera. "+dr.Problem, "", false)
 		}
 	}
 	if ff, err := findFFmpeg(s); err != nil {
@@ -90,7 +91,7 @@ func (s *Service) RunDiagnostics() Diagnostics {
 		if webcam {
 			state, act = "problem", "Webcam photos need ffmpeg.exe next to the app, or its path in Settings."
 		}
-		add("webcam", "FFmpeg", state, err.Error(), act, state == "problem")
+		add("webcam", "ffmpeg", "FFmpeg", state, err.Error(), act, state == "problem")
 	} else {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		enc, eerr := video.PickEncoder(ctx, ff)
@@ -99,29 +100,29 @@ func (s *Service) RunDiagnostics() Diagnostics {
 		if video.IsBuiltIn(ff) {
 			detail = "built into this application (LGPL build, unpacked to " + ff + ")"
 		}
-		add("webcam", "FFmpeg", "ok", detail, "", false)
+		add("webcam", "ffmpeg", "FFmpeg", "ok", detail, "", false)
 		if eerr == nil {
-			add("video", "H.264 encoder", "ok", enc, "", false)
+			add("video", "encoder", "H.264 encoder", "ok", enc, "", false)
 		} else {
-			add("video", "H.264 encoder", "info", "none found — only video recording is affected, not photos.", "Use an FFmpeg build with libx264 or h264_mf to record video.", false)
+			add("video", "encoder", "H.264 encoder", "info", "none found — only video recording is affected, not photos.", "Use an FFmpeg build with libx264 or h264_mf to record video.", false)
 		}
 	}
 	if sdk := edsdk.SDKStatus(cfg.CanonSDKDir); sdk.OK() {
-		add("canon", "Canon SDK files", "ok", sdk.Path+" ("+sdk.Machine+")", "", false)
+		add("canon", "canon_sdk", "Canon SDK files", "ok", sdk.Path+" ("+sdk.Machine+")", "", false)
 	} else if canon {
-		add("canon", "Canon SDK files", "problem", edsdkKind(sdk.Kind)+": "+sdk.Problem, sdk.Action, true)
+		add("canon", "canon_sdk", "Canon SDK files", "problem", edsdkKind(sdk.Kind)+": "+sdk.Problem, sdk.Action, true)
 	} else {
-		add("canon", "Canon SDK files", "info", "Not installed — only needed for Canon cameras. Webcams work without it. ("+edsdkKind(sdk.Kind)+")", sdk.Action, false)
+		add("canon", "canon_sdk", "Canon SDK files", "info", "Not installed — only needed for Canon cameras. Webcams work without it. ("+edsdkKind(sdk.Kind)+")", sdk.Action, false)
 	}
 	if runtime.GOOS == "windows" {
 		d.Conflicts = edsdk.Conflicts()
 		switch {
 		case len(d.Conflicts) > 0 && canon:
-			add("canon", "Programs that can own the Canon camera", "warn", "running: "+join(d.Conflicts), "Close them before connecting the camera.", false)
+			add("canon", "canon_conflicts", "Programs that can own the Canon camera", "warn", "running: "+join(d.Conflicts), "Close them before connecting the camera.", false)
 		case len(d.Conflicts) > 0:
-			add("canon", "Programs that can own the Canon camera", "info", "running: "+join(d.Conflicts)+" (only matters for Canon cameras)", "", false)
+			add("canon", "canon_conflicts", "Programs that can own the Canon camera", "info", "running: "+join(d.Conflicts)+" (only matters for Canon cameras)", "", false)
 		default:
-			add("canon", "Programs that can own the Canon camera", "ok", "none running", "", false)
+			add("canon", "canon_conflicts", "Programs that can own the Canon camera", "ok", "none running", "", false)
 		}
 	}
 	d.Movie = []string{

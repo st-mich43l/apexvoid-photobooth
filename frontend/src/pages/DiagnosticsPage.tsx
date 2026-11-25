@@ -13,7 +13,7 @@ const viewOfCheck = (c: Check): View => (c.state === "problem" ? "setup" : c.sta
 const pillLabel = (c: Check, t: ReturnType<typeof useT>["t"]) => (c.state === "problem" ? (c.blocksGuests ? t("stopsGuests") : t("problem")) : c.state === "warn" ? t("warning") : c.state === "info" ? t("notNeeded") : t("ok"));
 
 export function DiagnosticsPage() {
-  const { toast } = useApp();
+  const { toast, settings } = useApp();
   const { t, tf } = useT();
   const [d, setD] = useState<Diagnostics | null>(null);
   const { busy, error, run } = useAction();
@@ -39,6 +39,7 @@ export function DiagnosticsPage() {
   const blocking = d?.checks.filter((c) => c.blocksGuests) ?? [];
   const order = (c: Check) => (c.blocksGuests ? 0 : c.state === "problem" ? 1 : c.state === "warn" ? 2 : c.state === "info" ? 4 : 3);
   const checks = [...(d?.checks ?? [])].sort((a, b) => order(a) - order(b));
+  const checkKeys = { media_writable: "diagMediaWritable", disk_space: "diagDiskSpace", sim_camera: "diagSimCamera", camera_driver: "diagCameraDriver", ffmpeg: "diagFFmpeg", encoder: "diagEncoder", canon_sdk: "diagCanonSdk", canon_conflicts: "diagCanonConflicts" } as const;
   return (
     <div className="page">
       <PageHeader title={t("diagnostics")} sub={t("diagnosticSubtitle")}>
@@ -55,16 +56,19 @@ export function DiagnosticsPage() {
             {checks.map((c, i) => (
               <li key={i} className={`diag ${c.state}`}>
                 <StatusPill view={viewOfCheck(c)} label={pillLabel(c, t)} />
-                <div><strong>{c.name}</strong><span className="muted"> {c.detail}</span>
-                  {c.state !== "ok" && c.action && <div className="action">{c.action}{c.state === "problem" || c.state === "warn" ? " It is safe to run the check again." : ""}</div>}</div>
+                <div>{settings?.language === "vi" && c.code && c.code in checkKeys ? <>
+                  <strong>{t(checkKeys[c.code as keyof typeof checkKeys])}</strong> {c.state === "problem" || c.state === "warn" ? t("readinessIssue") : ""}
+                  {(c.detail || c.action) && <details><summary>{t("technicalDetails")}</summary>{c.detail} {c.action}</details>}
+                </> : <><strong>{c.name}</strong><span className="muted"> {c.detail}</span>{c.state !== "ok" && c.action && <div className="action">{c.action}</div>}</>}
+                {(c.state === "problem" || c.state === "warn") && <div className="action">{t("diagCheckAgain")}</div>}</div>
               </li>))}
           </ul>
         </section>
         <section className="card"><h3>{t("canonVerificationTitle")}</h3>
-          <ul>{d.movieFindings.map((m, i) => <li key={i}>{m}</li>)}</ul>
+          <ul>{d.movieFindings.map((m, i) => <li key={i}>{settings?.language === "vi" && i < 3 ? t((["diagMovieOne", "diagMovieTwo", "diagMovieThree"] as const)[i]) : m}</li>)}</ul>
           <p className="muted small">{t("verificationLevels")}</p>
         </section>
-        <section className="card"><h3>{t("privacyOffline")}</h3><p>{d.network}</p><p className="muted small">{t("logsLabel")} {d.logDir}</p>
+        <section className="card"><h3>{t("privacyOffline")}</h3><p>{settings?.language === "vi" ? t("diagNetwork") : d.network}</p><p className="muted small">{t("logsLabel")} {d.logDir}</p>
           <p className="muted small">{t("supportBundlePrivacy")}</p></section>
         {summary && <section className="card"><h3>{t("supportSummary")}</h3><textarea className="summary" readOnly value={summary} rows={14} aria-label={t("supportSummary")} onFocus={(e) => e.currentTarget.select()} /></section>}
       </>)}

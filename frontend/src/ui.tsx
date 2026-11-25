@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocale } from "./locale";
+import { formatTranslation, translate, type TranslationKey } from "./i18n";
 import { useApp } from "./state";
 import { AppError, toAppError } from "./api";
 import type { Support } from "./types";
@@ -8,21 +10,32 @@ export function Badge({ kind, children }: { kind: "ok" | "warn" | "err" | "info"
 }
 
 export function SupportBadge({ v }: { v: Support }) {
-  if (v === "supported") return <Badge kind="ok">supported</Badge>;
-  if (v === "unsupported") return <Badge kind="err">unsupported</Badge>;
-  return <Badge kind="warn">unverified</Badge>;
+  const language = useLocale();
+  if (v === "supported") return <Badge kind="ok">{translate(language, "uiSupported")}</Badge>;
+  if (v === "unsupported") return <Badge kind="err">{translate(language, "uiUnsupported")}</Badge>;
+  return <Badge kind="warn">{translate(language, "uiUnverified")}</Badge>;
 }
 
 /** Message + action, as produced by app.UserError. */
 export function ErrorNote({ error, onClose }: { error: AppError | string | null | undefined; onClose?: () => void }) {
+  const language = useLocale();
   if (!error) return null;
   const e = typeof error === "string" ? new AppError(error) : error;
+  const errorKeys = { pin_wrong: "pinWrong", pin_locked: "pinLocked", pin_unavailable: "pinUnavailable", pin_setting_failed: "pinSettingFailed", camera_error: "errorCamera", capture_error: "errorCapture", frame_error: "errorFrame", printer_error: "errorPrinter", storage_error: "errorStorage", recording_error: "errorRecording", export_error: "errorExport" } as const;
+  const key = e.code && e.code in errorKeys ? errorKeys[e.code as keyof typeof errorKeys] : undefined;
+  const localized = key ? formatTranslation(language, key, e.params ?? {}) : "";
   return (
     <div className="note err" role="alert">
-      <div><strong>{e.message}</strong>{e.action && <div className="action">{e.action}</div>}</div>
-      {onClose && <button className="ghost" onClick={onClose} aria-label="Dismiss">✕</button>}
+      <div>{key && (language === "vi" || e.code?.startsWith("pin_")) ? <><strong>{localized}</strong><details><summary>{translate(language, "technicalDetails")}</summary>{e.message}{e.action && <div className="action">{e.action}</div>}</details></> : <><strong>{e.message}</strong>{e.action && <div className="action">{e.action}</div>}</>}</div>
+      {onClose && <button className="ghost" onClick={onClose} aria-label={translate(language, "dismiss")}>✕</button>}
     </div>
   );
+}
+
+/** Show a localized summary while keeping the original diagnostic available. */
+export function LocalizedDiagnostic({ text, summary }: { text: string; summary: TranslationKey }) {
+  const language = useLocale();
+  return language === "vi" ? <>{translate(language, summary)}<details><summary>{translate(language, "technicalDetails")}</summary>{text}</details></> : <>{text}</>;
 }
 
 /** Runs an async action, tracking busy + error. */
@@ -39,13 +52,15 @@ export function useAction() {
 /** The simulated camera must never look like a real one. */
 export function SimulatedRibbon() {
   const { camera } = useApp();
+  const language = useLocale();
   if (!camera.device?.simulated) return null;
-  return <div className="ribbon" role="alert">SIMULATED CAMERA — images are test patterns, not real photographs</div>;
+  return <div className="ribbon" role="alert">{translate(language, "simulatedRibbon")}</div>;
 }
 
 /** Live view: an <img> on the loopback MJPEG stream, re-opened after drops. */
 export function LivePreview({ className = "", fit = "contain", objectPosition = "50% 50%" }: { className?: string; fit?: "contain" | "cover"; objectPosition?: string }) {
   const { camera, previewUrl, settings } = useApp();
+  const language = useLocale(settings?.language);
   const [failed, setFailed] = useState(0);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -55,7 +70,7 @@ export function LivePreview({ className = "", fit = "contain", objectPosition = 
     return (
       <div className={`preview empty ${className}`}>
         <div>
-          {camera.reconnecting ? "Camera disconnected — reconnecting…" : camera.device ? "Live view is off" : "No camera connected"}
+          {translate(language, camera.reconnecting ? "previewReconnecting" : camera.device ? "previewOff" : "previewNoCamera")}
         </div>
       </div>
     );
@@ -65,7 +80,7 @@ export function LivePreview({ className = "", fit = "contain", objectPosition = 
       <img
         key={`${previewUrl}-${failed}`}
         src={previewUrl}
-        alt="Live camera preview"
+        alt={translate(language, "previewAlt")}
         style={{ objectFit: fit, objectPosition }}
         onError={() => { timer.current = window.setTimeout(() => setFailed((n) => n + 1), 800); }}
       />
@@ -77,6 +92,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 
 /** A dialog that behaves like one: focus moves inside, Tab stays inside, Escape closes, and focus returns to where it was. */
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  const language = useLocale();
   const box = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -100,7 +116,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
   return (
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={box} className={`modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1}>
-        <header><h2>{title}</h2><button className="ghost" onClick={onClose} aria-label="Close">✕</button></header>
+        <header><h2>{title}</h2><button className="ghost" onClick={onClose} aria-label={translate(language, "close")}>✕</button></header>
         {children}
       </div>
     </div>
@@ -109,11 +125,12 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
 
 export function Confirm({ title, body, confirmLabel, danger, onYes, onNo }:
   { title: string; body: ReactNode; confirmLabel: string; danger?: boolean; onYes: () => void; onNo: () => void }) {
+  const language = useLocale();
   return (
     <Modal title={title} onClose={onNo}>
       <div className="modal-body">{body}</div>
       <footer>
-        <button onClick={onNo}>Cancel</button>
+        <button onClick={onNo}>{translate(language, "cancel")}</button>
         <button className={danger ? "danger" : "primary"} onClick={onYes} autoFocus>{confirmLabel}</button>
       </footer>
     </Modal>
