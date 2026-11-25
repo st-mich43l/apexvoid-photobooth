@@ -323,8 +323,13 @@ test.describe("layout", () => {
             if (element.closest("pre")) return false;
             const rect = element.getBoundingClientRect();
             const style = getComputedStyle(element);
-            return rect.width > 0 && style.display !== "none" && style.visibility !== "hidden" &&
-              element.getClientRects().length > 0 && (rect.left < -1 || rect.right > viewport + 1);
+            return (
+              rect.width > 0 &&
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              element.getClientRects().length > 0 &&
+              (rect.left < -1 || rect.right > viewport + 1)
+            );
           })
           .map((element) => ({
             tag: element.tagName.toLowerCase(),
