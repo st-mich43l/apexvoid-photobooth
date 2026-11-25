@@ -185,6 +185,8 @@ def assemble(exe: Path, notices: Path, out: Path, version: str, commit: str, var
         raise ReleaseError("copy of the executable is corrupt")
     (files / "SHA256SUMS").write_text(f"{sha}  {name}\n", encoding="utf-8")
     shutil.copyfile(notes, files / "RELEASE-NOTES.md")
+    if (root / "LICENSE").is_file():
+        shutil.copyfile(root / "LICENSE", files / "LICENSE.txt")
     (files / "THIRD-PARTY-NOTICES.txt").write_text(
         f"{PRODUCT_NAME} {version} — third-party notices\n"
         f"Built from commit {commit}.\n\n"
@@ -200,8 +202,9 @@ def assemble(exe: Path, notices: Path, out: Path, version: str, commit: str, var
     )
     (files / "SOURCE.md").write_text(
         f"# Source for {PRODUCT_NAME} {version}\n\n"
-        f"- Application: commit `{commit}` of the ApexVoid Photobooth repository (master branch).\n"
-        f"- FFmpeg (LGPL v3, unmodified, run as a separate process): build `{FFMPEG_BUILD}` from {FFMPEG_RELEASE};\n"
+        f"- Application: commit `{commit}` of https://github.com/st-mich43l/apexvoid-photobooth (master branch)"
+        + (", MIT License (LICENSE.txt).\n" if (root / "LICENSE").is_file() else ".\n")
+        + f"- FFmpeg (LGPL v3, unmodified, run as a separate process): build `{FFMPEG_BUILD}` from {FFMPEG_RELEASE};\n"
         "  the FFmpeg source is available from https://ffmpeg.org/ and the build configuration from\n"
         "  https://github.com/BtbN/FFmpeg-Builds. The executable unpacks it to\n"
         "  `%LOCALAPPDATA%\\ApexVoidPhotobooth\\bin\\` and any `ffmpeg.exe` you place next to the application replaces it.\n"

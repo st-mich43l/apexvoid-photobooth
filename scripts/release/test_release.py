@@ -21,10 +21,11 @@ class Repo:
 
     def __init__(self, version: str = "0.3.0") -> None:
         self.dir = Path(tempfile.mkdtemp())
-        for f in ("frontend/package.json", "build/winres/winres.json", "release/publication.json", "docs/THIRD-PARTY.md"):
+        for f in ("frontend/package.json", "build/winres/winres.json", "release/publication.json", "docs/THIRD-PARTY.md", "LICENSE"):
             (self.dir / f).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(REPO / f, self.dir / f)
         self.set_version(version)
+        self.publication(enabled=False, approve=())  # neutral baseline, independent of the committed decisions
 
     def set_version(self, v: str, winres: str | None = None) -> None:
         pkg = json.loads((self.dir / "frontend/package.json").read_text())
@@ -42,8 +43,8 @@ class Repo:
         pub = json.loads((self.dir / "release/publication.json").read_text())
         pub["enabled"] = enabled
         pub["variant"] = variant
-        for g in approve:
-            pub["gates"][g]["approved"] = True
+        for g in ("applicationLicense", "ffmpegLgpl", "canonRedistribution"):
+            pub["gates"][g]["approved"] = g in approve
         pub["gates"]["codeSigning"]["signed"] = signed
         (self.dir / "release/publication.json").write_text(json.dumps(pub))
 
@@ -99,11 +100,12 @@ class EligibilityTests(unittest.TestCase):
     def decide(self, event="push", ref="refs/heads/master", m=None):
         return rel.eligibility(event, ref, self.r.dir, manifest=m if m is not None else manifest())
 
-    def test_the_committed_configuration_never_publishes(self):
-        res = rel.eligibility("push", "refs/heads/master", REPO, manifest=manifest())
-        self.assertFalse(res["publish"])
-        self.assertIn("disabled", res["reason"])
-        self.assertTrue(res["blockers"], "the committed gates must list their blockers")
+    def test_the_committed_configuration_is_coherent(self):
+        pub = rel.load_publication(REPO)
+        if pub["enabled"]:
+            self.assertEqual(rel.gate_blockers(pub), [], "enabled publishing needs every required gate approved")
+        for event, ref in [("pull_request", "refs/heads/master"), ("push", "refs/heads/community")]:
+            self.assertFalse(rel.eligibility(event, ref, REPO, manifest=manifest())["publish"])
 
     def test_only_master_pushes_and_manual_runs(self):
         self.r.publication()
@@ -193,7 +195,8 @@ class AssembleTests(unittest.TestCase):
     def test_package_layout_and_record(self):
         rec = self.build()
         files = sorted(p.name for p in (self.tmp / "pkg/files").iterdir())
-        self.assertEqual(files, ["ApexVoidPhotobooth-v0.3.0-windows-x64.exe", "RELEASE-NOTES.md", "SHA256SUMS", "SOURCE.md", "THIRD-PARTY-NOTICES.txt"])
+        self.assertEqual(files, ["ApexVoidPhotobooth-v0.3.0-windows-x64.exe", "LICENSE.txt", "RELEASE-NOTES.md", "SHA256SUMS", "SOURCE.md", "THIRD-PARTY-NOTICES.txt"])
+        self.assertIn("MIT License", (self.tmp / "pkg/files/SOURCE.md").read_text())
         a = rec["assets"][0]
         self.assertEqual(a["sha256"], rel.sha256_file(self.exe))
         self.assertEqual(a["size"], self.exe.stat().st_size)

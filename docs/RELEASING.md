@@ -34,12 +34,12 @@ newer stable release as the current one.
 
 ## Publication gates (`release/publication.json`)
 
-| Gate                  | Required for       | Status today                                                               |
-| --------------------- | ------------------ | -------------------------------------------------------------------------- |
-| `applicationLicense`  | every release      | **blocked** — the application has no licence; the owner must choose one    |
-| `ffmpegLgpl`          | every release      | **blocked** — owner confirmation that the shipped LGPL text and `SOURCE.md` meet the obligations |
-| `canonRedistribution` | `variant: "canon"` | **blocked** — no written authorization from Canon to redistribute the EDSDK |
-| `codeSigning`         | —                  | `signed: false` — no certificate; the site says "not code-signed"         |
+| Gate                  | Required for       | Decision                                                                    |
+| --------------------- | ------------------ | --------------------------------------------------------------------------- |
+| `applicationLicense`  | every release      | approved 2026-11-25 — MIT License (`LICENSE`, shipped as `LICENSE.txt`)       |
+| `ffmpegLgpl`          | every release      | approved 2026-11-25 — LGPL text in the notices, source pointers in `SOURCE.md` |
+| `canonRedistribution` | `variant: "canon"` | approved 2026-11-25 — owner confirmed Canon's authorization                   |
+| `codeSigning`         | —                  | `signed: false` — no certificate; the site says "not code-signed"           |
 
 `variant` chooses the executable: `standard` is the `windows` job's build (FFmpeg built in, **no Canon SDK**; Canon
 cameras need the SDK configured separately), `canon` is the `canon-portable` build with the SDK embedded, validated by
@@ -55,7 +55,7 @@ its `note`.
 3. Merge. The master run builds and validates once, then `publish`:
    - takes the exact executable the Windows jobs validated (no rebuild) and checks its SHA-256 against the build;
    - assembles `RELEASE-NOTES.md`, `SHA256SUMS`, `THIRD-PARTY-NOTICES.txt` (docs/THIRD-PARTY.md plus the
-     executable's own `--notices`), `SOURCE.md`, and `release.json`; validates them with the publisher's validator;
+     executable's own `--notices`), `SOURCE.md`, `LICENSE.txt`, and `release.json`; validates them with the publisher's validator;
    - runs ansible-library's `publish-photobooth-release.yml` (pinned commit, pinned VPS host key);
    - downloads the file from the public URL and checks it against `SHA256SUMS`.
 4. The job summary lists the version, SHA-256, size and links.
