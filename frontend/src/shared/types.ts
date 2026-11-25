@@ -118,8 +118,10 @@ export interface FramesResult { frames: Frame[]; categories: string[]; errors: s
 /** What the guest picked: stays with the session from the first shot to the printed result. */
 export interface FrameChoice {
   id: string; name: string; builtin?: boolean; variantId: string; caption: string; photos: number; format: string;
-  /** Slot geometry used to frame each guest capture like the saved composition. */
+  /** The frame's photo windows (inches), used to derive the capture guide: see features/booth/captureGeometry.ts. */
   photoSlots?: Array<{ photo: number; w: number; h: number; focusX?: number; focusY?: number }>;
+  /** Frame resolution and photo border (inches): the compositor insets every window by the border, so they are part of the crop. */
+  dpi?: number; borderIn?: number;
 }
 export interface TemplatesResult { templates: Template[]; errors: string[]; dir: string }
 

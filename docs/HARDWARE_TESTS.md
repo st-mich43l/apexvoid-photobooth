@@ -151,3 +151,23 @@ Every row is **UNVERIFIED** until a person fills it in.
 ## Language acceptance
 
 Repeat the desktop and kiosk flows above in English and Vietnamese, switching the operator language with unsaved settings and selecting the guest language separately. Confirm language persistence after restart, reset between guests, keyboard/touch operation, unclipped Vietnamese diacritics and labels, and all three resolutions and scaling levels. Record actual results on the target machine; these scenarios remain UNVERIFIED until performed on physical hardware. The existing software-printer CI result is not evidence of physical paper delivery.
+
+
+## H. BOOTH-01 — capture guide and photo choice (Canon EOS R100 and a webcam; real WebView2 window)
+
+Status of every row: **UNVERIFIED** until a person runs it on the booth machine and writes the result here. The software
+side (geometry against the Go compositor, selection rules, backend acceptance) is tested in CI; nothing below has been run
+on a physical camera by the project. Background and the calibration method: [BOOTH_CAPTURE_GEOMETRY.md](BOOTH_CAPTURE_GEOMETRY.md).
+
+| # | Step | Expected | Result |
+|---|------|----------|--------|
+| H1 | Frame "2×6 strip, 4 photos". Start shooting; take all 8 candidates | The dashed capture guide has the same size and position for photos 1 to 8 and is never replaced by an unframed picture | UNVERIFIED |
+| H2 | Repeat with "4×6 sheet, 6 photos" and with a 1-photo frame | Same: the guide never changes between captures, including photos 7 and 8 | UNVERIFIED |
+| H3 | Put a ruler or a printed grid in front of the camera. Note which part sits on the guide's four edges, then open the saved original and the strip | Edges of the guide = edges of the photo window in the strip, within a few pixels (the calibration check; if not, record both pictures' sizes and edges for `KNOWN_FOV`) | UNVERIFIED |
+| H4 | Same with the live view mirrored on (Settings) and a subject standing left of centre | Subject is on the same side of the guide as in the finished strip's window; the saved original is not mirrored | UNVERIFIED |
+| H5 | Review: 8 photos on screen (4×2 landscape, 2×4 portrait), none selected, Continue disabled | As described | UNVERIFIED |
+| H6 | Select 2, 4, 1, 7 (2×6) then Continue | The strip's windows hold photos 2, 4, 1, 7 in that order; unselected originals are not left in the library | UNVERIFIED |
+| H7 | Double-tap a photo; double-tap Continue | One tap's effect only; one strip | UNVERIFIED |
+| H8 | Unplug the camera between photos 4 and 5, replug | Calm reconnect, the shot repeats, 8 candidates at the end | UNVERIFIED |
+| H9 | Touchscreen at 100 %, 125 % and 150 % scaling, English and Vietnamese | Tiles are comfortable to tap, nothing clipped, no horizontal scroll | UNVERIFIED |
+| H10 | EOS R100: record the live-view size and the JPEG size (Diagnostics support summary and the saved file's properties) | Written into BOOTH_CAPTURE_GEOMETRY.md; a different shape means a different field of view | UNVERIFIED |

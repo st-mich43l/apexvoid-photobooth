@@ -366,10 +366,13 @@ func (s *Service) SetSessionFrame(sessionID, frameID, variantID, caption string,
 	if err := s.guardWrite(); err != nil {
 		return err
 	}
+	reviewing := false // the guest is still choosing among the captured candidates: any frame that fits them will do
 	if snap := s.eng.Snapshot(); snap.SessionID == sessionID {
 		switch snap.State {
 		case capture.Countdown, capture.Capturing, capture.Saving, capture.Preview:
 			return newUserErr("Photos are still being taken.", "Change the frame after the photos are shot.")
+		case capture.Review:
+			reviewing = true
 		}
 	}
 	t, err := s.validateChoice(frameID, variantID)
@@ -386,11 +389,17 @@ func (s *Service) SetSessionFrame(sessionID, frameID, variantID, caption string,
 		return newUserErr("This session has no photos.", "")
 	case need > have:
 		return newUserErr(fmt.Sprintf("“%s” needs %d photos but only %d were taken.", t.Name, need, have), fmt.Sprintf("Choose a frame for %d photos, or start over with this frame.", have))
-	case need < have && !useFirst:
+	case need < have && !useFirst && !reviewing:
 		return newUserErr(fmt.Sprintf("“%s” uses %d photos but %d were taken.", t.Name, need, have), fmt.Sprintf("Use the first %d photos, or choose a frame for %d photos.", need, have))
 	}
 	if _, err := s.freezeFrame(sessionID, frameID, variantID, caption); err != nil {
 		return userErr(err)
+	}
+	if reviewing {
+		// the guest now has to choose as many photos as the new frame has windows
+		if err := s.eng.SetFramePhotos(sessionID, need); err != nil {
+			return userErr(err)
+		}
 	}
 	return nil
 }

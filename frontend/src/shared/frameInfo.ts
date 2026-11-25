@@ -101,10 +101,13 @@ export const photoCounts = (frames: Frame[]): number[] => [...new Set(frames.map
  *  ok       – same number, nothing to decide
  *  fewer    – the frame uses fewer photos than were taken (the first N can be used)
  *  more     – the frame needs more photos than were taken (retake required)
+ * With `pool` the photos are candidates the guest is still choosing from, so any frame that needs no more photos than
+ * were taken is fine ("ok"): the choice, not the order they were shot in, decides which ones are used.
  */
 export type Fit = { kind: "ok" } | { kind: "fewer"; need: number; have: number } | { kind: "more"; need: number; have: number };
-export function fitFor(frame: Frame, taken: number | undefined): Fit {
+export function fitFor(frame: Frame, taken: number | undefined, pool = false): Fit {
   if (!taken || frame.photos === taken) return { kind: "ok" };
+  if (pool && frame.photos < taken) return { kind: "ok" }; // candidates still being reviewed: the guest chooses which ones fill the frame
   return frame.photos < taken ? { kind: "fewer", need: frame.photos, have: taken } : { kind: "more", need: frame.photos, have: taken };
 }
 
@@ -124,4 +127,4 @@ export function explainFit(f: Fit, name: string, language?: string): string {
 
 export const choiceOf = (f: Frame, variantId: string, caption: string): FrameChoice =>
   ({ id: f.id, name: f.name, builtin: f.builtin, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format,
-    photoSlots: f.slots.map(({ photo, w, h, focusX, focusY }) => ({ photo, w, h, focusX, focusY })) });
+    photoSlots: f.slots.map(({ photo, w, h, focusX, focusY }) => ({ photo, w, h, focusX, focusY })), dpi: f.dpi, borderIn: f.borderIn });

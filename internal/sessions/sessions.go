@@ -35,7 +35,7 @@ const (
 const (
 	MediaActive    = "active"
 	MediaCandidate = "candidate" // temporary capture available for session review, not shown in the library
-	MediaDiscarded = "discarded" // replaced by a retake; removed when the guest accepts
+	MediaDiscarded = "discarded" // deselected by the guest or replaced by a retake; pruned once the finished image exists
 	MediaTrashed   = "trashed"
 	MediaMissing   = "missing"
 	MediaPartial   = "partial" // recovered, possibly truncated recording
@@ -359,14 +359,20 @@ func (s *Store) SessionPhotoCount(sessionID string) (int, error) {
 	return count, err
 }
 
-// KeepSelectedPhotos moves the selected captures to the start of the session's
-// photo order and permanently removes all other candidate photos, including
-// replaced retake candidates. The frame compositor consumes the remaining
-// photos in slot order.
-func (s *Store) KeepSelectedPhotos(sessionID string, selectedSlots []int) error {
+// SelectPhotos records the guest's choice in ONE transaction: the selected captures become the session's photos
+// 0..n-1 in selection order (status active), and every other photo of the session is marked discarded. Nothing is
+// deleted here, so a crash or a failed composition afterwards cannot lose a capture: discarded photos are either
+// pruned after the finished image exists (PruneDiscardedPhotos) or put back (RestoreDiscardedPhotos / start-up
+// recovery). The selection must name distinct captures that belong to the session.
+func (s *Store) SelectPhotos(sessionID string, selectedSlots []int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows, err := s.db.Query(`SELECT id,slot,status FROM media WHERE session_id=? AND kind='photo' AND status IN ('active','candidate','discarded') ORDER BY slot,id`, sessionID)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.Query(`SELECT id,slot,status FROM media WHERE session_id=? AND kind='photo' AND status IN ('active','candidate','discarded') ORDER BY slot,id`, sessionID)
 	if err != nil {
 		return err
 	}
@@ -395,52 +401,27 @@ func (s *Store) KeepSelectedPhotos(sessionID string, selectedSlots []int) error 
 			bySlot[p.slot] = p
 		}
 	}
-	ordered := make([]photo, 0, len(photos))
-	seen := make(map[int]bool, len(selectedSlots))
+	ordered := make([]photo, 0, len(selectedSlots))
+	keep := make(map[string]bool, len(selectedSlots))
 	for _, slot := range selectedSlots {
 		p, ok := bySlot[slot]
-		if !ok || seen[slot] {
+		if !ok || keep[p.id] {
 			return fmt.Errorf("selected photo slot %d is missing or repeated", slot)
 		}
-		seen[slot] = true
-		ordered = append(ordered, p)
-	}
-	keep := make(map[string]bool, len(ordered))
-	for _, p := range ordered {
 		keep[p.id] = true
+		ordered = append(ordered, p)
 	}
 	for _, p := range photos {
 		if keep[p.id] {
 			continue
 		}
-		if err := s.trashLocked(p.id, ""); err != nil {
-			return fmt.Errorf("remove unselected photo %s: %w", p.id, err)
-		}
-		if err := os.RemoveAll(filepath.Join(s.db.Layout.TrashDir(), p.id)); err != nil {
-			return fmt.Errorf("delete unselected photo %s: %w", p.id, err)
-		}
-		tx, err := s.db.Begin()
-		if err != nil {
-			return err
-		}
-		if _, err = tx.Exec(`DELETE FROM media_trash_ops WHERE media_id=?`, p.id); err == nil {
-			_, err = tx.Exec(`DELETE FROM media WHERE id=? AND status=?`, p.id, MediaTrashed)
-		}
-		if err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err := tx.Commit(); err != nil {
+		// parked beyond any real slot so the selected photos can take slots 0..n-1 without a clash
+		if _, err := tx.Exec(`UPDATE media SET status=?, slot=? WHERE id=?`, MediaDiscarded, 1000+p.slot, p.id); err != nil {
 			return err
 		}
 	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	for i, p := range ordered {
-		if _, err := tx.Exec(`UPDATE media SET slot=? WHERE id=?`, len(ordered)+i+1, p.id); err != nil {
+		if _, err := tx.Exec(`UPDATE media SET slot=? WHERE id=?`, len(photos)+1000+i, p.id); err != nil {
 			return err
 		}
 	}
@@ -453,6 +434,64 @@ func (s *Store) KeepSelectedPhotos(sessionID string, selectedSlots []int) error 
 		return err
 	}
 	return tx.Commit()
+}
+
+// PruneDiscardedPhotos permanently removes the photos a guest did not select (and photos replaced by a retake). It is
+// only called once the finished image has been saved, and it is safe to repeat: each photo is trashed and deleted on its
+// own, so an interruption leaves some discarded photos behind (hidden from the library), never a damaged session.
+func (s *Store) PruneDiscardedPhotos(sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.db.Query(`SELECT id FROM media WHERE session_id=? AND kind='photo' AND status=?`, sessionID, MediaDiscarded)
+	if err != nil {
+		return err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, id := range ids {
+		if err := s.trashLocked(id, ""); err != nil {
+			return fmt.Errorf("remove unselected photo %s: %w", id, err)
+		}
+		if err := os.RemoveAll(filepath.Join(s.db.Layout.TrashDir(), id)); err != nil {
+			return fmt.Errorf("delete unselected photo %s: %w", id, err)
+		}
+		tx, err := s.db.Begin()
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(`DELETE FROM media_trash_ops WHERE media_id=?`, id); err == nil {
+			_, err = tx.Exec(`DELETE FROM media WHERE id=? AND status=?`, id, MediaTrashed)
+		}
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RestoreDiscardedPhotos puts discarded photos back into the library as ordinary photos. It is used when the finished
+// image could not be made, so the guest's session keeps every photograph that was taken.
+func (s *Store) RestoreDiscardedPhotos(sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`UPDATE media SET status=? WHERE session_id=? AND kind='photo' AND status=?`, MediaActive, sessionID, MediaDiscarded)
+	return err
 }
 
 // DiscardMedia marks a photo as replaced by a retake. It remains available
@@ -809,7 +848,8 @@ func (s *Store) Verify(deep bool) (Report, error) {
 			return rep, fmt.Errorf("mark session %s interrupted: %w", id, err)
 		}
 	}
-	if _, err := s.db.Exec(`UPDATE media SET status=? WHERE status=? AND session_id IN (SELECT id FROM sessions WHERE status IN (?,?,?))`, MediaActive, MediaCandidate, StatusInterrupted, StatusCancelled, StatusFailed); err != nil {
+	// photos a guest had deselected (or a retake had replaced) in a session that never finished are given back too
+	if _, err := s.db.Exec(`UPDATE media SET status=? WHERE status IN (?,?) AND session_id IN (SELECT id FROM sessions WHERE status IN (?,?,?))`, MediaActive, MediaCandidate, MediaDiscarded, StatusInterrupted, StatusCancelled, StatusFailed); err != nil {
 		return rep, err
 	}
 

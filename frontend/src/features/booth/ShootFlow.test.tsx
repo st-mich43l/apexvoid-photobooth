@@ -70,11 +70,23 @@ describe("ShootFlow with a pre-selected frame", () => {
       expect(h.api.recoverShooting).not.toHaveBeenCalled();
     });
 
-    it("a frame for fewer photos needs an explicit 'use the first N'", async () => {
+    it("a frame for fewer photos than were captured needs no 'use the first N': the guest chooses which ones fill it", async () => {
       await open();
       fireEvent.click(screen.getByRole("radio", { name: /three/ }));
+      expect(screen.queryByRole("button", { name: /Use the first/ })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Use this design" }));
+      await waitFor(() => expect(h.api.setSessionFrame).toHaveBeenCalledWith("S1", "three", "", "", false));
+    });
+
+    it("after saving, a frame for fewer photos still needs an explicit 'use the first N'", async () => {
+      cleanup();
+      h.S.shoot = snap("COMPLETED", { taken: taken(4), resultId: "R1" });
+      render(<ShootFlow variant="booth" frame={FRAME} />);
+      fireEvent.click(screen.getByRole("button", { name: "Change design" }));
+      await screen.findByRole("radio", { name: /three/ });
+      fireEvent.click(screen.getByRole("radio", { name: /three/ }));
       fireEvent.click(screen.getByRole("button", { name: "Use the first 3 photos" }));
-      await waitFor(() => expect(h.api.setSessionFrame).toHaveBeenCalledWith("S1", "three", "", "", true));
+      await waitFor(() => expect(h.api.composeSession).toHaveBeenCalledWith("S1", "three", "", "", true));
     });
 
     it("a frame needing more photos restarts the session with that frame", async () => {
@@ -199,10 +211,17 @@ describe("UX-1: guest flow safety and clarity", () => {
     await waitFor(() => expect(h.api.recoverShooting).toHaveBeenCalledTimes(1));
   });
 
-  it("'Start over' in review also asks, and says what happens to the photos", async () => {
+  it("the guest review has no Start over, Retake or slot-assignment controls (Home asks first; it is Booth's)", () => {
     const view = render(<ShootFlow variant="booth" frame={FRAME} />);
-    h.S.shoot = snap("REVIEW", { taken: taken(4) });
+    h.S.shoot = snap("REVIEW", { taken: taken(8), shots: 8 });
     view.rerender(<ShootFlow variant="booth" frame={FRAME} />);
+    expect(screen.queryByRole("button", { name: /start over|retake|use for|frame photo/i })).toBeNull();
+  });
+
+  it("Studio's review still has Start over, and it asks first and says what happens to the photos", async () => {
+    const view = render(<ShootFlow variant="studio" frame={FRAME} />);
+    h.S.shoot = snap("REVIEW", { taken: taken(4) });
+    view.rerender(<ShootFlow variant="studio" frame={FRAME} />);
     fireEvent.click(screen.getByRole("button", { name: "Start over" }));
     const dlg = await screen.findByRole("dialog", { name: "Leave this photo session?" });
     expect(dlg.textContent).toMatch(/4 photos/);
@@ -257,7 +276,7 @@ describe("UX-1: guest flow safety and clarity", () => {
       cleanup();
       h.S.shoot = snap("REVIEW", { taken: taken(2), shots: 2 });
       render(<ShootFlow variant="booth" frame={FRAME} />);
-      for (const b of screen.getAllByRole("button", { name: /Retake/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
+      for (const b of screen.getAllByRole("button", { name: /^Photo \d/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
     });
 
     it("Studio keeps the operator informed that photos already taken are kept", () => {
@@ -290,5 +309,72 @@ describe("UX-1: guest flow safety and clarity", () => {
     fireEvent.click(screen.getByRole("button", { name: /Start shooting/ }));
     await screen.findByText(/That didn’t work/);
     expect(document.body.textContent).not.toMatch(/access is denied/);
+  });
+});
+
+
+describe("choosing photos (Booth and Studio share one model)", () => {
+  const REVIEW8 = () => snap("REVIEW", { shots: 8, taken: taken(8) });
+  const tile = (n: number) => screen.getAllByRole("button", { name: new RegExp(`^Photo ${n}[.,]`) })[0] as HTMLButtonElement;
+  let t = 0;
+  const tap = (n: number) => { vi.setSystemTime((t += 1000)); fireEvent.click(tile(n)); };
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); t = 1_000_000; vi.setSystemTime(t); h.S.shoot = REVIEW8(); });
+  afterEach(() => vi.useRealTimers());
+
+  it("Continue stays disabled until exactly the frame's photo count is chosen, then sends the capture slots in selection order, once", async () => {
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    const cont = () => screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
+    expect(cont().disabled).toBe(true);
+    for (const n of [7, 2, 5]) tap(n);
+    expect(cont().disabled).toBe(true);
+    tap(1);
+    expect(cont().disabled).toBe(false);
+    fireEvent.click(cont()); fireEvent.click(cont());
+    await waitFor(() => expect(h.api.accept).toHaveBeenCalledTimes(1));
+    expect(h.api.accept).toHaveBeenCalledWith([6, 1, 4, 0]);
+  });
+
+  it("selecting and unselecting photos never touches the camera or the session", () => {
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    h.api.startPreview.mockClear(); h.api.recoverShooting.mockClear();
+    for (const n of [1, 2, 3, 4, 5, 3]) tap(n);
+    for (const fn of [h.api.startShooting, h.api.retake, h.api.startPreview, h.api.cancelShooting, h.api.accept]) expect(fn).not.toHaveBeenCalled();
+    expect(h.api.recoverShooting).not.toHaveBeenCalled();
+  });
+
+  it("a failed submit keeps the choice and lets the guest press Continue again", async () => {
+    h.api.accept.mockRejectedValueOnce(new Error("The photos could not be saved."));
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    for (const n of [1, 2, 3, 4]) tap(n);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByText(/That didn’t work/);
+    expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(h.api.accept).toHaveBeenCalledTimes(2));
+    expect(h.api.accept).toHaveBeenLastCalledWith([0, 1, 2, 3]);
+  });
+
+  it("a new session starts with nothing selected", () => {
+    const view = render(<ShootFlow variant="booth" frame={FRAME} />);
+    tap(1); tap(2);
+    expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(2);
+    h.S.shoot = { ...REVIEW8(), sessionId: "S2" };
+    view.rerender(<ShootFlow variant="booth" frame={FRAME} />);
+    expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+  });
+
+  it("Studio uses the same grid and keeps retake as an operator-only action", async () => {
+    render(<ShootFlow variant="studio" frame={FRAME} />);
+    tap(2);
+    expect(tile(2).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /Retake Photo 3/ }));
+    await waitFor(() => expect(h.api.retake).toHaveBeenCalledWith(2));
+    expect(h.api.accept).not.toHaveBeenCalled();
+  });
+
+  it("the Booth review has no retake button at all", () => {
+    render(<ShootFlow variant="booth" frame={FRAME} />);
+    expect(screen.queryByRole("button", { name: /retake/i })).toBeNull();
   });
 });

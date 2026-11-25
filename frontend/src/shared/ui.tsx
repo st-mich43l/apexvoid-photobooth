@@ -57,15 +57,34 @@ export function SimulatedRibbon() {
   return <div className="ribbon" role="alert">{translate(language, "simulatedRibbon")}</div>;
 }
 
-/** Live view: an <img> on the loopback MJPEG stream, re-opened after drops. */
-export function LivePreview({ className = "", fit = "contain", objectPosition = "50% 50%" }: { className?: string; fit?: "contain" | "cover"; objectPosition?: string }) {
+/** Live view: an <img> on the loopback MJPEG stream, re-opened after drops.
+ *  `mediaStyle` replaces the default fit so a caller can show only part of the picture (the capture guide);
+ *  `onAspect` reports the picture's real width/height once the stream has delivered a frame. */
+export function LivePreview({ className = "", fit = "contain", objectPosition = "50% 50%", mediaStyle, onAspect }:
+  { className?: string; fit?: "contain" | "cover"; objectPosition?: string; mediaStyle?: React.CSSProperties; onAspect?: (aspect: number) => void }) {
   const { camera, previewUrl, settings } = useApp();
   const language = useLocale(settings?.language);
   const [failed, setFailed] = useState(0);
   const timer = useRef<number | undefined>(undefined);
+  const img = useRef<HTMLImageElement>(null);
+  const report = useRef(onAspect);
+  report.current = onAspect;
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const on = camera.liveView && camera.state !== "disconnected" && camera.state !== "error";
   useEffect(() => setFailed(0), [previewUrl]);
+  // an MJPEG <img> may never fire "load": look for its first frame's size until it has one
+  useEffect(() => {
+    if (!on || !report.current) return;
+    let tries = 0;
+    const look = () => {
+      const el = img.current;
+      if (el && el.naturalWidth > 0 && el.naturalHeight > 0) { report.current?.(el.naturalWidth / el.naturalHeight); return true; }
+      return ++tries > 80;
+    };
+    if (look()) return;
+    const id = window.setInterval(() => { if (look()) window.clearInterval(id); }, 250);
+    return () => window.clearInterval(id);
+  }, [on, previewUrl, failed]);
   if (!on) {
     return (
       <div className={`preview empty ${className}`}>
@@ -78,10 +97,12 @@ export function LivePreview({ className = "", fit = "contain", objectPosition = 
   return (
     <div className={`preview ${settings?.previewMirror ? "mirrored" : ""} ${className}`}>
       <img
+        ref={img}
         key={`${previewUrl}-${failed}`}
         src={previewUrl}
         alt={translate(language, "previewAlt")}
-        style={{ objectFit: fit, objectPosition }}
+        style={mediaStyle ?? { objectFit: fit, objectPosition }}
+        onLoad={(e) => { const el = e.currentTarget; if (el.naturalWidth > 0) report.current?.(el.naturalWidth / el.naturalHeight); }}
         onError={() => { timer.current = window.setTimeout(() => setFailed((n) => n + 1), 800); }}
       />
     </div>
