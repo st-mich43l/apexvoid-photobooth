@@ -12,3 +12,7 @@ No target kiosk hardware was available for this implementation. All scenarios be
 | Eight-hour soak and repeat sessions | UNVERIFIED | duration, memory/handles/CPU, failures, recovery |
 
 Software evidence: UX-5 CI run #274 exercised Windows GDI/spooler against a Microsoft file-port printer and produced a PDF. It did not print on physical paper or test an R50. The UX-6 runtime synthetic startup profile and lock tests are described in `UX6_AUDIT.md`. CI on a Windows runner is not a substitute for target kiosk acceptance.
+
+## Simulated endurance (software only)
+
+On the Linux development environment, `UX6_ENDURANCE=1 go test ./internal/capture -run '^TestSimulatedEndurance100Sessions$' -count=1 -v` completed 100 one-photo sessions in approximately 1.84 seconds with the mock camera (320×240 images and shortened countdown). Each session reached completed state and its synthetic original existed on disk. One run reported Go heap allocation of 419,120 bytes before and 464,304 bytes after forced GC, with four goroutines at the end. This is not a CPU or operating-system handle measurement, an eight-hour soak, a Windows benchmark, a four-photo endurance run, or physical camera/printer acceptance. CI repeats this software-only check.
