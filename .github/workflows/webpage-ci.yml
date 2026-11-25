@@ -63,7 +63,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: webpage-dist
-          path: dist/
+          path: |
+            dist/
+            artifacts/footer-shots/
           retention-days: 14
 
       - name: Upload the Playwright report
