@@ -12,14 +12,14 @@ test.describe("footer screenshots", () => {
   ];
 
   for (const scenario of cases) {
-    test(`after: ${scenario.name}`, async ({ page }) => {
-      await mkdir("artifacts/footer-shots/after", { recursive: true });
+    test(`before: ${scenario.name}`, async ({ page }) => {
+      await mkdir("artifacts/footer-shots/before", { recursive: true });
       await page.setViewportSize({ width: scenario.width, height: scenario.height });
       await page.emulateMedia({ colorScheme: scenario.scheme });
       await page.goto(scenario.path);
       const footer = page.locator("footer");
       await expect(footer).toBeVisible();
-      await footer.screenshot({ path: `artifacts/footer-shots/after/${scenario.name}.png` });
+      await footer.screenshot({ path: `artifacts/footer-shots/before/${scenario.name}.png` });
     });
   }
 });
@@ -35,13 +35,10 @@ test.describe("footer behavior", () => {
       const visibleLinkHrefs = await footer.locator("a:visible").evaluateAll((links) =>
         links.map((link) => (link as HTMLAnchorElement).pathname),
       );
-      const requiredHrefs = ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"];
-      for (const href of requiredHrefs) {
-        const visibleCount = visibleLinkHrefs.filter((value) => value === href).length;
-        expect(visibleCount, `${href} visible at ${width}px`).toBe(1);
+      for (const href of ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"]) {
+        expect(visibleLinkHrefs.filter((value) => value === href), `${href} visible at ${width}px`).toHaveLength(1);
       }
-      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-      expect(overflow, `overflow at ${width}px`).toBeLessThanOrEqual(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `overflow at ${width}px`).toBeLessThanOrEqual(0);
       const clipped = await footer.locator("a:visible").evaluateAll((links) =>
         links.filter((link) => {
           const rect = link.getBoundingClientRect();
@@ -56,10 +53,10 @@ test.describe("footer behavior", () => {
     await page.goto("/download/");
     const footer = page.locator("footer");
     await footer.locator('[data-locale-link="vi"]').click();
-    await expect(page).toHaveURL(new RegExp("/vi/download/$"));
+    await expect(page).toHaveURL(/\\/vi\\/download\\/$/);
     await expect(page.locator("html")).toHaveAttribute("lang", "vi");
     await page.locator("footer [data-locale-link=\"en\"]").click();
-    await expect(page).toHaveURL(new RegExp("/download/$"));
+    await expect(page).toHaveURL(/\\/download\\/$/);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
 });

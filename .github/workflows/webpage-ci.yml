@@ -37,6 +37,21 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Inspect formatter output
+        run: |
+          npx prettier --write src/components/layout/Footer.astro test/e2e/footer-screenshots.spec.ts
+          mkdir -p artifacts/footer-shots/formatted
+          cp src/components/layout/Footer.astro artifacts/footer-shots/formatted/Footer.astro
+          cp test/e2e/footer-screenshots.spec.ts artifacts/footer-shots/formatted/footer-screenshots.spec.ts
+
+      - name: Upload formatter output for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: footer-prettier-output
+          path: artifacts/footer-shots/formatted/
+          retention-days: 7
+
       - name: Formatting and lint
         run: npm run lint
 
