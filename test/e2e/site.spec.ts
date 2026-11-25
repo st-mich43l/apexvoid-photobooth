@@ -309,6 +309,33 @@ test.describe("layout", () => {
       }
     });
   }
+
+  test("a published download release fits phone widths without clipped content", async ({ page }) => {
+    await serveManifest(page, manifest("manifest-valid.json"));
+    for (const width of [320, 360, 375, 390, 430]) {
+      await page.setViewportSize({ width, height: 840 });
+      await page.goto("/download/");
+      await expect(panel(page)).toHaveAttribute("data-state", "available");
+      const overflow = await page.evaluate(() => {
+        const viewport = document.documentElement.clientWidth;
+        return Array.from(document.querySelectorAll("main *"))
+          .filter((element) => {
+            if (element.closest("pre")) return false;
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && style.display !== "none" && style.visibility !== "hidden" &&
+              element.getClientRects().length > 0 && (rect.left < -1 || rect.right > viewport + 1);
+          })
+          .map((element) => ({
+            tag: element.tagName.toLowerCase(),
+            className: typeof element.className === "string" ? element.className : "",
+            right: Math.round(element.getBoundingClientRect().right),
+          }))
+          .slice(0, 8);
+      });
+      expect(overflow, `clipped elements at ${width}px`).toEqual([]);
+    }
+  });
 });
 
 test.describe("accessibility", () => {

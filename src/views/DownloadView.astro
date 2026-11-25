@@ -17,30 +17,12 @@ const t = all.download;
 
 <BaseLayout locale={locale} title={t.title} description={t.description}>
   <PageIntro eyebrow={t.eyebrow} title={t.heading} />
-  <section class="section pt-12 sm:pt-16">
-    <div class="container-site grid gap-12 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
-      <div class="space-y-10">
+  <section class="section pt-12 pb-12 sm:pt-16">
+    <div class="container-site grid min-w-0 gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] lg:gap-12">
+      <div class="min-w-0">
         <DownloadPanel locale={locale} />
-        <section aria-labelledby="dev-builds" class="border-t border-line pt-8">
-          <h2 id="dev-builds" class="t-3">
-            {t.devTitle}
-          </h2>
-          <p class="mt-3 text-muted max-w-prose">{t.devBody}</p>
-          <div class="mt-5 flex flex-wrap gap-x-6 gap-y-3">
-            <a href={CI_URL} target="_blank" rel="noopener" class="link inline-flex items-center gap-1.5 font-medium">
-              {t.devLink}
-              <ArrowUpRight size={16} aria-hidden="true" />
-              <span class="sr-only">{all.a11y.newTab}</span>
-            </a>
-            <a href={`${DOCS_BASE}/INSTALL.md`} target="_blank" rel="noopener" class="link inline-flex items-center gap-1.5 font-medium">
-              {all.docs.guides[0]?.title}
-              <ArrowUpRight size={16} aria-hidden="true" />
-              <span class="sr-only">{all.a11y.newTab}</span>
-            </a>
-          </div>
-        </section>
       </div>
-      <aside aria-labelledby="req" class="lg:pt-2">
+      <aside aria-labelledby="req" class="min-w-0 lg:pt-2">
         <h2 id="req" class="t-3">
           {t.requirements}
         </h2>
@@ -57,6 +39,24 @@ const t = all.download;
           {all.nav.releases}
         </a>
       </aside>
+      <section aria-labelledby="dev-builds" class="min-w-0 border-t border-line pt-8 lg:col-start-1">
+        <h2 id="dev-builds" class="t-3">
+          {t.devTitle}
+        </h2>
+        <p class="mt-3 max-w-prose text-muted">{t.devBody}</p>
+        <div class="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-3">
+          <a href={CI_URL} target="_blank" rel="noopener" class="link inline-flex min-h-11 min-w-0 items-center gap-1.5 font-medium">
+            {t.devLink}
+            <ArrowUpRight size={16} aria-hidden="true" />
+            <span class="sr-only">{all.a11y.newTab}</span>
+          </a>
+          <a href={`${DOCS_BASE}/INSTALL.md`} target="_blank" rel="noopener" class="link inline-flex min-h-11 min-w-0 items-center gap-1.5 font-medium">
+            {all.docs.guides[0]?.title}
+            <ArrowUpRight size={16} aria-hidden="true" />
+            <span class="sr-only">{all.a11y.newTab}</span>
+          </a>
+        </div>
+      </section>
     </div>
   </section>
 </BaseLayout>
