@@ -1,9 +1,8 @@
-import { translate } from "../i18n";
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { backendLabel, canRecordVideo, guidance, kindLabel, modeOptions, resolutions } from "../sourceInfo";
 import { CanonPanel } from "../CanonPanel";
-import { useApp } from "../state";
+import { useApp, useT } from "../state";
 import { Badge, ErrorNote, LivePreview, SupportBadge, useAction } from "../ui";
 import { CameraTest } from "../operator/CameraTest";
 import { useLatest } from "../operator/latest";
@@ -12,15 +11,15 @@ import { Icon } from "../icons";
 import type { CameraSources, DeviceInfo } from "../types";
 
 const CAP_LABELS = [
-  ["liveView", "Live view"], ["stillCapture", "Still capture"], ["originalTransfer", "Full-resolution original to PC"],
-  ["movieRecord", "Camera-native movie start/stop"], ["movieTransfer", "Movie file transfer"], ["streamedVideo", "Video streamed to PC"],
+  ["liveView", "liveViewLabel"], ["stillCapture", "stillCapture"], ["originalTransfer", "originalTransferLabel"],
+  ["movieRecord", "movieRecordLabel"], ["movieTransfer", "movieTransferLabel"], ["streamedVideo", "streamedVideoLabel"],
 ] as const;
 
 /** Camera setup. Primary view: choose the photo camera, connect, see it live, run an optional test. Everything else
  *  (video camera, resolution, backends, Canon diagnostics, capabilities) is under "Advanced". */
 export function CameraPage() {
   const { camera, settings, toast, shoot } = useApp();
-  const t = (key: Parameters<typeof translate>[1]) => translate(settings?.language, key);
+  const { t, tf } = useT();
   const [src, setSrc] = useState<CameraSources | null>(null);
   const scan = useAction();
   const act = useAction();
@@ -47,20 +46,20 @@ export function CameraPage() {
 
   return (
     <div className="page">
-      <PageHeader title={translate(settings?.language, "camera")} sub={t("cameraSub")}>
+      <PageHeader title={t("camera")} sub={t("cameraSub")}>
         <button onClick={() => { void refresh(); }} disabled={scan.busy}><Icon name="refresh" size={16} /> {scan.busy ? t("scanning") : t("refreshDevices")}</button>
       </PageHeader>
       {src?.restoreNote && <div className="note warn" role="alert"><div>{src.restoreNote}</div></div>}
       {camera.reconnecting && <div className="note warn" role="alert"><div>{t("cameraDisconnected")}</div></div>}
       {locked && <div className="note info" role="status"><div>{t("cameraLocked")}</div></div>}
-      {sim && <div className="note info" role="status"><div><strong>Demo / test mode.</strong> The SIMULATED camera produces test patterns. It is useful for trying the screens and is never a hardware check.</div></div>}
+      {sim && <div className="note info" role="status"><div><strong>{t("demoModeTitle")}</strong> {t("cameraDemoNote")}</div></div>}
       <ErrorNote error={err} onClose={() => { act.clear(); scan.clear(); }} />
       {!err && camera.lastError && <ErrorNote error={{ name: "", message: camera.lastError, action: camera.lastAction || guidance(activeDev, camera.lastError) }} />}
-      {src && !src.ffmpegFound && <div className="note warn"><div>FFmpeg was not found. Webcams are listed, but preview and photos need <code>ffmpeg.exe</code> next to the app or its path in Settings. Canon cameras do not need it.</div></div>}
+      {src && !src.ffmpegFound && <div className="note warn"><div>{t("cameraFFmpegMissing")}</div></div>}
 
       <div className="two-col sources">
-        <section className="card" aria-label="Photo camera">
-          <h3>{translate(settings?.language, "photoCamera")}</h3>
+        <section className="card" aria-label={t("photoCamera")}>
+          <h3>{t("photoCamera")}</h3>
           {scan.busy && !src && <StateBlock kind="loading">{t("lookingCameras")}</StateBlock>}
           {src && src.devices.length === 0 && <StateBlock kind="empty">{t("noCameras")}</StateBlock>}
           <ul className="sources-list">
@@ -79,27 +78,27 @@ export function CameraPage() {
                 {d.note && <p className="muted small">{d.note}</p>}
                 {!d.duplicateOf && !isPref(d, "photo") && (
                   <div className="row tight">
-                    <button className="ghost" disabled={act.busy || locked} onClick={() => act.run(async () => { await api.setPreferredCamera("photo", d.id); toast(`${d.name} is now the Photo camera`); })}>{t("usePhotoCamera")}</button>
+                    <button className="ghost" disabled={act.busy || locked} onClick={() => act.run(async () => { await api.setPreferredCamera("photo", d.id); toast(tf("preferredCameraSet", { name: d.name, camera: t("photoCamera") })); })}>{t("usePhotoCamera")}</button>
                   </div>
                 )}
               </li>
             ))}
           </ul>
           {settings.photoCamera.name && (
-            <p className="muted small">Photo camera: <strong>{settings.photoCamera.name}</strong> — restored when the app starts. If it is missing the app asks before using another camera.
-              <button className="ghost" disabled={locked} onClick={() => act.run(() => api.clearPreferredCamera("photo"))}>clear</button></p>
+            <p className="muted small">{t("photoCamera")}: <strong>{settings.photoCamera.name}</strong> — {t("photoCameraRestoreHint")}
+              <button className="ghost" disabled={locked} onClick={() => act.run(() => api.clearPreferredCamera("photo"))}>{t("clearPreference")}</button></p>
           )}
-          {camera.device?.driver === "uvc" && <p className="note warn inline-note"><span>Photos from this webcam are <strong>frame grabs</strong> from the video stream, at the stream resolution.</span></p>}
+          {camera.device?.driver === "uvc" && <p className="note warn inline-note"><span>{t("webcamFrameGrabDetail")}</span></p>}
         </section>
 
-        <section className="card" aria-label="Live preview">
-          <header className="row"><h3>{translate(settings?.language, "livePreview")}{camera.device ? ` — ${camera.device.name}` : ""}</h3>
+        <section className="card" aria-label={t("livePreview")}>
+          <header className="row"><h3>{t("livePreview")}{camera.device ? ` — ${camera.device.name}` : ""}</h3>
             {camera.device && (camera.liveView
               ? <button onClick={() => api.stopLiveView()}>{t("stopPreview")}</button>
               : <button className="primary" disabled={locked} onClick={() => act.run(() => api.startLiveView())}>{t("startPreview")}</button>)}
           </header>
           <LivePreview className="big-live" />
-          <p className="muted small">Check that the picture is sharp, framed and not mirrored the wrong way. {settings.previewMirror ? "The preview is mirrored; saved photos are not." : ""}</p>
+          <p className="muted small">{t("checkPreviewHint")} {settings.previewMirror ? t("previewMirroredSavedNot") : ""}</p>
         </section>
       </div>
 
@@ -108,34 +107,34 @@ export function CameraPage() {
       <details className="advanced">
         <summary>{t("cameraAdvanced")}</summary>
         <section className="card">
-          <h3>{translate(settings?.language, "videoCamera")}</h3>
+          <h3>{t("videoCamera")}</h3>
           <p className="muted small">{t("videoOwnCamera")}</p>
           <ul className="sources-list">
             {src?.devices.filter((d) => canRecordVideo(d) || isPref(d, "video")).map((d) => (
               <li key={d.id} className="source"><div className="source-head"><div><strong>{d.name}</strong> {isPref(d, "video") && <Badge kind="info">{t("videoDefault")}</Badge>}</div>
-                <button className="ghost" disabled={act.busy || locked || !canRecordVideo(d)} onClick={() => act.run(async () => { await api.setPreferredCamera("video", d.id); toast(`${d.name} is now the Video camera`); })}>{t("useVideoCamera")}</button></div>
-                {d.modes && d.modes.length > 0 && <p className="muted small">Resolutions: {resolutions(d.modes).join(" · ")}</p>}</li>
+                <button className="ghost" disabled={act.busy || locked || !canRecordVideo(d)} onClick={() => act.run(async () => { await api.setPreferredCamera("video", d.id); toast(tf("preferredCameraSet", { name: d.name, camera: t("videoCamera") })); })}>{t("useVideoCamera")}</button></div>
+                {d.modes && d.modes.length > 0 && <p className="muted small">{t("resolutionsLabel")}: {resolutions(d.modes).join(" · ")}</p>}</li>
             ))}
           </ul>
-          {settings.videoCamera.name && <p className="muted small">Video default: {settings.videoCamera.name} <button className="ghost" onClick={() => act.run(() => api.clearPreferredCamera("video"))}>clear</button></p>}
+          {settings.videoCamera.name && <p className="muted small">{t("videoDefault")}: {settings.videoCamera.name} <button className="ghost" onClick={() => act.run(() => api.clearPreferredCamera("video"))}>{t("clearPreference")}</button></p>}
         </section>
         {camera.device && activeDev?.modes && activeDev.modes.length > 0 && (
           <section className="card">
             <h3>{t("streamResolution")}</h3>
-            <label className="form-line">Resolution and frame rate
+            <label className="form-line">{t("resolutionAndRate")}
               <select value={currentKey(camera.mode)} disabled={act.busy || locked} onChange={(e) => {
                 const o = modeOptions(activeDev.modes).find((x) => x.key === e.target.value);
-                if (o) act.run(async () => { await api.setCameraMode(activeDev.id, { width: o.width, height: o.height, fps: o.fps, format: o.format }); toast(`Stream set to ${o.label}`); });
+                if (o) act.run(async () => { await api.setCameraMode(activeDev.id, { width: o.width, height: o.height, fps: o.fps, format: o.format }); toast(tf("streamConfigured", { mode: o.label })); });
               }}>
-                {!modeOptions(activeDev.modes).some((o) => o.key === currentKey(camera.mode)) && <option value={currentKey(camera.mode)}>{currentKey(camera.mode).replace("x", "×").replace("@", " @ ")} (requested)</option>}
+                {!modeOptions(activeDev.modes).some((o) => o.key === currentKey(camera.mode)) && <option value={currentKey(camera.mode)}>{currentKey(camera.mode).replace("x", "×").replace("@", " @ ")} ({t("requestedModeLabel")})</option>}
                 {modeOptions(activeDev.modes).map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
             </label>
-            {camera.mode && camera.mode.width > 0 && <p className="muted small">Streaming {camera.mode.width}×{camera.mode.height}{camera.mode.fpsMax ? ` @ ${Math.round(camera.mode.fpsMax)} fps` : ""}. Changing it reconnects the camera.</p>}
+            {camera.mode && camera.mode.width > 0 && <p className="muted small">{tf("streamingMode", { width: camera.mode.width, height: camera.mode.height, fps: camera.mode.fpsMax ? ` @ ${Math.round(camera.mode.fpsMax)} fps` : "" })}. {t("streamChangeReconnect")}</p>}
           </section>
         )}
         <section className="card">
-          <h3>{translate(settings?.language, "cameraDrivers")}</h3>
+          <h3>{t("cameraDrivers")}</h3>
           <p className="muted small">{t("driverInfo")}</p>
           <ul className="list compact">
             {camera.drivers.map((d) => (
@@ -147,10 +146,10 @@ export function CameraPage() {
         <CanonPanel />
         {camera.device && caps && (
           <section className="card">
-            <h3>Capabilities — {camera.device.name}</h3>
-            <p className="muted small">Reported by the backend at runtime. “Unverified” means the function exists but has not succeeded on this camera yet; it is promoted to “supported” only after a real success.</p>
+            <h3>{tf("capabilitiesFor", { camera: camera.device.name })}</h3>
+            <p className="muted small">{t("capabilityRuntimeHint")}</p>
             <table className="table"><tbody>
-              {CAP_LABELS.map(([k, label]) => <tr key={k}><td>{label}</td><td><SupportBadge v={caps[k]} /></td></tr>)}
+              {CAP_LABELS.map(([k, label]) => <tr key={k}><td>{t(label)}</td><td><SupportBadge v={caps[k]} /></td></tr>)}
             </tbody></table>
             {caps.notes?.map((n, i) => <p key={i} className="muted small">• {n}</p>)}
           </section>

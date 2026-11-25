@@ -57,27 +57,6 @@ func isMigrated(dir string) bool {
 	return err == nil
 }
 
-func writable(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, ".write-test-")
-	if err != nil {
-		return err
-	}
-	name := f.Name()
-	if _, err = f.WriteString("ok"); err != nil {
-		_ = f.Close()
-		_ = os.Remove(name)
-		return err
-	}
-	if err = f.Close(); err != nil {
-		_ = os.Remove(name)
-		return err
-	}
-	return os.Remove(name)
-}
-
 // resolve implements the decision table:
 //
 //	custom folder configured                      → use it, never migrate
@@ -102,9 +81,6 @@ func (m *Manager) resolve(e env) Resolution {
 	var def string
 	if err == nil {
 		def = filepath.Join(docs, LibraryFolderName)
-		if werr := writable(def); werr != nil {
-			err = fmt.Errorf("%s is not writable: %w", def, werr)
-		}
 	}
 	if err != nil {
 		fb := legacy
@@ -122,6 +98,22 @@ func (m *Manager) resolve(e env) Resolution {
 		r.Path, r.Source, r.MigrationPending = legacy, SourceLegacy, true
 	}
 	return r
+}
+
+// FallbackLibrary selects the legacy/default location after the caller has
+// acquired ownership of the Documents library and discovered that it cannot
+// be used. Resolution itself must not probe by writing into a library before
+// the process owns it.
+func FallbackLibrary(r Resolution, cause error) Resolution {
+	if r.Source != SourceDocuments {
+		return r
+	}
+	fallback := r.LegacyPath
+	if fallback == "" {
+		fallback = filepath.Join(os.TempDir(), AppDirName)
+	}
+	msg := fmt.Sprintf("The Documents folder is unavailable (%v). Using %s instead. Fix the folder or choose another library folder in Settings.", cause, fallback)
+	return Resolution{Path: fallback, Source: SourceFallback, DefaultPath: r.DefaultPath, LegacyPath: r.LegacyPath, Warning: msg}
 }
 
 // ResolveLibrary chooses the library location (see resolve).

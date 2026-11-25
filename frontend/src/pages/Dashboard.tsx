@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes } from "../format";
-import { useApp } from "../state";
+import { useApp, useT } from "../state";
 import { Icon } from "../icons";
 import type { Media, PrintersResult, ReadinessItem } from "../types";
 
@@ -26,6 +26,7 @@ function StatCard({ icon, label, tone, status, value, sub, action, onAction, chi
 
 export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: () => void }) {
   const { camera, boot, settings, mediaUrl, libraryVersion, readiness, refreshReadiness } = useApp();
+  const { t, tf } = useT();
   const [recent, setRecent] = useState<Media[]>([]);
   const [lib, setLib] = useState(boot.library);
   const [printers, setPrinters] = useState<PrintersResult | null>(null);
@@ -45,43 +46,43 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
   const interrupted = lib.interrupted.length;
 
   const camTone: Tone = connected ? (camera.device!.simulated ? "warn" : "ok") : camera.reconnecting ? "warn" : "err";
-  const camStatus = connected ? (camera.device!.simulated ? "Demo (simulated)" : "Connected") : camera.reconnecting ? "Reconnecting" : "Not connected";
+  const camStatus = connected ? (camera.device!.simulated ? t("demoSimulated") : t("connected")) : camera.reconnecting ? t("cameraReconnectingStatus") : t("notConnected");
   const prTone: Tone = printer ? (printer.status === "ready" ? "ok" : "warn") : settings.printerName ? "warn" : "ok";
 
   // where each readiness line is fixed
   const FIX: Record<string, [string, string]> = {
-    camera: ["camera", "Camera setup"], capture: ["camera", "Camera setup"], storage: ["settings", "Library settings"], library: ["settings", "Library settings"],
-    space: ["settings", "Library settings"], frames: ["frames", "Frames"], printer: ["printer", "Printer setup"], session: ["photo", "Open the session"], interrupted: ["gallery", "Open Gallery"],
+    camera: ["camera", t("cameraSetup")], capture: ["camera", t("cameraSetup")], storage: ["settings", t("librarySettings")], library: ["settings", t("librarySettings")],
+    space: ["settings", t("librarySettings")], frames: ["frames", t("frames")], printer: ["printer", t("printerSetup")], session: ["photo", t("openSession")], interrupted: ["gallery", t("openGallery")],
   };
   const todo: ReadinessItem[] = (readiness?.items ?? []).filter((it) => it.state === "problem" || it.state === "warn");
   const status = readiness?.status ?? (connected ? "ready" : "setup_required");
-  const headline = readiness?.headline ?? (connected ? "Ready for guests" : "Setup required");
-  const sub = readiness?.detail || (connected ? "Guests pick a frame, the camera counts down, and the strip is ready to print." : "Connect a camera first. Booth Mode needs one before guests can shoot.");
+  const headline = readiness?.headline ?? (connected ? t("readyForGuests") : t("setupRequired"));
+  const sub = readiness?.detail || (connected ? t("guestReadyHint") : t("connectCameraHint"));
 
   return (
     <div className="page dash">
       <header className={`dash-hero status-${status}`}>
         <div className="hero-copy">
-          <span className="eyebrow">Studio · operator</span>
+          <span className="eyebrow">{t("studioOperator")}</span>
           <h1 aria-live="polite">{headline}</h1>
           <p>{sub}</p>
           <div className="hero-actions">
-            {onBooth && <button className="primary alt cta" onClick={onBooth}><Icon name="play" size={18} />Open Booth Mode</button>}
-            <button onClick={() => go("prepare")}><Icon name="prepare" size={18} />Prepare Booth</button>
-            <button onClick={() => go("photo")}><Icon name="photo" size={18} />Photo session</button>
-            <button onClick={() => go("video")}><Icon name="video" size={18} />Record video</button>
+            {onBooth && <button className="primary alt cta" onClick={onBooth}><Icon name="play" size={18} />{t("openBooth")}</button>}
+            <button onClick={() => go("prepare")}><Icon name="prepare" size={18} />{t("prepare")}</button>
+            <button onClick={() => go("photo")}><Icon name="photo" size={18} />{t("photoSession")}</button>
+            <button onClick={() => go("video")}><Icon name="video" size={18} />{t("recordVideo")}</button>
           </div>
         </div>
-        <dl className="hero-stats" aria-label="Library totals">
-          <div><dd>{lib.photos}</dd><dt>Photos</dt></div>
-          <div><dd>{lib.videos}</dd><dt>Videos</dt></div>
-          <div><dd>{lib.sessions}</dd><dt>Sessions</dt></div>
+        <dl className="hero-stats" aria-label={t("libraryTotals")}>
+          <div><dd>{lib.photos}</dd><dt>{t("photoCountLabel")}</dt></div>
+          <div><dd>{lib.videos}</dd><dt>{t("video")}</dt></div>
+          <div><dd>{lib.sessions}</dd><dt>{t("sessions")}</dt></div>
         </dl>
       </header>
 
       {todo.length > 0 && (
-        <section className="todo" aria-label="Needs attention">
-          <h2>Needs attention</h2>
+        <section className="todo" aria-label={t("needsAttention")}>
+          <h2>{t("needsAttention")}</h2>
           <ul>
             {todo.map((it) => (
               <li key={it.key} className={it.state}>
@@ -95,25 +96,25 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
       )}
 
       <div className="stat-grid">
-        <StatCard icon="camera" label="Camera" tone={camTone} status={camStatus}
-          value={connected ? camera.device!.name : camera.reconnecting ? "Reconnecting…" : "No camera"}
-          sub={connected ? camera.device!.driver : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : "Plug in a webcam or camera and open Camera settings."}
-          action="Camera settings" onAction={() => go("camera")} />
-        <StatCard icon="printer" label="Printer" tone={prTone}
-          status={printer ? (printer.status === "ready" ? "Windows: ready" : printer.status) : settings.printerName ? "Not found" : "Digital only"}
-          value={printer ? printer.name : settings.printerName ? `${settings.printerName} not found` : "No printer selected"}
-          sub={printer || settings.printerName ? "Prints go to the Windows queue. Whether paper comes out is not checked." : "Guests get digital photos. Choose a printer to offer prints."}
-          action={printer ? "Printer settings" : "Choose a printer"} onAction={() => go("printer")} />
-        <StatCard icon="storage" label="Storage" tone={lowDisk ? "err" : interrupted ? "warn" : "ok"}
-          status={lowDisk ? "Low space" : interrupted ? "Check sessions" : "Healthy"}
-          value={lib.freeBytes >= 0 ? `${bytes(lib.freeBytes)} free` : "Unknown"}
-          sub={interrupted ? `${interrupted} interrupted session(s) — originals recovered` : `${lib.photos} photos · ${lib.videos} videos saved`}
-          action="Open gallery" onAction={() => go("gallery")} />
+        <StatCard icon="camera" label={t("camera")} tone={camTone} status={camStatus}
+          value={connected ? camera.device!.name : camera.reconnecting ? t("cameraReconnectingStatus") : t("noCamera")}
+          sub={connected ? camera.device!.driver : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : t("plugCameraHint")}
+          action={t("cameraSetup")} onAction={() => go("camera")} />
+        <StatCard icon="printer" label={t("printer")} tone={prTone}
+          status={printer ? (printer.status === "ready" ? t("windowsReady") : printer.status) : settings.printerName ? t("notFound") : t("digitalOnly")}
+          value={printer ? printer.name : settings.printerName ? `${settings.printerName} ${t("notFound").toLowerCase()}` : t("noPrinterSelected")}
+          sub={printer || settings.printerName ? t("spoolerNotice") : t("choosePrinterHint")}
+          action={t("printerSetup")} onAction={() => go("printer")} />
+        <StatCard icon="storage" label={t("storage")} tone={lowDisk ? "err" : interrupted ? "warn" : "ok"}
+          status={lowDisk ? t("lowSpace") : interrupted ? t("checkSessions") : t("healthy")}
+          value={lib.freeBytes >= 0 ? `${bytes(lib.freeBytes)} ${t("freeBytes")}` : t("unknownPrintHelp")}
+          sub={interrupted ? tf("interruptedSessions", { count: interrupted }) : tf("savedMediaCount", { photos: lib.photos, videos: lib.videos })}
+          action={t("openGallery")} onAction={() => go("gallery")} />
       </div>
 
-      <div className="section-head"><h2>Recent</h2>{recent.length > 0 && <button className="ghost" onClick={() => go("gallery")}>View all →</button>}</div>
+      <div className="section-head"><h2>{t("recent")}</h2>{recent.length > 0 && <button className="ghost" onClick={() => go("gallery")}>{t("viewAll")}</button>}</div>
       {recent.length === 0 ? (
-        <div className="empty-state"><Icon name="photo" size={28} /><b>No photos yet</b><span>Sessions you shoot will show up here.</span></div>
+        <div className="empty-state"><Icon name="photo" size={28} /><b>{t("noPhotosYet")}</b><span>{t("sessionsAppearHere")}</span></div>
       ) : (
         <div className="strip-row">
           {recent.map((m) => (
@@ -124,7 +125,7 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
           ))}
         </div>
       )}
-      <p className="muted small path-line">Media folder: {boot.dataDir}</p>
+      <p className="muted small path-line">{t("mediaFolder")} {boot.dataDir}</p>
     </div>
   );
 }

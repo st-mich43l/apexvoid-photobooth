@@ -5,7 +5,10 @@ const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
   api: { listPrinters: vi.fn(), printerCapabilities: vi.fn(), printJobs: vi.fn(), listMedia: vi.fn(), patchSettings: vi.fn(), testPrint: vi.fn(), reprint: vi.fn(), printPreview: vi.fn(), printMedia: vi.fn() },
 }));
-vi.mock("./state", () => ({ useApp: () => h.S }));
+vi.mock("./state", async () => {
+  const { translate, formatTranslation } = await import("./i18n");
+  return { useApp: () => h.S, useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
+});
 vi.mock("./api", () => ({ api: h.api, on: () => () => {}, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: "" }) }));
 vi.mock("./PrintPanel", () => ({ PrintPanel: () => <div data-testid="panel" /> }));
 

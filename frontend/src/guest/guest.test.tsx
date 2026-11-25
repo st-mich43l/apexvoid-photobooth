@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CameraStatus, FrameChoice, ShootSnapshot } from "../types";
 
-vi.mock("../ui", () => ({ LivePreview: () => <div data-testid="live" /> }));
+vi.mock("../ui", () => ({ LivePreview: (p: { fit?: string; objectPosition?: string }) => <div data-testid="live" data-fit={p.fit ?? "contain"} data-position={p.objectPosition ?? "50% 50%"} /> }));
 import { GuestShoot, type GuestShootProps } from "./GuestShoot";
 import { Welcome, type WelcomeProps } from "./Welcome";
 import { StepIndicator } from "./parts";
@@ -117,6 +117,24 @@ describe("live preview", () => {
   it("Start is disabled without live view", () => {
     render(<GuestShoot {...G(snap("PREVIEW"), { camera: cam({ liveView: false }) })} />);
     expect((screen.getByRole("button", { name: /Start shooting/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+  it("frames the upcoming shot to its frame slot and focus", () => {
+    const frame = { ...FRAME, photoSlots: [
+      { photo: 0, w: 0.4, h: 0.8, focusX: 0.25, focusY: 0.75 },
+      { photo: 1, w: 0.8, h: 0.4, focusX: 0.6, focusY: 0.2 },
+    ] };
+    const { container, rerender } = render(<GuestShoot {...G(snap("PREVIEW"), { frame })} />);
+    expect(container.querySelector(".g-shot-target")?.getAttribute("style")).toContain("--shot-ar: 0.5");
+    expect(screen.getByTestId("live").getAttribute("data-fit")).toBe("cover");
+    expect(screen.getByTestId("live").getAttribute("data-position")).toBe("25% 75%");
+    rerender(<GuestShoot {...G(snap("COUNTDOWN", { slot: 1, remaining: 2 }), { frame })} />);
+    expect(container.querySelector(".g-shot-target")?.getAttribute("style")).toContain("--shot-ar: 2");
+    expect(screen.getByTestId("live").getAttribute("data-position")).toBe("60% 20%");
+  });
+  it("uses centered framing when a legacy frame has no slot geometry", () => {
+    render(<GuestShoot {...G(snap("PREVIEW"))} />);
+    expect(screen.getByTestId("live").getAttribute("data-fit")).toBe("contain");
+    expect(document.querySelector(".g-shot-target")).toBeNull();
   });
   it("no camera: a plain message, never a blank screen", () => {
     render(<GuestShoot {...G(snap("PREVIEW"), { camera: cam({ device: undefined }) })} />);

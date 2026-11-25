@@ -11,7 +11,19 @@ const h = vi.hoisted(() => ({
     diagnostics: vi.fn(), diagnosticSummary: vi.fn(), pickFolder: vi.fn(), exportSupportBundle: vi.fn(), listMedia: vi.fn(), printerCapabilities: vi.fn(),
   },
 }));
-vi.mock("../state", () => ({ useApp: () => h.S }));
+vi.mock("../state", async () => {
+  const { translate, formatTranslation } = await import("../i18n");
+  return {
+    useApp: () => h.S,
+    useT: () => {
+      const language = (h.S.settings as { language?: string } | undefined)?.language;
+      return {
+        t: (key: Parameters<typeof translate>[1]) => translate(language, key),
+        tf: (key: Parameters<typeof formatTranslation>[1], values: Record<string, string | number>) => formatTranslation(language, key, values),
+      };
+    },
+  };
+});
 vi.mock("../api", () => ({ api: h.api, on: () => () => {}, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
 vi.mock("../ui", async (orig) => ({ ...(await orig<typeof import("../ui")>()), LivePreview: () => <div data-testid="preview" /> }));
 vi.mock("../CanonPanel", () => ({ CanonPanel: () => null }));

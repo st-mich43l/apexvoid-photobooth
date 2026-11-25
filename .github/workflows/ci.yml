@@ -341,9 +341,7 @@ jobs:
           $r = Get-Content selftest.json -Raw | ConvertFrom-Json
           $ff = $r.checks | Where-Object { $_.name -eq 'FFmpeg' }
           if (-not $ff.ok -or $ff.detail -notlike '*built into this application*') { throw 'Bundled FFmpeg was not found' }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ApexVoidPhotobooth-windows-x64-canon
-          path: dist/
-          if-no-files-found: error
-          retention-days: 30
+      # Canon binaries are retained only in the one-day intermediate staging
+      # artifact above so this job can validate extraction and SDK startup.
+      # Do not publish a downloadable Canon-enabled build until redistribution
+      # permission has been established from the applicable Canon agreement.
