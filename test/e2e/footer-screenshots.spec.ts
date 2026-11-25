@@ -56,6 +56,21 @@ test.describe("footer behavior", () => {
     }
   });
 
+  test("every footer destination works and the external project link stays protected", async ({ page }) => {
+    const paths = ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"];
+    for (const path of paths) {
+      await page.goto("/download/");
+      await page.locator(`footer a[href="${path}"]:visible`).click();
+      await expect(page.locator("h1")).toHaveCount(1);
+      expect(new URL(page.url()).pathname).toBe(path);
+    }
+
+    await page.goto("/download/");
+    const github = page.locator('footer a[href^="https://github.com/"]:visible');
+    await expect(github).toHaveAttribute("target", "_blank");
+    await expect(github).toHaveAttribute("rel", /noopener/);
+  });
+
   test("footer language switch preserves the current localized route", async ({ page }) => {
     await page.goto("/download/");
     const footer = page.locator("footer");
