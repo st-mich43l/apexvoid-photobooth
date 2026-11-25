@@ -415,7 +415,7 @@ export const en = {
       ],
     },
     licenseNote:
-      "The source code is visible, but no licence has been published for the application yet. Read the licensing page before reusing any of it.",
+      "The application is open source under the MIT License. Bundled third-party components keep their own licences; see the licensing page.",
   },
   privacy: {
     title: "Privacy — ApexVoid Photobooth",
@@ -454,8 +454,8 @@ export const en = {
     app: {
       title: "The application",
       paragraphs: [
-        "No licence has been published for the ApexVoid Photobooth application yet. The source code can be read on GitHub, but that does not grant permission to copy, modify or redistribute it.",
-        "This page will be updated when a licence is chosen.",
+        "ApexVoid Photobooth is open source under the MIT License. You may use, copy, modify and redistribute it, including commercially, as long as the copyright and licence notice are kept. It comes without any warranty.",
+        "The MIT License covers the application's own code. The components listed below keep their own licences; every release includes their notices (THIRD-PARTY-NOTICES.txt) and the licence text (LICENSE.txt).",
       ],
     },
     thirdParty: {
@@ -470,7 +470,7 @@ export const en = {
         {
           name: "Canon EDSDK",
           license: "Proprietary — Canon",
-          body: "Canon's SDK is used for EOS cameras. It is governed by Canon's own terms.",
+          body: "Canon's SDK is used for EOS cameras and is embedded in the official Windows build. It remains Canon's property under Canon's own terms and is not covered by the MIT License.",
         },
         {
           name: "Noto Sans",

@@ -84,7 +84,8 @@ Every product statement comes from the desktop application's own documentation o
   has three states: _software integration_, _physically verified_ (empty today) and _needs hardware testing_.
 - No invented release versions, sizes, dates, checksums, download counts, prices or ratings — on pages or in
   structured data.
-- macOS and Linux are not supported, and the application has **no published licence**: do not call it open source.
+- macOS and Linux are not supported. The application is MIT-licensed open source; bundled FFmpeg (LGPL), Canon EDSDK
+  (proprietary) and Noto Sans (OFL) keep their own licences — never describe those as MIT.
 
 When the application changes, update `src/i18n/en.ts` first, then `vi.ts`.
 
