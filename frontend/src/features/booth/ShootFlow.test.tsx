@@ -40,7 +40,7 @@ describe("ShootFlow with a pre-selected frame", () => {
   it("shows the selected frame beside the live view and the photo count on the button", () => {
     render(<ShootFlow variant="booth" frame={FRAME} />);
     expect(screen.getByLabelText("Frame: Four")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /4 photos/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /8 photos/ })).toBeTruthy();
     expect(screen.getByTestId("live")).toBeTruthy();
   });
 

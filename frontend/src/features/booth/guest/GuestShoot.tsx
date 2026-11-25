@@ -40,7 +40,7 @@ function PhotoTile({ slot, src, disabled, onRetake, language, frameSlot, selecte
           <span className="g-photo-num" aria-hidden="true">{slot + 1}</span>
         </div>
       </div>
-      <button type="button" className={`g-btn g-small g-assign ${selectedFor >= 0 ? "g-primary" : "g-secondary"}`} aria-pressed={selectedFor >= 0} disabled={disabled} onClick={() => onAssign(slot)}>
+      <button type="button" className={`g-btn g-small g-assign ${selectedFor >= 0 ? "g-assigned" : "g-secondary"}`} aria-pressed={selectedFor >= 0} disabled={disabled} onClick={() => onAssign(slot)}>
         <Icon name={selectedFor >= 0 ? "check" : "camera"} size={18} />
         <span>{selectedFor >= 0 ? formatTranslation(language, "selectedForFrameSlot", { number: selectedFor + 1 }) : formatTranslation(language, "useForFrameSlot", { number: frameSlot + 1 })}</span>
       </button>
@@ -167,14 +167,14 @@ export function GuestShoot(p: GuestShootProps) {
               <p>{t("chooseFramePhotosHint")}</p>
               <div className="g-frame-slots" role="group" aria-label={formatTranslation(p.language, "chooseFramePhotos", { count: frame.photos })}>
                 {Array.from({ length: frame.photos }, (_, i) => (
-                  <button key={i} type="button" className={`g-btn g-small g-frame-slot ${frameSlot === i ? "g-primary" : "g-secondary"}`} aria-pressed={frameSlot === i} disabled={p.busy} onClick={() => setFrameSlot(i)}>
+                  <button key={i} type="button" className={`g-btn g-small g-frame-slot ${frameSlot === i ? "g-slot-active" : "g-secondary"}`} aria-pressed={frameSlot === i} disabled={p.busy} onClick={() => setFrameSlot(i)}>
                     {formatTranslation(p.language, "framePhotoSlot", { number: i + 1 })}
                     <small>{selectedSlots[i] === undefined ? "—" : formatTranslation(p.language, "photoNumber", { number: selectedSlots[i] + 1 })}</small>
                   </button>
                 ))}
               </div>
             </div>
-            <div className="g-photos">
+            <div className="g-photos" style={grid}>
               {ordered.map((t) => (
                 <PhotoTile language={p.language} key={t.mediaId} slot={t.slot} src={p.mediaUrl(t.mediaId, "preview")} disabled={p.busy || camera.reconnecting} onRetake={p.onRetake} frameSlot={frameSlot} selectedFor={selectedSlots.indexOf(t.slot)} onAssign={assign} />
               ))}

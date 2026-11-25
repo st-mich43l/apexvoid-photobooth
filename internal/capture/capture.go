@@ -240,14 +240,14 @@ func (e *Engine) Start(cfg Config) error {
 	})
 	go func() {
 		defer close(done)
-		e.runShots(ctx, gen, sess.ID, 0, cfg.Shots, "")
+		e.runShots(ctx, gen, sess.ID, 0, cfg.Shots, "", cfg.FramePhotos > 0)
 	}()
 	return nil
 }
 
 // runShots takes slots [from, from+count). replace is the media id being
 // replaced by a retake ("" for a first take).
-func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, from, count int, replace string) {
+func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, from, count int, replace string, candidate bool) {
 	resumes := 0
 	for slot := from; slot < from+count; slot++ {
 		if !e.countdown(ctx, gen, slot) {
@@ -289,7 +289,7 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 			e.failSession(sessionID, err)
 			return
 		}
-		m, err := e.o.Store.AddPhoto(sessionID, sessions.PhotoInput{Slot: slot, Data: photo.Data, Simulated: photo.Simulated, Source: photo.Source, Candidate: true})
+		m, err := e.o.Store.AddPhoto(sessionID, sessions.PhotoInput{Slot: slot, Data: photo.Data, Simulated: photo.Simulated, Source: photo.Source, Candidate: candidate})
 		if m.ID == "" { // nothing was stored
 			e.failSession(sessionID, fmt.Errorf("could not save photo: %w", err))
 			return
@@ -457,7 +457,7 @@ func (e *Engine) Retake(slot int) error {
 	})
 	go func() {
 		defer close(done)
-		e.runShots(ctx, gen, sid, slot, 1, old)
+		e.runShots(ctx, gen, sid, slot, 1, old, cfg.FramePhotos > 0)
 	}()
 	return nil
 }

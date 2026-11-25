@@ -7,11 +7,11 @@ const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
   builder: vi.fn(),
 }));
-vi.mock("../state", async () => {
+vi.mock("../../../app/state", async () => {
   const { translate, formatTranslation } = await import("../../../shared/i18n");
   return { useApp: () => h.S, useT: () => ({ t: (key: Parameters<typeof translate>[1]) => translate("en", key), tf: (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation("en", key, values) }) };
 });
-vi.mock("../api", () => ({ api: h.api, AppError: Error, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
+vi.mock("../../../shared/api", () => ({ api: h.api, AppError: Error, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
 vi.mock("../builder/FrameBuilder", () => ({ FrameBuilder: (p: Record<string, unknown>) => { h.builder(p); return <div data-testid="builder" />; } }));
 import { Frames } from "./Frames";
 

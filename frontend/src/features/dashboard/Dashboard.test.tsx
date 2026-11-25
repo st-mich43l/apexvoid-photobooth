@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   S: {} as Record<string, unknown>,
   api: { listMedia: vi.fn(), librarySummary: vi.fn(), listPrinters: vi.fn() },
 }));
-vi.mock("../state", async () => {
+vi.mock("../../app/state", async () => {
   const { translate, formatTranslation } = await import("../../shared/i18n");
   return {
     useApp: () => h.S,
@@ -19,7 +19,7 @@ vi.mock("../state", async () => {
     },
   };
 });
-vi.mock("../api", () => ({ api: h.api, toAppError: (e: unknown) => e }));
+vi.mock("../../shared/api", () => ({ api: h.api, toAppError: (e: unknown) => e }));
 import { Dashboard } from "./Dashboard";
 
 const lib = { photos: 3, videos: 0, sessions: 2, freeBytes: 50 * 1024 ** 3, interrupted: [], recovered: 0, missing: 0 };

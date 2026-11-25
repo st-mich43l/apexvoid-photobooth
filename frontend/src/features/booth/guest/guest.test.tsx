@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CameraStatus, FrameChoice, ShootSnapshot } from "../../../shared/types";
 
-vi.mock("../ui", () => ({ LivePreview: (p: { fit?: string; objectPosition?: string }) => <div data-testid="live" data-fit={p.fit ?? "contain"} data-position={p.objectPosition ?? "50% 50%"} /> }));
+vi.mock("../../../shared/ui", () => ({ LivePreview: (p: { fit?: string; objectPosition?: string }) => <div data-testid="live" data-fit={p.fit ?? "contain"} data-position={p.objectPosition ?? "50% 50%"} /> }));
 import { GuestShoot, type GuestShootProps } from "./GuestShoot";
 import { Welcome, type WelcomeProps } from "./Welcome";
 import { StepIndicator } from "./parts";

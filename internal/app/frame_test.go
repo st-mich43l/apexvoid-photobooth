@@ -160,6 +160,11 @@ func TestSecondSessionUsesItsOwnFrameNotTheFirstOnes(t *testing.T) {
 
 func TestChangingTheDesignAfterCaptureNeedsNoRetake(t *testing.T) {
 	s, _, _ := newTestApp(t)
+	settings := s.GetSettings()
+	settings.Shots = 4
+	if _, err := s.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
 	connectMock(t, s)
 	if err := s.SetFrameEnabled("film-strip.strip4", true); err != nil {
 		t.Fatal(err)
