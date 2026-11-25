@@ -24,6 +24,17 @@ var assets embed.FS
 var version = "0.2.0-dev"
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "--notices" {
+		if len(os.Args) != 3 {
+			startupError("Usage: ApexVoidPhotobooth.exe --notices <new-file>")
+			os.Exit(1)
+		}
+		if err := app.WriteThirdPartyNotices(os.Args[2]); err != nil {
+			startupError("Could not write notices: " + err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) >= 2 && os.Args[1] == "--selftest" {
 		os.Exit(app.SelfTest(version, os.Args[2:]))
 	}
