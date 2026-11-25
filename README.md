@@ -18,7 +18,7 @@ This repository has three independent lifecycles:
 
 `webpage` contains nothing from the desktop application: no Go, Wails, Canon SDK, FFmpeg, desktop frontend, drivers,
 desktop tests or desktop CI. It builds on any Linux machine with Node.js. Never merge `webpage` into an application
-branch or the other way round. Website feature branches are named `webpage/<topic>` and open pull requests into `webpage`.
+branch or the other way round. Website feature branches are named `webpage-<topic>` (Git cannot hold `webpage/<topic>` next to a `webpage` branch) and open pull requests into `webpage`.
 
 ## Stack
 
@@ -130,25 +130,36 @@ dimensions at build time. `node scripts/generate-brand.mjs` regenerates the favi
 download and releases pages show the honest empty state. WEB-2 will generate this file from the GitHub Releases API at
 build time; the components need no change.
 
-## Deployment contract (not deployed yet)
+## Deployment
 
-| Property      | Value                                |
-| ------------- | ------------------------------------ |
-| Domain        | `photobooth.apexvoid.net`            |
-| Container     | `apexvoid-photobooth-webpage`        |
-| Internal port | `80`                                 |
-| Network       | `routing` (shared Docker network)    |
-| Public ports  | managed by the central routing proxy |
+| Property      | Value                                         |
+| ------------- | --------------------------------------------- |
+| Domain        | `photobooth.apexvoid.net` (HTTPS via routing) |
+| Container     | `apexvoid-photobooth-webpage`                 |
+| Image         | `mich43l/apexvoid-photobooth-webpage:<sha7>`  |
+| Internal port | `80`                                          |
+| Network       | `routing` (shared Docker network)             |
+| Public ports  | managed by the central routing proxy          |
 
-`deploy/nginx.conf` and `deploy/Dockerfile` describe that container: Nginx serves `dist/` with
-`try_files $uri $uri/ =404`, `404.html`, immutable caching for `/_astro/` and basic security headers. The configuration
-was checked locally with `nginx:1.27-alpine`. DNS, TLS and the routing, ansible-library and action-library repositories
-are untouched; that integration is WEB-2.
+A push to `webpage` runs `webpage-ci.yml`. When every check passes, its `deploy` job calls
+`st-mich43l/action-library`'s `build-push-deploy.yml`, which
+
+1. builds `deploy/Dockerfile` (Node builds the site, `nginx:1.27-alpine` serves `dist/` with `deploy/nginx.conf`),
+2. pushes `mich43l/apexvoid-photobooth-webpage:<short sha>` and `:latest` to Docker Hub (`DOCKERHUB_TOKEN`),
+3. runs `ansible-library`'s deploy playbook for the project `apexvoid-photobooth-webpage` (`ANSIBLE_VAULT_PASSWORD`),
+   which renders `deployment-template/docker-compose.yml.j2` on the VPS, pulls the image and starts it.
+
+Pull requests and `webpage-<topic>` branches are checked but never deployed. To redeploy without a change, run the
+workflow manually on `webpage` (Actions → webpage-ci → Run workflow).
+
+The container runs with a read-only root filesystem and a health check. Nginx serves every route as
+`<route>/index.html` (`try_files $uri $uri/ =404`), `404.html` for unknown pages, immutable caching for `/_astro/`.
+The routing proxy terminates TLS and sets the security headers (the site's own duplicates are dropped there).
 
 ## Known limitations
 
 - No official release exists, so the site cannot offer a download; it points to GitHub and to unsigned CI test builds.
 - Documentation is linked to GitHub (English) rather than hosted here.
 - Screenshots come from the browser harness with simulated devices; no photo of real hardware is shown.
-- No Content-Security-Policy header yet (the inline theme script needs a hash; planned with the deployment).
+- No Content-Security-Policy header yet (the inline theme script needs a hash).
 - Lighthouse results were measured on a local Nginx container with simulated throttling, not on the production host.

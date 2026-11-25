@@ -1,0 +1,26 @@
+{# Rendered on the VPS by ansible (deploy_image role). Do not edit on the host. #}
+{# Vars come from ansible-library: image_tag, registry_namespace, routing_network #}
+services:
+  apexvoid-photobooth-webpage:
+    image: "{{ registry_namespace }}/apexvoid-photobooth-webpage:{{ image_tag }}"
+    container_name: apexvoid-photobooth-webpage
+    expose:
+      - "80"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - routing
+
+networks:
+  routing:
+    name: "{{ routing_network | default('routing') }}"
+    external: true
