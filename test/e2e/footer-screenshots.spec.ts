@@ -12,14 +12,14 @@ test.describe("footer screenshots", () => {
   ];
 
   for (const scenario of cases) {
-    test(`before: ${scenario.name}`, async ({ page }) => {
-      await mkdir("artifacts/footer-shots/before", { recursive: true });
+    test(`after: ${scenario.name}`, async ({ page }) => {
+      await mkdir("artifacts/footer-shots/after", { recursive: true });
       await page.setViewportSize({ width: scenario.width, height: scenario.height });
       await page.emulateMedia({ colorScheme: scenario.scheme });
       await page.goto(scenario.path);
       const footer = page.locator("footer");
       await expect(footer).toBeVisible();
-      await footer.screenshot({ path: `artifacts/footer-shots/before/${scenario.name}.png` });
+      await footer.screenshot({ path: `artifacts/footer-shots/after/${scenario.name}.png` });
     });
   }
 });
@@ -32,18 +32,25 @@ test.describe("footer behavior", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/download/");
       const footer = page.locator("footer");
-      const visibleLinkHrefs = await footer.locator("a:visible").evaluateAll((links) =>
-        links.map((link) => (link as HTMLAnchorElement).pathname),
-      );
+      const visibleLinkHrefs = await footer
+        .locator("a:visible")
+        .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
       for (const href of ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"]) {
-        expect(visibleLinkHrefs.filter((value) => value === href), `${href} visible at ${width}px`).toHaveLength(1);
+        expect(
+          visibleLinkHrefs.filter((value) => value === href),
+          `${href} visible at ${width}px`,
+        ).toHaveLength(1);
       }
-      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `overflow at ${width}px`).toBeLessThanOrEqual(0);
-      const clipped = await footer.locator("a:visible").evaluateAll((links) =>
-        links.filter((link) => {
-          const rect = link.getBoundingClientRect();
-          return rect.left < -1 || rect.right > window.innerWidth + 1;
-        }).length,
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+        `overflow at ${width}px`,
+      ).toBeLessThanOrEqual(0);
+      const clipped = await footer.locator("a:visible").evaluateAll(
+        (links) =>
+          links.filter((link) => {
+            const rect = link.getBoundingClientRect();
+            return rect.left < -1 || rect.right > window.innerWidth + 1;
+          }).length,
       );
       expect(clipped, `clipped footer links at ${width}px`).toBe(0);
     }
@@ -55,7 +62,7 @@ test.describe("footer behavior", () => {
     await footer.locator('[data-locale-link="vi"]').click();
     await expect(page).toHaveURL(new RegExp("/vi/download/$"));
     await expect(page.locator("html")).toHaveAttribute("lang", "vi");
-    await page.locator("footer [data-locale-link=\"en\"]").click();
+    await page.locator('footer [data-locale-link="en"]').click();
     await expect(page).toHaveURL(new RegExp("/download/$"));
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
