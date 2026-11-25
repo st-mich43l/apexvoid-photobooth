@@ -410,7 +410,7 @@ export const vi: Dict = {
       ],
     },
     licenseNote:
-      "Mã nguồn có thể xem công khai, nhưng ứng dụng chưa công bố giấy phép nào. Hãy đọc trang giấy phép trước khi sử dụng lại bất kỳ phần nào.",
+      "Ứng dụng là phần mềm mã nguồn mở theo Giấy phép MIT. Các thành phần bên thứ ba đi kèm giữ giấy phép riêng; xem trang giấy phép.",
   },
   privacy: {
     title: "Quyền riêng tư — ApexVoid Photobooth",
@@ -449,8 +449,8 @@ export const vi: Dict = {
     app: {
       title: "Ứng dụng",
       paragraphs: [
-        "Ứng dụng ApexVoid Photobooth chưa công bố giấy phép nào. Mã nguồn có thể đọc trên GitHub, nhưng điều đó không cho phép sao chép, chỉnh sửa hay phân phối lại.",
-        "Trang này sẽ được cập nhật khi giấy phép được lựa chọn.",
+        "ApexVoid Photobooth là phần mềm mã nguồn mở theo Giấy phép MIT. Bạn được phép sử dụng, sao chép, chỉnh sửa và phân phối lại, kể cả cho mục đích thương mại, miễn là giữ nguyên thông báo bản quyền và giấy phép. Phần mềm được cung cấp không kèm bất kỳ bảo đảm nào.",
+        "Giấy phép MIT áp dụng cho mã nguồn của chính ứng dụng. Các thành phần liệt kê bên dưới giữ giấy phép riêng của chúng; mỗi bản phát hành đều kèm thông báo của chúng (THIRD-PARTY-NOTICES.txt) và văn bản giấy phép (LICENSE.txt).",
       ],
     },
     thirdParty: {
@@ -465,7 +465,7 @@ export const vi: Dict = {
         {
           name: "Canon EDSDK",
           license: "Độc quyền — Canon",
-          body: "SDK của Canon được dùng cho máy ảnh EOS và chịu sự điều chỉnh của điều khoản riêng của Canon.",
+          body: "SDK của Canon được dùng cho máy ảnh EOS và được tích hợp trong bản dựng Windows chính thức. SDK vẫn thuộc quyền sở hữu của Canon theo điều khoản riêng của Canon và không thuộc phạm vi Giấy phép MIT.",
         },
         {
           name: "Noto Sans",
