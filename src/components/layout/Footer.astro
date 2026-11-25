@@ -10,6 +10,13 @@ interface Props {
 const { locale } = Astro.props;
 const t = useDict(locale);
 const year = new Date().getUTCFullYear();
+const containerClass =
+  "container-site py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-[calc(2.5rem+env(safe-area-inset-bottom))]";
+const gridClass = "grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] lg:gap-x-8 lg:gap-y-0";
+const linkClass =
+  "inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
+const utilityLinkClass =
+  "inline-flex min-h-11 items-center text-sm text-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
 const cols = [
   {
     title: t.footer.product,
@@ -35,10 +42,8 @@ const legalLinks = [
 ---
 
 <footer class="border-t border-line bg-elevated">
-  class:list={[
-    "container-site py-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-[calc(2.5rem+env(safe-area-inset-bottom))]",
-  ]}
-    <div class="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] lg:gap-x-8 lg:gap-y-0">
+  <div class={containerClass}>
+    <div class={gridClass}>
       <div class="col-span-2 lg:col-span-1">
         <Logo />
         <p class="mt-2 max-w-xs text-sm leading-6 text-muted">{t.footer.blurb}</p>
@@ -54,9 +59,7 @@ const legalLinks = [
               <li>
                 <a
                   href={l.href}
-                  class:list={[
-                    "inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
-                  ]}
+                  class={linkClass}
                   {...("external" in l ? { target: "_blank", rel: "noopener" } : {})}
                 >
                   {l.label}
@@ -73,12 +76,7 @@ const legalLinks = [
         <ul class="mt-2 space-y-0.5">
           {legalLinks.map((l) => (
             <li>
-              <a
-                href={l.href}
-                class:list={[
-                  "inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
-                ]}
-              >
+              <a href={l.href} class={linkClass}>
                 {l.label}
               </a>
             </li>
@@ -92,12 +90,7 @@ const legalLinks = [
         <ul class="flex flex-wrap items-center gap-x-4">
           {legalLinks.map((l) => (
             <li>
-              <a
-                href={l.href}
-                class:list={[
-                  "inline-flex min-h-11 items-center text-sm text-muted underline-offset-4 hover:text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
-                ]}
-              >
+              <a href={l.href} class={utilityLinkClass}>
                 {l.label}
               </a>
             </li>

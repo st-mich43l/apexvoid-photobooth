@@ -35,8 +35,10 @@ test.describe("footer behavior", () => {
       const visibleLinkHrefs = await footer.locator("a:visible").evaluateAll((links) =>
         links.map((link) => (link as HTMLAnchorElement).pathname),
       );
-      for (const href of ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"]) {
-        expect(visibleLinkHrefs.filter((value) => value === href), `${href} visible at ${width}px`).toHaveLength(1);
+      const requiredHrefs = ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"];
+      for (const href of requiredHrefs) {
+        const visibleCount = visibleLinkHrefs.filter((value) => value === href).length;
+        expect(visibleCount, `${href} visible at ${width}px`).toBe(1);
       }
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `overflow at ${width}px`).toBeLessThanOrEqual(0);
