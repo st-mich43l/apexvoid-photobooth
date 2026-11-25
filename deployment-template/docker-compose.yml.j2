@@ -1,5 +1,5 @@
 {# Rendered on the VPS by ansible (deploy_image role). Do not edit on the host. #}
-{# Vars come from ansible-library: image_tag, registry_namespace, routing_network #}
+{# Vars come from ansible-library: image_tag, registry_namespace, routing_network, photobooth_release_public_dir #}
 services:
   apexvoid-photobooth-webpage:
     image: "{{ registry_namespace }}/apexvoid-photobooth-webpage:{{ image_tag }}"
@@ -11,6 +11,15 @@ services:
     tmpfs:
       - /var/cache/nginx
       - /var/run
+    volumes:
+      # Release storage, provisioned by ansible-library (photobooth_release_storage) before this starts.
+      # Read-only: the website can never change a release. Served under /downloads/.
+      - type: bind
+        source: "{{ photobooth_release_public_dir }}"
+        target: /srv/photobooth-downloads
+        read_only: true
+        bind:
+          create_host_path: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1/ || exit 1"]
       interval: 30s

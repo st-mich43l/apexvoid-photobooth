@@ -1,10 +1,11 @@
 # ApexVoid Photobooth — website
 
 The public product website for **ApexVoid Photobooth**, the local-first photobooth application for Windows.
-Target address: **https://photobooth.apexvoid.net** (not deployed yet).
+Live at **https://photobooth.apexvoid.net**.
 
-It introduces the application, describes what it does today, and is the foundation for the future download and
-documentation centre. It is a static site: no backend, database, accounts, CMS, analytics or tracking.
+It introduces the application, describes what it does today, and offers official Windows releases for download. It is a
+static site: no backend, database, accounts, CMS, analytics or tracking. The only runtime data is the release manifest
+`/downloads/index.json`, read by the browser.
 
 ## Branches
 
@@ -64,14 +65,14 @@ src/
     marketing/      home page sections (Hero, Experience, FeatureGroups, Journey, Hardware, LocalFirst, DownloadCta)
     product/        DownloadPanel, ReleaseList, PlatformFacts
   i18n/             en.ts (source), vi.ts, locale and route helpers
-  lib/              releases (data model), seo, screenshots, client scripts (theme, menu)
-  content/          releases.json — empty until the first official release
+  lib/              releases (manifest contract), seo, screenshots, client scripts (theme, menu, release service, downloads)
   config/site.ts    URLs and product facts
   styles/global.css design tokens, base styles, a few component classes
 public/             favicon, touch icon, Open Graph image, robots.txt
-scripts/            link checker, static server, brand image generator, site screenshots
-test/unit, test/e2e
-deploy/             Nginx config and Dockerfile for the future container (not used by CI)
+scripts/            link checker, static server, brand image generator, site screenshots, /downloads/ Nginx test
+test/unit, test/e2e, test/fixtures/manifest (release manifests shared with the publisher)
+deploy/             Nginx config and Dockerfile of the website container
+deployment-template/ docker-compose.yml.j2, rendered on the VPS by ansible-library
 ```
 
 ## Content and product claims
@@ -122,13 +123,34 @@ dimensions at build time. `node scripts/generate-brand.mjs` regenerates the favi
 
 `scripts/site-screenshots.mjs` captures the website itself (desktop and mobile, light and dark) for review.
 
-## Releases (future GitHub Releases integration)
+## Releases and downloads
 
-`src/lib/releases.ts` defines the release model (`Release`, `ReleaseAsset`) and the logic the UI uses
-(`latestStable`, `windowsAsset`, `formatBytes`). The data source is the `releases` content collection
-(`src/content/releases.json`, validated by the schema in `src/content.config.ts`). It is an empty array today, so the
-download and releases pages show the honest empty state. WEB-2 will generate this file from the GitHub Releases API at
-build time; the components need no change.
+Official Windows builds are published by the desktop application's master CI to persistent storage on the VPS
+(ansible-library `photobooth_release_storage` / `publish_photobooth_release`, documented in its
+`docs/photobooth-release-distribution.md`). The site never contains release data at build time: a release appears
+the moment the publisher replaces the manifest, without rebuilding or redeploying the site.
+
+- **Storage → container.** The public storage directory is bind-mounted **read-only** at `/srv/photobooth-downloads`
+  (`deployment-template/docker-compose.yml.j2`) and served by `deploy/nginx.conf` under `/downloads/`:
+  `index.json` (`no-cache`) and, per release, `releases/v<version>/` with the executable (attachment, immutable,
+  byte ranges), `SHA256SUMS`, `RELEASE-NOTES.md`, `THIRD-PARTY-NOTICES.txt` (and optional `LICENSE.txt`,
+  `SOURCE.md`). Everything else under `/downloads/` is a 404: no listing, no fallback to the site, GET/HEAD only,
+  symlinks refused.
+- **Contract.** `src/lib/releases.ts` validates the manifest (schema version 1) with the same rules as the publisher;
+  `test/fixtures/manifest/` is a copy of the publisher's fixtures, and the unit tests run all of them. When the
+  publisher's schema changes, copy the fixtures again and update both validators together.
+- **Runtime.** `src/lib/client/release-service.ts` fetches the manifest once per page (`cache: "no-cache"`, 8 s
+  timeout, one retry for network errors and 5xx). `src/lib/client/downloads.ts` fills `DownloadPanel` and
+  `ReleaseList`, which render every state on the server: _loading_, _available_ (current stable), _preview-only_
+  (no stable yet: the newest preview, labelled), _empty_, _unavailable_ (with retry) and _invalid_ (nothing from the
+  manifest is shown). Values are written as text, links only from validated relative paths.
+- **What a release shows.** Version, date, file, size, SHA-256, notes, checksums and third-party notices; a
+  "not code-signed" notice when `signed` is false (no advice to weaken Windows protections); whether the Canon EDSDK
+  is included; how to check the hash in PowerShell.
+
+Tests: `npm test` (contract and service), `npm run test:e2e` (every state through mocked manifests, both languages,
+axe), `scripts/test-downloads-nginx.sh` (real Nginx with a read-only test storage: headers, ranges, integrity,
+allowlist, traversal, symlinks, methods). CI runs all three.
 
 ## Deployment
 
@@ -149,6 +171,9 @@ A push to `webpage` runs `webpage-ci.yml`. When every check passes, its `deploy`
 3. runs `ansible-library`'s deploy playbook for the project `apexvoid-photobooth-webpage` (`ANSIBLE_VAULT_PASSWORD`),
    which renders `deployment-template/docker-compose.yml.j2` on the VPS, pulls the image and starts it.
 
+The deploy job pins `ansible-library-ref` to a commit; bump it on purpose when ansible-library changes this project.
+The deploy also provisions the release storage (never overwriting a manifest) before the container starts.
+
 Pull requests and `webpage-<topic>` branches are checked but never deployed. To redeploy without a change, run the
 workflow manually on `webpage` (Actions → webpage-ci → Run workflow).
 
@@ -158,7 +183,8 @@ The routing proxy terminates TLS and sets the security headers (the site's own d
 
 ## Known limitations
 
-- No official release exists, so the site cannot offer a download; it points to GitHub and to unsigned CI test builds.
+- Downloads need JavaScript to show the current release; without it the page links to the manifest.
+- Executables are not code-signed yet.
 - Documentation is linked to GitHub (English) rather than hosted here.
 - Screenshots come from the browser harness with simulated devices; no photo of real hardware is shown.
 - No Content-Security-Policy header yet (the inline theme script needs a hash).

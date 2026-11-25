@@ -47,6 +47,11 @@ for (const page of pages) {
   );
   for (const ref of refs) {
     if (!ref || /^(https?:|mailto:|data:|tel:)/.test(ref)) continue;
+    // release storage is served from the VPS bind mount, not from dist/; only the manifest may be linked statically
+    if (ref.startsWith("/downloads/")) {
+      if (ref !== "/downloads/index.json") errors.push(`${self}: static link into release storage ${ref}`);
+      continue;
+    }
     checked++;
     if (ref.startsWith("#")) {
       if (ref.length > 1 && !idsOf(page).has(ref.slice(1))) errors.push(`${self}: missing anchor ${ref}`);

@@ -4,8 +4,7 @@ import PageIntro from "../components/layout/PageIntro.astro";
 import ReleaseList from "../components/product/ReleaseList.astro";
 import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
 import { useDict, type Locale } from "../i18n";
-import { loadReleases } from "../lib/release-data";
-import { RELEASES_URL } from "../config/site";
+import { REPO_URL } from "../config/site";
 
 interface Props {
   locale: Locale;
@@ -13,14 +12,13 @@ interface Props {
 const { locale } = Astro.props;
 const all = useDict(locale);
 const t = all.releases;
-const releases = await loadReleases();
 ---
 
 <BaseLayout locale={locale} title={t.title} description={t.description}>
   <PageIntro eyebrow={t.eyebrow} title={t.heading} />
   <section class="section pt-12 sm:pt-16">
     <div class="container-site max-w-4xl">
-      <ReleaseList locale={locale} releases={releases} />
+      <ReleaseList locale={locale} />
       <section aria-labelledby="channels" class="mt-16">
         <h2 id="channels" class="t-3">
           {t.channels}
@@ -33,7 +31,7 @@ const releases = await loadReleases();
             </div>
           ))}
         </dl>
-        <a href={RELEASES_URL} target="_blank" rel="noopener" class="link mt-10 inline-flex items-center gap-1.5 font-medium">
+        <a href={REPO_URL} target="_blank" rel="noopener" class="link mt-10 inline-flex items-center gap-1.5 font-medium">
           {t.github}
           <ArrowUpRight size={16} aria-hidden="true" />
           <span class="sr-only">{all.a11y.newTab}</span>
@@ -42,3 +40,6 @@ const releases = await loadReleases();
     </div>
   </section>
 </BaseLayout>
+<script>
+  import "../lib/client/downloads";
+</script>

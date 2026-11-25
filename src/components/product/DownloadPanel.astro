@@ -1,81 +1,178 @@
 ---
 import Download from "@lucide/astro/icons/download";
 import CircleDashed from "@lucide/astro/icons/circle-dashed";
+import LoaderCircle from "@lucide/astro/icons/loader-circle";
+import CloudOff from "@lucide/astro/icons/cloud-off";
+import ShieldAlert from "@lucide/astro/icons/shield-exclamation-point";
+import ShieldCheck from "@lucide/astro/icons/shield-check";
+import TriangleAlert from "@lucide/astro/icons/triangle-exclamation-point";
+import RotateCw from "@lucide/astro/icons/rotate-cw";
 import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
 import GithubMark from "../common/GithubMark.astro";
-import { useDict, formatDate, type Locale } from "../../i18n";
-import { formatBytes, latestStable, windowsAsset, type Release } from "../../lib/releases";
-import { REPO_URL } from "../../config/site";
+import { useDict, type Locale } from "../../i18n";
+import { MANIFEST_URL } from "../../lib/releases";
+import { DOCS_BASE, ISSUES_URL, REPO_URL } from "../../config/site";
 
-/** The download box. With no published release it says so plainly — no version, size or checksum is ever invented. */
+/**
+ * The download box. Release facts come only from /downloads/index.json at runtime (src/lib/client/downloads.ts);
+ * every state is rendered here and the script shows one of them. Nothing is invented: until a valid manifest
+ * lists a release, no version, size, checksum or download link exists on the page.
+ */
 interface Props {
   locale: Locale;
-  releases: Release[];
 }
-const { locale, releases } = Astro.props;
+const { locale } = Astro.props;
 const all = useDict(locale);
 const t = all.download;
-const latest = latestStable(releases);
-const asset = latest ? windowsAsset(latest) : null;
 ---
 
-<div class="panel p-7 sm:p-10" data-download-state={latest && asset ? "release" : "empty"}>
-  {latest && asset ? (
-    <div>
-      <p class="text-sm font-semibold text-accent">{t.latest}</p>
-      <h2 class="display t-2 mt-2">{latest.name}</h2>
-      <dl class="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt class="text-subtle">{t.version}</dt>
-          <dd class="font-medium">{latest.tag}</dd>
-        </div>
-        <div>
-          <dt class="text-subtle">{t.published}</dt>
-          <dd class="font-medium">
-            <time datetime={latest.publishedAt}>{formatDate(latest.publishedAt, locale)}</time>
-          </dd>
-        </div>
-        <div>
-          <dt class="text-subtle">{t.file}</dt>
-          <dd class="font-medium break-all">{asset.name}</dd>
-        </div>
-        <div>
-          <dt class="text-subtle">{t.size}</dt>
-          <dd class="font-medium">{formatBytes(asset.size)}</dd>
-        </div>
-        {asset.sha256 && (
-          <div class="sm:col-span-2">
-            <dt class="text-subtle">{t.checksum}</dt>
-            <dd class="font-mono text-xs break-all">{asset.sha256}</dd>
-          </div>
-        )}
-      </dl>
-      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-        <a href={asset.url} class="btn btn-primary">
-          <Download size={18} aria-hidden="true" />
-          {all.common.downloadWindows}
-        </a>
-        <a href={latest.notesUrl} target="_blank" rel="noopener" class="btn btn-secondary">
-          {t.notes}
-          <ArrowUpRight size={16} aria-hidden="true" />
-          <span class="sr-only">{all.a11y.newTab}</span>
-        </a>
-      </div>
-    </div>
-  ) : (
-    <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
-      <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
-        <CircleDashed size={22} aria-hidden="true" />
-      </span>
+<div class="panel p-7 sm:p-10" data-download-panel data-state="loading" aria-live="polite" aria-busy="true">
+  <noscript>
+    <style>
+      [data-download-panel] [data-when="loading"] {
+        display: none;
+      }
+    </style>
+    <p class="text-muted">
+      {t.noscript}
+      <a class="link" href={MANIFEST_URL}>
+        {t.manifest}
+      </a>
+    </p>
+  </noscript>
+
+  <div data-when="loading" class="flex items-center gap-3 text-muted">
+    <LoaderCircle size={20} aria-hidden="true" class="motion-safe:animate-spin" />
+    <p>{t.loading}</p>
+  </div>
+
+  <div data-when="available preview-only" hidden>
+    <p class="text-sm font-semibold text-accent" data-if="stable">
+      {t.latest}
+    </p>
+    <p class="text-sm font-semibold text-warn" data-if="preview">
+      {t.previewTitle}
+    </p>
+    <h2 class="display t-2 mt-2">
+      <span data-field="name"></span> <span data-field="version"></span>
+    </h2>
+    <p class="mt-4 flex gap-3 rounded-[var(--radius-md)] bg-warn-soft p-4 text-sm" data-if="preview">
+      <TriangleAlert size={18} aria-hidden="true" class="mt-0.5 shrink-0 text-warn" />
+      <span>{t.previewBody}</span>
+    </p>
+    <dl class="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
       <div>
-        <h2 class="t-3">{t.emptyTitle}</h2>
-        <p class="mt-3 text-muted max-w-prose">{t.emptyBody}</p>
-        <a href={REPO_URL} target="_blank" rel="noopener" class="btn btn-secondary mt-7">
-          <GithubMark size={18} />
-          {t.watch}
+        <dt class="text-subtle">{t.version}</dt>
+        <dd class="font-medium" data-field="tag"></dd>
+      </div>
+      <div>
+        <dt class="text-subtle">{t.published}</dt>
+        <dd class="font-medium">
+          <time data-field="date"></time>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-subtle">{t.file}</dt>
+        <dd class="font-medium break-all" data-field="filename"></dd>
+      </div>
+      <div>
+        <dt class="text-subtle">{t.size}</dt>
+        <dd class="font-medium" data-field="size"></dd>
+      </div>
+      <div class="sm:col-span-2">
+        <dt class="text-subtle">{t.checksum}</dt>
+        <dd class="font-mono text-xs break-all" data-field="sha256"></dd>
+      </div>
+    </dl>
+    <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <a data-href="download" class="btn btn-primary" download>
+        <Download size={18} aria-hidden="true" />
+        {all.common.downloadWindows}
+      </a>
+      <a data-href="notes" class="btn btn-secondary">
+        {t.notes}
+      </a>
+    </div>
+    <p class="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+      <a data-href="checksums" class="link">
+        {t.checksums}
+      </a>
+      <a data-href="notices" class="link">
+        {t.notices}
+      </a>
+    </p>
+
+    <div class="mt-8 space-y-4 border-t border-line pt-6 text-sm">
+      <p class="flex gap-3" data-if="unsigned">
+        <ShieldAlert size={18} aria-hidden="true" class="mt-0.5 shrink-0 text-warn" />
+        <span>
+          <strong class="font-semibold">{t.unsignedTitle}.</strong> {t.unsignedBody}
+        </span>
+      </p>
+      <p class="flex gap-3" data-if="signed">
+        <ShieldCheck size={18} aria-hidden="true" class="mt-0.5 shrink-0 text-accent" />
+        <span>{t.signedBody}</span>
+      </p>
+      <p class="text-muted" data-if="canon">
+        {t.canonIncluded}
+      </p>
+      <p class="text-muted" data-if="no-canon">
+        {t.canonNotIncluded}
+        <a href={`${DOCS_BASE}/INSTALL.md`} target="_blank" rel="noopener" class="link inline-flex items-center gap-1">
+          {all.docs.guides[0]?.title}
+          <ArrowUpRight size={14} aria-hidden="true" />
           <span class="sr-only">{all.a11y.newTab}</span>
         </a>
+      </p>
+      <div>
+        <h3 class="font-semibold">{t.verifyTitle}</h3>
+        <p class="mt-1 text-muted">{t.verifyBody}</p>
+        <pre class="mt-3 overflow-x-auto rounded-[var(--radius-md)] bg-surface-2 p-3 text-xs"><code>Get-FileHash .\<span data-field="filename"></span> -Algorithm SHA256</code></pre>
       </div>
     </div>
-  )}
+  </div>
+
+  <div data-when="empty" hidden class="flex flex-col gap-6 sm:flex-row sm:items-start">
+    <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
+      <CircleDashed size={22} aria-hidden="true" />
+    </span>
+    <div>
+      <h2 class="t-3">{t.emptyTitle}</h2>
+      <p class="mt-3 text-muted max-w-prose">{t.emptyBody}</p>
+      <a href={REPO_URL} target="_blank" rel="noopener" class="btn btn-secondary mt-7">
+        <GithubMark size={18} />
+        {t.watch}
+        <span class="sr-only">{all.a11y.newTab}</span>
+      </a>
+    </div>
+  </div>
+
+  <div data-when="unavailable" hidden class="flex flex-col gap-6 sm:flex-row sm:items-start">
+    <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
+      <CloudOff size={22} aria-hidden="true" />
+    </span>
+    <div>
+      <h2 class="t-3">{t.unavailableTitle}</h2>
+      <p class="mt-3 text-muted max-w-prose">{t.unavailableBody}</p>
+      <button type="button" class="btn btn-secondary mt-7" data-retry>
+        <RotateCw size={18} aria-hidden="true" />
+        {t.retry}
+      </button>
+    </div>
+  </div>
+
+  <div data-when="invalid" hidden class="flex flex-col gap-6 sm:flex-row sm:items-start">
+    <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-warn-soft text-warn">
+      <TriangleAlert size={22} aria-hidden="true" />
+    </span>
+    <div>
+      <h2 class="t-3">{t.invalidTitle}</h2>
+      <p class="mt-3 text-muted max-w-prose">{t.invalidBody}</p>
+      <a href={ISSUES_URL} target="_blank" rel="noopener" class="btn btn-secondary mt-7">
+        <GithubMark size={18} />
+        GitHub
+        <span class="sr-only">{all.a11y.newTab}</span>
+      </a>
+    </div>
+  </div>
 </div>

@@ -4,7 +4,6 @@ export const SITE_URL = "https://photobooth.apexvoid.net";
 export const REPO_URL = "https://github.com/st-mich43l/apexvoid-photobooth";
 export const ISSUES_URL = `${REPO_URL}/issues`;
 export const CI_URL = `${REPO_URL}/actions/workflows/ci.yml?query=branch%3Amaster`;
-export const RELEASES_URL = `${REPO_URL}/releases`;
 /** Desktop documentation lives on the application branch until the website hosts it. */
 export const DOCS_BASE = `${REPO_URL}/blob/master/docs`;
 export const PRODUCT_NAME = "ApexVoid Photobooth";

@@ -1,9 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const ROUTES = ["/", "/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"];
 const ALL = [...ROUTES, ...ROUTES.map((r) => `/vi${r}`)];
 const WIDTHS = [320, 375, 390, 430, 768, 1024, 1440, 1920];
+
+/** Release manifests shared with the publisher (ansible-library fixtures). */
+const manifest = (name: string): string => readFileSync(join(import.meta.dirname, "../fixtures/manifest", name), "utf8");
+
+/** The download pages read /downloads/index.json at runtime. By default every test sees the empty manifest
+ *  (production before the first release); download tests override it. Later routes win in Playwright. */
+async function serveManifest(page: Page, body: string, status = 200): Promise<void> {
+  await page.route("**/downloads/index.json", (r) => r.fulfill({ status, contentType: "application/json", body }));
+}
+test.beforeEach(async ({ page }) => serveManifest(page, manifest("manifest-empty.json")));
 
 /** Fails the test on any console error or uncaught page error. */
 function watchConsole(page: Page): string[] {
@@ -154,22 +166,132 @@ test.describe("mobile navigation", () => {
 });
 
 test.describe("download", () => {
-  for (const path of ["/download/", "/vi/download/", "/releases/"]) {
-    test(`${path} shows the honest empty state and no invented release facts`, async ({ page }) => {
+  const panel = (page: Page) => page.locator("[data-download-panel]");
+  const list = (page: Page) => page.locator("[data-release-list]");
+  const visibleStates = (page: Page) => page.locator("main [data-when]:visible");
+
+  for (const path of ["/download/", "/vi/download/", "/releases/", "/vi/releases/"]) {
+    test(`${path} with the empty manifest shows the honest empty state and no invented release facts`, async ({ page }) => {
+      const errors = watchConsole(page);
       await page.goto(path);
-      const main = page.locator("main");
-      await expect(main.locator('[data-download-state="empty"], [data-releases-state="empty"]')).toHaveCount(1);
-      const text = (await main.textContent()) ?? "";
-      expect(text).not.toMatch(/\bv\d+\.\d+\.\d+\b/);
+      await expect(page.locator("main [data-state]")).toHaveAttribute("data-state", "empty");
+      await expect(visibleStates(page)).toHaveCount(1);
+      const text = (await page.locator("main").innerText()) ?? "";
+      expect(text).not.toMatch(/\bv?\d+\.\d+\.\d+\b/);
       expect(text).not.toMatch(/\b[a-f0-9]{64}\b/);
       expect(text).not.toMatch(/\d+(\.\d+)?\s?(MB|GB)\b/);
+      await expect(page.locator('main a[href*="/downloads/releases/"]')).toHaveCount(0);
+      expect(errors).toEqual([]);
     });
   }
+
+  test("a published stable release is offered with its facts, checksum and unsigned notice", async ({ page }) => {
+    await serveManifest(page, manifest("manifest-valid.json"));
+    await page.goto("/download/");
+    const p = panel(page);
+    await expect(p).toHaveAttribute("data-state", "available");
+    await expect(visibleStates(page)).toHaveCount(1);
+    await expect(p.getByRole("heading", { level: 2 })).toHaveText("ApexVoid Photobooth 0.2.1");
+    await expect(p).toContainText("v0.2.1");
+    await expect(p).toContainText("3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d");
+    await expect(p).toContainText("976.6 KB");
+    await expect(p.locator("time")).toHaveAttribute("datetime", "2027-01-20T09:00:00Z");
+    const dl = p.getByRole("link", { name: "Download for Windows" });
+    await expect(dl).toHaveAttribute("href", "/downloads/releases/v0.2.1/ApexVoidPhotobooth-v0.2.1-windows-x64.exe");
+    await expect(p.getByRole("link", { name: "SHA256SUMS" })).toHaveAttribute("href", "/downloads/releases/v0.2.1/SHA256SUMS");
+    await expect(p.getByRole("link", { name: "Release notes" })).toHaveAttribute("href", "/downloads/releases/v0.2.1/RELEASE-NOTES.md");
+    await expect(p.getByRole("link", { name: "Third-party notices" })).toHaveAttribute(
+      "href",
+      "/downloads/releases/v0.2.1/THIRD-PARTY-NOTICES.txt",
+    );
+    await expect(p.getByText("Not code-signed.")).toBeVisible();
+    await expect(p.getByText("Authenticode")).toBeHidden();
+    await expect(p.getByText("Does not include the Canon EDSDK.", { exact: false })).toBeVisible();
+    await expect(p.locator("code")).toContainText("Get-FileHash .\\ApexVoidPhotobooth-v0.2.1-windows-x64.exe -Algorithm SHA256");
+    // the newer preview is never offered as the current download
+    await expect(p).not.toContainText("0.3.0-rc.1");
+  });
+
+  test("the release history lists every release newest first with current and preview labels", async ({ page }) => {
+    await serveManifest(page, manifest("manifest-valid.json"));
+    await page.goto("/releases/");
+    await expect(list(page)).toHaveAttribute("data-state", "list");
+    const items = list(page).locator("li");
+    await expect(items).toHaveCount(3);
+    await expect(items.locator("h2")).toHaveText([/0\.3\.0-rc\.1\s*Preview/, /0\.2\.1\s*Current/, /0\.2\.0$/]);
+    await expect(items.nth(2).getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "/downloads/releases/v0.2.0/ApexVoidPhotobooth-v0.2.0-windows-x64.exe",
+    );
+  });
+
+  test("with only a preview, it is offered clearly labelled as a preview", async ({ page }) => {
+    const m = JSON.parse(manifest("manifest-valid.json"));
+    m.releases = m.releases.filter((r: { channel: string }) => r.channel === "preview");
+    m.latest.stable = null;
+    await serveManifest(page, JSON.stringify(m));
+    await page.goto("/download/");
+    await expect(panel(page)).toHaveAttribute("data-state", "preview-only");
+    await expect(panel(page).getByText("Preview build")).toBeVisible();
+    await expect(panel(page).getByText("Latest release")).toBeHidden();
+    await expect(panel(page).getByText(/No stable release has been published yet/)).toBeVisible();
+  });
+
+  test("an unreachable manifest offers nothing and can be retried", async ({ page }) => {
+    await serveManifest(page, "", 503);
+    await page.goto("/download/");
+    await expect(panel(page)).toHaveAttribute("data-state", "unavailable");
+    await expect(page.locator('main a[href*="/downloads/releases/"]')).toHaveCount(0);
+    await serveManifest(page, manifest("manifest-valid.json"));
+    await panel(page).getByRole("button", { name: "Try again" }).click();
+    await expect(panel(page)).toHaveAttribute("data-state", "available");
+  });
+
+  for (const [label, body] of [
+    ["a manifest that fails the shared schema", manifest("manifest-invalid-absolute-url.json")],
+    ["a manifest that links outside the release directory", manifest("manifest-invalid-traversal.json")],
+    ["a body that is not JSON", "<html>oops</html>"],
+  ] as const) {
+    test(`${label} is shown as invalid, with nothing from it on the page`, async ({ page }) => {
+      await serveManifest(page, body);
+      for (const path of ["/download/", "/releases/"]) {
+        await page.goto(path);
+        await expect(page.locator("main [data-state]")).toHaveAttribute("data-state", "invalid");
+        await expect(page.locator('main a[href*="/downloads/releases/"], main a[href*="evil"]')).toHaveCount(0);
+        expect(await page.locator("main").innerText()).not.toMatch(/\b[a-f0-9]{64}\b/);
+      }
+    });
+  }
+
+  test("Vietnamese pages show the release in Vietnamese", async ({ page }) => {
+    await serveManifest(page, manifest("manifest-valid.json"));
+    await page.goto("/vi/download/");
+    await expect(panel(page)).toHaveAttribute("data-state", "available");
+    await expect(panel(page).getByText("Chưa ký số.")).toBeVisible();
+    await expect(panel(page).locator("time")).toHaveText(/2027/);
+  });
+
   test("the hero download action leads to the download page", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Download for Windows" }).click();
     await expect(page).toHaveURL(/\/download\/$/);
-    await expect(page.getByText("Official public releases are not available yet.")).toBeVisible();
+    await expect(page.getByText("No official release has been published yet.")).toBeVisible();
+  });
+
+  test.describe("accessibility with a published release", () => {
+    test.skip(({ isMobile }) => isMobile, "run once, both themes");
+    for (const path of ["/download/", "/releases/"]) {
+      for (const scheme of ["light", "dark"] as const) {
+        test(`axe: ${path} (${scheme})`, async ({ page }) => {
+          await serveManifest(page, manifest("manifest-valid.json"));
+          await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+          await page.goto(path);
+          await expect(page.locator("main [data-state]")).not.toHaveAttribute("data-state", "loading");
+          const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
+          expect(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.target.join(" ")} — ${v.help}`)).toEqual([]);
+        });
+      }
+    }
   });
 });
 
