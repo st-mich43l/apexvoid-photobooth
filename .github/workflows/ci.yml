@@ -110,8 +110,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
+          app_version=$(node -p "require('./frontend/package.json').version")
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -tags embedffmpeg \
-            -ldflags "-H windowsgui -s -w -X main.version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" \
+            -ldflags "-H windowsgui -s -w -X main.version=${app_version}+${GITHUB_SHA::7}" \
             -o dist/ApexVoidPhotobooth.exe ./cmd/photobooth
           ls -l dist
       - name: Self-test (start-up, SQLite, loopback server, simulated session; no window, no network, no ffmpeg beside the app)
@@ -241,7 +242,6 @@ jobs:
       - name: Build with vaulted SDK and FFmpeg
         env:
           VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-          APP_VERSION: ${{ github.ref_name }}-${{ github.sha }}
           REQUIRE_EMBEDDED_FFMPEG: '1'
         run: |
           set -euo pipefail
@@ -251,7 +251,7 @@ jobs:
           trap 'rm -f "$password_file"' EXIT
           printf '%s\n' "$VAULT_PASSWORD" > "$password_file"
           unset VAULT_PASSWORD
-          ./scripts/build-canon-portable.sh "$GITHUB_WORKSPACE/.canon-ansible" "$password_file"
+          APP_VERSION="$(node -p "require('./frontend/package.json').version")+${GITHUB_SHA::7}" ./scripts/build-canon-portable.sh "$GITHUB_WORKSPACE/.canon-ansible" "$password_file"
           mv dist/ApexVoidPhotobooth-canon.exe dist/ApexVoidPhotobooth.exe
       - name: Record executable checksum
         id: checksum

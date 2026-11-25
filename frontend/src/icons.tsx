@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 /** One consistent line-icon set (24px grid, 1.7 stroke) so the UI does not depend on font glyphs or emoji. */
 const PATHS: Record<string, ReactNode> = {
+  fullscreen: <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />,
+  fullscreenExit: <path d="M9 4v5H4M15 4v5h5M20 15h-5v5M4 15h5v5" />,
   dashboard: <><rect x="3.5" y="3.5" width="7" height="8" rx="2" /><rect x="13.5" y="3.5" width="7" height="5" rx="2" /><rect x="13.5" y="11.5" width="7" height="9" rx="2" /><rect x="3.5" y="14.5" width="7" height="6" rx="2" /></>,
   camera: <><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.2l1.1-1.6A1.5 1.5 0 0 1 10 3.8h4a1.5 1.5 0 0 1 1.2.6L16.3 6h1.2A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" /><circle cx="12" cy="12.5" r="3.6" /></>,
   photo: <><rect x="3.5" y="4.5" width="17" height="15" rx="3" /><circle cx="9" cy="10" r="1.7" /><path d="m4 17 4.6-4.4a1.6 1.6 0 0 1 2.2 0L14 15.5l1.6-1.5a1.6 1.6 0 0 1 2.2 0L20.5 17" /></>,
