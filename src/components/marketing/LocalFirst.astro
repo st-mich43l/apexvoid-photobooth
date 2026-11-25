@@ -1,0 +1,42 @@
+---
+import Folder from "@lucide/astro/icons/folder";
+import WifiOff from "@lucide/astro/icons/wifi-off";
+import Lock from "@lucide/astro/icons/lock";
+import Screenshot from "../common/Screenshot.astro";
+import SectionHeading from "../common/SectionHeading.astro";
+import { useDict, type Locale } from "../../i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.home.local;
+const icons = [Folder, WifiOff, Lock];
+---
+
+<section class="section bg-elevated border-y border-line" aria-labelledby="local-title">
+  <div class="container-site grid items-center gap-14 lg:grid-cols-2">
+    <div>
+      <SectionHeading eyebrow={t.eyebrow} title={t.title} lede={t.body} id="local-title" />
+      <ul class="mt-10 space-y-7">
+        {t.points.map((p, i) => {
+          const Icon = icons[i] ?? Folder;
+          return (
+            <li class="flex gap-4">
+              <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line-strong text-accent">
+                <Icon size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <h3 class="font-semibold">{p.title}</h3>
+                <p class="mt-1 text-muted">{p.body}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="mt-9 text-sm text-subtle">{t.note}</p>
+    </div>
+    <Screenshot name="studio-gallery" locale={locale} alt={all.features.gallery.gallery} sizes="(min-width: 64rem) 50vw, 100vw" />
+  </div>
+</section>

@@ -1,0 +1,71 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/layout/PageIntro.astro";
+import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
+import Bug from "@lucide/astro/icons/bug";
+import MonitorSmartphone from "@lucide/astro/icons/monitor-smartphone";
+import Eye from "@lucide/astro/icons/eye";
+import GitBranch from "@lucide/astro/icons/git-branch";
+import { useDict, pathFor, type Locale } from "../i18n";
+import { DOCS_BASE, ISSUES_URL, REPO_URL } from "../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.community;
+const targets: Record<string, { href: string; Icon: typeof Bug }> = {
+  issues: { href: ISSUES_URL, Icon: Bug },
+  test: { href: `${DOCS_BASE}/HARDWARE_TESTS.md`, Icon: MonitorSmartphone },
+  follow: { href: REPO_URL, Icon: Eye },
+};
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description}>
+  <PageIntro eyebrow={t.eyebrow} title={t.heading} lede={t.lede} />
+  <section class="section pt-12 sm:pt-16">
+    <div class="container-site">
+      <ul class="grid gap-10 md:grid-cols-3">
+        {t.ways.map((w) => {
+          const target = targets[w.id] ?? { href: REPO_URL, Icon: Eye };
+          return (
+            <li class="border-t border-line-strong pt-6">
+              <target.Icon size={22} aria-hidden="true" class="text-accent" />
+              <h2 class="t-3 mt-4">{w.title}</h2>
+              <p class="mt-3 text-muted">{w.body}</p>
+              <a href={target.href} target="_blank" rel="noopener" class="link mt-5 inline-flex items-center gap-1.5 font-medium">
+                {w.link}
+                <ArrowUpRight size={16} aria-hidden="true" />
+                <span class="sr-only">{all.a11y.newTab}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+
+      <section class="mt-20 panel p-7 sm:p-10" aria-labelledby="branches">
+        <h2 id="branches" class="t-3 flex items-center gap-3">
+          <GitBranch size={20} aria-hidden="true" class="text-accent" />
+          {t.branches.title}
+        </h2>
+        <dl class="mt-6 grid gap-6 sm:grid-cols-3">
+          {t.branches.items.map((b) => (
+            <div>
+              <dt>
+                <code class="rounded-md bg-surface-2 px-2 py-1 font-mono text-sm">{b.name}</code>
+              </dt>
+              <dd class="mt-3 text-sm text-muted">{b.body}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      <p class="mt-10 text-sm text-subtle max-w-2xl">
+        {t.licenseNote}
+        <a href={pathFor("licenses", locale)} class="link ml-1">
+          {all.footer.licenses}
+        </a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>

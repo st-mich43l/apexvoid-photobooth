@@ -1,0 +1,21 @@
+---
+interface Props {
+  eyebrow: string;
+  title: string;
+  lede?: string | undefined;
+  id?: string;
+  level?: "h1" | "h2";
+  align?: "left" | "center";
+}
+const { eyebrow, title, lede, id, level = "h2", align = "left" } = Astro.props;
+const Tag = level;
+const center = align === "center";
+---
+
+<header class:list={["max-w-3xl", center && "mx-auto text-center"]}>
+  <p class:list={["eyebrow", center && "justify-center"]}>{eyebrow}</p>
+  <Tag id={id} class:list={["display mt-4", level === "h1" ? "t-1" : "t-2"]}>
+    {title}
+  </Tag>
+  {lede && <p class:list={["lede mt-5", center && "mx-auto"]}>{lede}</p>}
+</header>

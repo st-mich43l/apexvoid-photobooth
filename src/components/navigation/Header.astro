@@ -1,0 +1,104 @@
+---
+import Menu from "@lucide/astro/icons/menu";
+import X from "@lucide/astro/icons/x";
+import Logo from "../common/Logo.astro";
+import GithubMark from "../common/GithubMark.astro";
+import ThemeSwitch from "./ThemeSwitch.astro";
+import LanguageSwitch from "./LanguageSwitch.astro";
+import { useDict, pathFor, splitLocale, type Locale, type RouteKey } from "../../i18n";
+import { REPO_URL } from "../../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale);
+const items: { key: RouteKey; label: string }[] = [
+  { key: "features", label: t.nav.features },
+  { key: "download", label: t.nav.download },
+  { key: "docs", label: t.nav.docs },
+  { key: "community", label: t.nav.community },
+];
+const current = splitLocale(Astro.url.pathname).rest;
+const isCurrent = (k: RouteKey) => current === pathFor(k, "en");
+---
+
+<header class="site-header sticky top-0 z-40 border-b border-line bg-[color-mix(in_srgb,var(--bg)_94%,transparent)]">
+  <div class="container-site flex h-[var(--header-h)] items-center justify-between gap-4">
+    <a href={pathFor("home", locale)} class="no-underline rounded-lg" aria-label={t.a11y.home}>
+      <Logo />
+    </a>
+
+    <nav aria-label={t.a11y.mainNav} class="hidden lg:block">
+      <ul class="flex items-center gap-1">
+        {items.map((i) => (
+          <li>
+            <a
+              href={pathFor(i.key, locale)}
+              aria-current={isCurrent(i.key) ? "page" : undefined}
+              class="rounded-full px-3.5 py-2 text-[0.95rem] font-medium text-muted no-underline transition-colors hover:text-fg hover:bg-[var(--hover)] aria-[current=page]:text-fg aria-[current=page]:bg-surface-2"
+            >
+              {i.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <div class="hidden lg:flex items-center gap-2">
+      <a href={REPO_URL} class="btn btn-icon" aria-label={`${t.nav.github} ${t.a11y.newTab}`} target="_blank" rel="noopener">
+        <GithubMark />
+      </a>
+      <LanguageSwitch locale={locale} />
+      <ThemeSwitch a11y={t.a11y} />
+    </div>
+
+    <button
+      type="button"
+      class="btn btn-icon lg:hidden"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+      data-menu-toggle
+      data-label-open={t.a11y.openMenu}
+      data-label-close={t.a11y.closeMenu}
+      aria-label={t.a11y.openMenu}
+    >
+      <Menu size={22} aria-hidden="true" class="icon-open" />
+      <X size={22} aria-hidden="true" class="icon-close hidden" />
+    </button>
+  </div>
+
+  <div id="mobile-nav" class="mobile-nav lg:hidden border-t border-line bg-bg" hidden data-mobile-nav>
+    <nav aria-label={t.a11y.mainNav} class="container-site py-4">
+      <ul class="flex flex-col">
+        {items.map((i) => (
+          <li>
+            <a
+              href={pathFor(i.key, locale)}
+              aria-current={isCurrent(i.key) ? "page" : undefined}
+              class="flex min-h-14 items-center border-b border-line text-lg font-medium no-underline aria-[current=page]:text-accent"
+            >
+              {i.label}
+            </a>
+          </li>
+        ))}
+        <li>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener"
+            class="flex min-h-14 items-center gap-3 border-b border-line text-lg font-medium no-underline"
+          >
+            <GithubMark size={20} />
+            {t.nav.github}
+            <span class="sr-only">{t.a11y.newTab}</span>
+          </a>
+        </li>
+      </ul>
+      <div class="mt-6 flex flex-col gap-4">
+        <LanguageSwitch locale={locale} size="lg" />
+        <ThemeSwitch a11y={t.a11y} size="lg" />
+      </div>
+    </nav>
+  </div>
+</header>

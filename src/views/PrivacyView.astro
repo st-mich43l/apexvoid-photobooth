@@ -1,0 +1,42 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/layout/PageIntro.astro";
+import { useDict, formatDate, type Locale } from "../i18n";
+import { ISSUES_URL } from "../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.privacy;
+const UPDATED = "2026-11-25";
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description}>
+  <PageIntro eyebrow={t.eyebrow} title={t.heading} />
+  <section class="section pt-12 sm:pt-16">
+    <div class="container-site">
+      <div class="prose-site">
+        <p class="text-sm text-subtle">
+          {t.updated}: <time datetime={UPDATED}>{formatDate(UPDATED, locale)}</time>
+        </p>
+        {t.sections.map((s, i) => (
+          <section>
+            <h2>{s.title}</h2>
+            {s.paragraphs.map((p) => (
+              <p>{p}</p>
+            ))}
+            {i === t.sections.length - 1 && (
+              <p>
+                <a href={ISSUES_URL} target="_blank" rel="noopener" class="link">
+                  GitHub Issues<span class="sr-only"> {all.a11y.newTab}</span>
+                </a>
+              </p>
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

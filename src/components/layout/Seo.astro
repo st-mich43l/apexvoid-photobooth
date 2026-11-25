@@ -1,0 +1,43 @@
+---
+import { absolute, alternatesFor } from "../../lib/seo";
+import { localeNames, locales, type Locale } from "../../i18n/locales";
+
+interface Props {
+  title: string;
+  description: string;
+  locale: Locale;
+  jsonLd?: Record<string, unknown> | undefined;
+  noindex?: boolean;
+}
+const { title, description, locale, jsonLd, noindex = false } = Astro.props;
+const path = Astro.url.pathname;
+const canonical = absolute(path);
+const alternates = alternatesFor(path);
+const og = absolute("/branding/og-image.png");
+const otherOg = locales.filter((l) => l !== locale).map((l) => localeNames[l].og);
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+{noindex && <meta name="robots" content="noindex" />}
+{!noindex && alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ApexVoid Photobooth" />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:image" content={og} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="ApexVoid Photobooth — local-first photobooth software for Windows" />
+<meta property="og:locale" content={localeNames[locale].og} />
+{otherOg.map((o) => (
+  <meta property="og:locale:alternate" content={o} />
+))}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={og} />
+{jsonLd && <script type="application/ld+json" is:inline set:html={JSON.stringify(jsonLd)} />}

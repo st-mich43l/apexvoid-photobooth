@@ -1,0 +1,29 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { useDict, pathFor, type Locale } from "../i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale).notFound;
+const other = useDict(locale === "en" ? "vi" : "en").notFound;
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description} noindex>
+  <section class="section">
+    <div class="container-site text-center">
+      <p class="font-display text-7xl font-semibold text-accent sm:text-8xl">404</p>
+      <h1 class="display t-2 mt-6">{t.heading}</h1>
+      <p class="lede mx-auto mt-5">{t.body}</p>
+      <a href={pathFor("home", locale)} class="btn btn-primary mt-9">
+        {t.home}
+      </a>
+      <p class="mt-6 text-sm text-subtle" lang={locale === "en" ? "vi" : "en"}>
+        <a class="link" href={pathFor("home", locale === "en" ? "vi" : "en")}>
+          {other.home}
+        </a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>

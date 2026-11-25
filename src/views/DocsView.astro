@@ -1,0 +1,49 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/layout/PageIntro.astro";
+import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
+import BookOpen from "@lucide/astro/icons/book-open";
+import { useDict, type Locale } from "../i18n";
+import { DOCS_BASE } from "../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.docs;
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description}>
+  <PageIntro eyebrow={t.eyebrow} title={t.heading} lede={t.lede} />
+  <section class="section pt-12 sm:pt-16">
+    <div class="container-site">
+      {locale !== "en" && <p class="mb-8 text-sm text-subtle">{t.languageNote}</p>}
+      <ul class="grid gap-px overflow-hidden rounded-[var(--radius-lg)] border border-line bg-[var(--border)] sm:grid-cols-2 lg:grid-cols-3">
+        {t.guides.map((g) => (
+          <li class="bg-surface">
+            <a
+              href={`${DOCS_BASE}/${g.id}.md`}
+              target="_blank"
+              rel="noopener"
+              hreflang="en"
+              class="group flex h-full min-h-44 flex-col p-7 no-underline transition-colors hover:bg-surface-2"
+            >
+              <BookOpen size={20} aria-hidden="true" class="text-accent" />
+              <span class="mt-5 flex items-center gap-1.5 font-semibold text-lg">
+                {g.title}
+                <ArrowUpRight
+                  size={16}
+                  aria-hidden="true"
+                  class="text-subtle transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                />
+              </span>
+              <span class="mt-2 text-sm text-muted">{g.body}</span>
+              <span class="sr-only">{all.a11y.newTab}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</BaseLayout>

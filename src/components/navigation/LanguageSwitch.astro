@@ -1,0 +1,50 @@
+---
+import Languages from "@lucide/astro/icons/languages";
+import { localeNames, locales, switchLocalePath, type Locale } from "../../i18n/locales";
+import { useDict } from "../../i18n";
+
+/** Links to the same page in the other language(s). It never redirects on its own; the choice is
+ *  remembered (src/lib/client/ui.ts) only so the reader's own navigation can honour it later. */
+interface Props {
+  locale: Locale;
+  size?: "sm" | "lg";
+}
+const { locale, size = "sm" } = Astro.props;
+// on the not-found page there is no equivalent page to switch to: offer the other language's home page
+const raw = Astro.url.pathname;
+const path = /\/404(\.html|\/)?$/.test(raw) ? "/" : raw;
+const big = size === "lg";
+---
+
+<div class="inline-flex items-center gap-1" aria-label={useDict(locale).a11y.language} role="group">
+  {!big && <Languages size={16} aria-hidden="true" class="text-subtle mr-1" />}
+  {locales.map((l) =>
+    l === locale ? (
+      <span
+        aria-current="true"
+        class:list={[
+          "rounded-full font-semibold text-fg",
+          big ? "inline-flex min-h-11 items-center px-4 bg-surface-2 text-sm" : "px-2 py-1 text-sm",
+        ]}
+        lang={localeNames[l].htmlLang}
+      >
+        {big ? localeNames[l].native : localeNames[l].short}
+      </span>
+    ) : (
+      <a
+        href={switchLocalePath(path, l)}
+        hreflang={localeNames[l].htmlLang}
+        lang={localeNames[l].htmlLang}
+        data-locale-link={l}
+        title={useDict(l).a11y.switchTo}
+        class:list={[
+          "rounded-full text-muted hover:text-fg hover:bg-[var(--hover)] transition-colors no-underline",
+          big ? "inline-flex min-h-11 items-center px-4 text-sm" : "inline-flex min-h-8 items-center px-2 text-sm",
+        ]}
+      >
+        {big ? localeNames[l].native : localeNames[l].short}
+        {!big && <span class="sr-only"> — {localeNames[l].native}</span>}
+      </a>
+    ),
+  )}
+</div>

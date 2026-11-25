@@ -1,0 +1,59 @@
+---
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import Download from "@lucide/astro/icons/download";
+import Screenshot from "../common/Screenshot.astro";
+import PlatformFacts from "../product/PlatformFacts.astro";
+import { useDict, pathFor, type Locale } from "../../i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale);
+const h = t.home.hero;
+---
+
+<section class="relative overflow-hidden" aria-labelledby="hero-title">
+  <div class="pointer-events-none absolute inset-x-0 -top-40 h-[42rem] opacity-90" style="background: var(--halo)" aria-hidden="true"></div>
+  <div class="container-site relative grid items-center gap-14 pt-14 pb-20 sm:pt-20 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-16 lg:pt-24 lg:pb-28">
+    <div class="reveal">
+      <p class="eyebrow">{h.eyebrow}</p>
+      <h1 id="hero-title" class="display t-hero mt-6">
+        {h.title}
+        <br />
+        <span class="hero-accent">{h.titleAccent}</span>
+      </h1>
+      <p class="lede mt-7">{h.lede}</p>
+      <div class="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <a href={pathFor("download", locale)} class="btn btn-primary">
+          <Download size={18} aria-hidden="true" />
+          {t.common.downloadWindows}
+        </a>
+        <a href={pathFor("features", locale)} class="btn btn-secondary">
+          {t.common.exploreFeatures}
+          <ArrowRight size={18} aria-hidden="true" />
+        </a>
+      </div>
+      <PlatformFacts t={t.common.platform} class="mt-8" />
+    </div>
+    <div class="reveal reveal-2 lg:-mr-24 xl:-mr-40">
+      <Screenshot
+        name="booth-frames"
+        locale={locale}
+        alt={h.imageAlt}
+        priority
+        sizes="(min-width: 80rem) 52rem, (min-width: 64rem) 55vw, 100vw"
+        caption={t.common.screenshotNote}
+      />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero-accent {
+    background: linear-gradient(100deg, var(--accent-text) 10%, var(--rose) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+</style>

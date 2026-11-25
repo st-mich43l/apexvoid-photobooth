@@ -1,0 +1,28 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/marketing/Hero.astro";
+import Experience from "../components/marketing/Experience.astro";
+import FeatureGroups from "../components/marketing/FeatureGroups.astro";
+import Journey from "../components/marketing/Journey.astro";
+import Hardware from "../components/marketing/Hardware.astro";
+import LocalFirst from "../components/marketing/LocalFirst.astro";
+import DownloadCta from "../components/marketing/DownloadCta.astro";
+import { useDict, type Locale } from "../i18n";
+import { softwareApplication } from "../lib/seo";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale).home;
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description} jsonLd={softwareApplication(locale, t.description)}>
+  <Hero locale={locale} />
+  <Experience locale={locale} />
+  <FeatureGroups locale={locale} />
+  <Journey locale={locale} />
+  <Hardware locale={locale} />
+  <LocalFirst locale={locale} />
+  <DownloadCta locale={locale} />
+</BaseLayout>

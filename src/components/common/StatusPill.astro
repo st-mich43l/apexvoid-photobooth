@@ -1,0 +1,12 @@
+---
+import type { Dict } from "../../i18n";
+
+interface Props {
+  status: string;
+  labels: Dict["common"]["status"];
+}
+const { status, labels } = Astro.props;
+const known = status === "verified" || status === "testing" ? status : "integration";
+---
+
+<span class={`pill pill-${known}`}>{labels[known]}</span>

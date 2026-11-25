@@ -1,0 +1,67 @@
+---
+import Check from "@lucide/astro/icons/check";
+import Screenshot from "../common/Screenshot.astro";
+import SectionHeading from "../common/SectionHeading.astro";
+import { useDict, type Locale } from "../../i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale).home.experience;
+---
+
+<section class="section border-t border-line" aria-labelledby="experience-title">
+  <div class="container-site">
+    <SectionHeading eyebrow={t.eyebrow} title={t.title} id="experience-title" />
+
+    <!-- Booth Mode -->
+    <div class="mt-16 grid items-center gap-12 lg:mt-24 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
+      <div>
+        <p class="text-sm font-semibold uppercase tracking-[0.14em] text-rose">{t.booth.label}</p>
+        <h3 class="display t-2 mt-3">{t.booth.title}</h3>
+        <p class="mt-5 text-muted max-w-prose">{t.booth.body}</p>
+        <ul class="mt-7 space-y-3">
+          {t.booth.points.map((p) => (
+            <li class="flex gap-3">
+              <Check size={18} aria-hidden="true" class="mt-1 shrink-0 text-accent" />
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div class="space-y-5">
+        <Screenshot name="booth-countdown" locale={locale} alt={t.booth.imageAlt} sizes="(min-width: 64rem) 60vw, 100vw" />
+        <div class="grid grid-cols-2 gap-5">
+          <Screenshot
+            name="booth-review"
+            locale={locale}
+            alt={useDict(locale).features.gallery.review}
+            sizes="(min-width: 64rem) 30vw, 50vw"
+          />
+          <Screenshot name="booth-result" locale={locale} alt={t.booth.secondAlt} sizes="(min-width: 64rem) 30vw, 50vw" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Studio Mode -->
+    <div class="mt-24 grid items-center gap-12 lg:mt-32 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-16">
+      <div class="order-2 lg:order-1">
+        <Screenshot name="studio-dashboard" locale={locale} alt={t.studio.imageAlt} sizes="(min-width: 64rem) 60vw, 100vw" />
+      </div>
+      <div class="order-1 lg:order-2">
+        <p class="text-sm font-semibold uppercase tracking-[0.14em] text-accent">{t.studio.label}</p>
+        <h3 class="display t-2 mt-3">{t.studio.title}</h3>
+        <p class="mt-5 text-muted max-w-prose">{t.studio.body}</p>
+        <ul class="mt-7 space-y-3">
+          {t.studio.points.map((p) => (
+            <li class="flex gap-3">
+              <Check size={18} aria-hidden="true" class="mt-1 shrink-0 text-accent" />
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

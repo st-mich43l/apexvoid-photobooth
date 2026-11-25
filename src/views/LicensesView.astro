@@ -1,0 +1,67 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/layout/PageIntro.astro";
+import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
+import { useDict, type Locale } from "../i18n";
+import { DOCS_BASE } from "../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.licenses;
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description}>
+  <PageIntro eyebrow={t.eyebrow} title={t.heading} />
+  <section class="section pt-12 sm:pt-16">
+    <div class="container-site">
+      <div class="prose-site">
+        <h2>{t.app.title}</h2>
+        {t.app.paragraphs.map((p) => (
+          <p>{p}</p>
+        ))}
+
+        <h2>{t.thirdParty.title}</h2>
+        <p>{t.thirdParty.intro}</p>
+      </div>
+      <dl class="mt-6 max-w-3xl divide-y divide-[var(--border)] border-y border-line">
+        {t.thirdParty.items.map((c) => (
+          <div class="grid gap-1 py-5 sm:grid-cols-[12rem_1fr] sm:gap-6">
+            <dt class="font-semibold">{c.name}</dt>
+            <dd>
+              <span class="text-sm font-medium text-accent">{c.license}</span>
+              <p class="mt-1 text-sm text-muted">{c.body}</p>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <a
+        href={`${DOCS_BASE}/THIRD-PARTY.md`}
+        target="_blank"
+        rel="noopener"
+        hreflang="en"
+        class="link mt-6 inline-flex items-center gap-1.5 font-medium"
+      >
+        {t.thirdParty.notices}
+        <ArrowUpRight size={16} aria-hidden="true" />
+        <span class="sr-only">{all.a11y.newTab}</span>
+      </a>
+
+      <div class="prose-site">
+        <h2>{t.site.title}</h2>
+        <p>{t.site.intro}</p>
+      </div>
+      <ul class="mt-4 max-w-3xl grid gap-2 sm:grid-cols-2">
+        {t.site.items.map((s) => (
+          <li class="flex justify-between gap-4 rounded-[var(--radius-sm)] bg-surface-2 px-4 py-3 text-sm">
+            <span class="font-medium">{s.name}</span>
+            <span class="text-muted">{s.license}</span>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-12 max-w-3xl text-sm text-subtle">{t.trademarks}</p>
+    </div>
+  </section>
+</BaseLayout>

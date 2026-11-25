@@ -1,0 +1,81 @@
+---
+import Download from "@lucide/astro/icons/download";
+import CircleDashed from "@lucide/astro/icons/circle-dashed";
+import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
+import GithubMark from "../common/GithubMark.astro";
+import { useDict, formatDate, type Locale } from "../../i18n";
+import { formatBytes, latestStable, windowsAsset, type Release } from "../../lib/releases";
+import { REPO_URL } from "../../config/site";
+
+/** The download box. With no published release it says so plainly — no version, size or checksum is ever invented. */
+interface Props {
+  locale: Locale;
+  releases: Release[];
+}
+const { locale, releases } = Astro.props;
+const all = useDict(locale);
+const t = all.download;
+const latest = latestStable(releases);
+const asset = latest ? windowsAsset(latest) : null;
+---
+
+<div class="panel p-7 sm:p-10" data-download-state={latest && asset ? "release" : "empty"}>
+  {latest && asset ? (
+    <div>
+      <p class="text-sm font-semibold text-accent">{t.latest}</p>
+      <h2 class="display t-2 mt-2">{latest.name}</h2>
+      <dl class="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt class="text-subtle">{t.version}</dt>
+          <dd class="font-medium">{latest.tag}</dd>
+        </div>
+        <div>
+          <dt class="text-subtle">{t.published}</dt>
+          <dd class="font-medium">
+            <time datetime={latest.publishedAt}>{formatDate(latest.publishedAt, locale)}</time>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-subtle">{t.file}</dt>
+          <dd class="font-medium break-all">{asset.name}</dd>
+        </div>
+        <div>
+          <dt class="text-subtle">{t.size}</dt>
+          <dd class="font-medium">{formatBytes(asset.size)}</dd>
+        </div>
+        {asset.sha256 && (
+          <div class="sm:col-span-2">
+            <dt class="text-subtle">{t.checksum}</dt>
+            <dd class="font-mono text-xs break-all">{asset.sha256}</dd>
+          </div>
+        )}
+      </dl>
+      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+        <a href={asset.url} class="btn btn-primary">
+          <Download size={18} aria-hidden="true" />
+          {all.common.downloadWindows}
+        </a>
+        <a href={latest.notesUrl} target="_blank" rel="noopener" class="btn btn-secondary">
+          {t.notes}
+          <ArrowUpRight size={16} aria-hidden="true" />
+          <span class="sr-only">{all.a11y.newTab}</span>
+        </a>
+      </div>
+    </div>
+  ) : (
+    <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
+      <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
+        <CircleDashed size={22} aria-hidden="true" />
+      </span>
+      <div>
+        <h2 class="t-3">{t.emptyTitle}</h2>
+        <p class="mt-3 text-muted max-w-prose">{t.emptyBody}</p>
+        <a href={REPO_URL} target="_blank" rel="noopener" class="btn btn-secondary mt-7">
+          <GithubMark size={18} />
+          {t.watch}
+          <span class="sr-only">{all.a11y.newTab}</span>
+        </a>
+      </div>
+    </div>
+  )}
+</div>

@@ -1,0 +1,99 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/layout/PageIntro.astro";
+import Screenshot from "../components/common/Screenshot.astro";
+import Check from "@lucide/astro/icons/check";
+import Minus from "@lucide/astro/icons/minus";
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import { useDict, pathFor, type Locale } from "../i18n";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.features;
+---
+
+<BaseLayout locale={locale} title={t.title} description={t.description}>
+  <PageIntro eyebrow={t.eyebrow} title={t.heading} lede={t.lede} />
+
+  <section class="section pt-14 sm:pt-20" aria-label={t.eyebrow}>
+    <div class="container-site">
+      <div class="grid gap-x-14 gap-y-14 md:grid-cols-2">
+        {t.sections.map((s) => (
+          <section id={s.id} aria-labelledby={`f-${s.id}`} class="border-t border-line-strong pt-7">
+            <h2 id={`f-${s.id}`} class="t-3">
+              {s.title}
+            </h2>
+            <ul class="mt-5 space-y-3">
+              {s.items.map((i) => (
+                <li class="flex gap-3">
+                  <Check size={18} aria-hidden="true" class="mt-1 shrink-0 text-accent" />
+                  <span>{i}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      <section class="mt-20 rounded-[var(--radius-lg)] border border-dashed border-line-strong p-7 sm:p-9" aria-labelledby="not-yet">
+        <h2 id="not-yet" class="t-3">
+          {t.notYet.title}
+        </h2>
+        <ul class="mt-5 grid gap-3 sm:grid-cols-3">
+          {t.notYet.items.map((i) => (
+            <li class="flex gap-3 text-muted">
+              <Minus size={18} aria-hidden="true" class="mt-1 shrink-0 text-subtle" />
+              <span>{i}</span>
+            </li>
+          ))}
+        </ul>
+        <a href={`${pathFor("home", locale)}#hardware`} class="link mt-6 inline-flex items-center gap-1.5 text-sm font-medium">
+          {all.home.hardware.title}
+          <ArrowRight size={14} aria-hidden="true" />
+        </a>
+      </section>
+    </div>
+  </section>
+
+  <section class="section border-t border-line bg-elevated" aria-labelledby="from-app">
+    <div class="container-site">
+      <h2 id="from-app" class="display t-2">
+        {t.gallery.title}
+      </h2>
+      <p class="mt-4 text-sm text-subtle max-w-2xl">{all.common.screenshotNote}</p>
+      <div class="mt-12 grid gap-10 md:grid-cols-2">
+        <Screenshot
+          name="studio-frames"
+          locale={locale}
+          alt={t.gallery.frames}
+          caption={t.gallery.frames}
+          sizes="(min-width: 48rem) 50vw, 100vw"
+        />
+        <Screenshot
+          name="booth-review"
+          locale={locale}
+          alt={t.gallery.review}
+          caption={t.gallery.review}
+          sizes="(min-width: 48rem) 50vw, 100vw"
+        />
+        <Screenshot
+          name="studio-gallery"
+          locale={locale}
+          alt={t.gallery.gallery}
+          caption={t.gallery.gallery}
+          sizes="(min-width: 48rem) 50vw, 100vw"
+        />
+        <Screenshot
+          name="studio-printer"
+          locale={locale}
+          alt={t.gallery.printer}
+          caption={t.gallery.printer}
+          sizes="(min-width: 48rem) 50vw, 100vw"
+        />
+      </div>
+    </div>
+  </section>
+</BaseLayout>

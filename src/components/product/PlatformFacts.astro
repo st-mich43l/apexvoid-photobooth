@@ -1,0 +1,27 @@
+---
+import Monitor from "@lucide/astro/icons/monitor";
+import HardDrive from "@lucide/astro/icons/hard-drive";
+import Check from "@lucide/astro/icons/check";
+import type { Dict } from "../../i18n";
+
+interface Props {
+  t: Dict["common"]["platform"];
+  class?: string;
+}
+const { t, class: cls = "" } = Astro.props;
+---
+
+<ul class:list={["flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted", cls]}>
+  <li class="inline-flex items-center gap-2">
+    <Monitor size={16} aria-hidden="true" class="text-subtle" />
+    {t.os}
+  </li>
+  <li class="inline-flex items-center gap-2">
+    <Check size={16} aria-hidden="true" class="text-subtle" />
+    {t.arch}
+  </li>
+  <li class="inline-flex items-center gap-2">
+    <HardDrive size={16} aria-hidden="true" class="text-subtle" />
+    {t.portable}
+  </li>
+</ul>

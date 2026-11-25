@@ -1,0 +1,37 @@
+---
+import { Picture } from "astro:assets";
+import { shotFor, type ShotName } from "../../lib/screenshots";
+import type { Locale } from "../../i18n/locales";
+
+/** A real screenshot of the desktop application, responsive (AVIF/WebP), with explicit dimensions so it never shifts layout. */
+interface Props {
+  name: ShotName;
+  locale: Locale;
+  alt: string;
+  sizes: string;
+  caption?: string;
+  priority?: boolean;
+  class?: string;
+}
+const { name, locale, alt, sizes, caption, priority = false, class: cls = "" } = Astro.props;
+const img = shotFor(name, locale);
+const widths = [480, 768, 1024, 1440, 1920].filter((w) => w <= img.width);
+---
+
+<figure class={cls}>
+  <div class="shot">
+    <Picture
+      src={img}
+      alt={alt}
+      formats={["avif", "webp"]}
+      fallbackFormat="jpg"
+      widths={widths}
+      sizes={sizes}
+      quality={78}
+      loading={priority ? "eager" : "lazy"}
+      decoding={priority ? "sync" : "async"}
+      fetchpriority={priority ? "high" : "auto"}
+    />
+  </div>
+  {caption && <figcaption class="shot-caption">{caption}</figcaption>}
+</figure>

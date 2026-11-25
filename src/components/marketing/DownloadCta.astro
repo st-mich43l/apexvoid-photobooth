@@ -1,0 +1,44 @@
+---
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import GithubMark from "../common/GithubMark.astro";
+import PlatformFacts from "../product/PlatformFacts.astro";
+import { useDict, pathFor, type Locale } from "../../i18n";
+import { REPO_URL } from "../../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const all = useDict(locale);
+const t = all.home.downloadCta;
+---
+
+<section class="section" aria-labelledby="cta-title">
+  <div class="container-site">
+    <div class="cta relative overflow-hidden rounded-[var(--radius-xl)] border border-line px-6 py-14 sm:px-12 sm:py-20 text-center">
+      <p class="eyebrow justify-center">{t.eyebrow}</p>
+      <h2 id="cta-title" class="display t-1 mt-5 mx-auto max-w-3xl">
+        {t.title}
+      </h2>
+      <p class="lede mt-6 mx-auto">{t.body}</p>
+      <div class="mt-10 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
+        <a href={pathFor("download", locale)} class="btn btn-primary">
+          {t.primary}
+          <ArrowRight size={18} aria-hidden="true" />
+        </a>
+        <a href={REPO_URL} target="_blank" rel="noopener" class="btn btn-secondary">
+          <GithubMark size={18} />
+          {all.common.viewOnGithub}
+          <span class="sr-only">{all.a11y.newTab}</span>
+        </a>
+      </div>
+      <PlatformFacts t={all.common.platform} class="mt-10 justify-center" />
+    </div>
+  </div>
+</section>
+
+<style>
+  .cta {
+    background: radial-gradient(70% 90% at 50% 0%, color-mix(in srgb, var(--brand) 14%, transparent), transparent 70%), var(--surface);
+  }
+</style>

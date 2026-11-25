@@ -1,0 +1,44 @@
+---
+import Sun from "@lucide/astro/icons/sun";
+import Moon from "@lucide/astro/icons/moon";
+import Monitor from "@lucide/astro/icons/monitor";
+import type { Dict } from "../../i18n";
+
+/** Light / Dark / System. The choice is applied before first paint by the inline script in the layout and
+ *  wired up by src/lib/client/ui.ts; without JavaScript the operating-system preference applies. */
+interface Props {
+  a11y: Dict["a11y"];
+  size?: "sm" | "lg";
+}
+const { a11y, size = "sm" } = Astro.props;
+const opts = [
+  { v: "light", label: a11y.themeLight, Icon: Sun },
+  { v: "dark", label: a11y.themeDark, Icon: Moon },
+  { v: "system", label: a11y.themeSystem, Icon: Monitor },
+] as const;
+const big = size === "lg";
+---
+
+<div
+  role="group"
+  aria-label={a11y.theme}
+  class="theme-switch inline-flex items-center rounded-full border border-line p-1 gap-0.5"
+  data-theme-switch
+>
+  {opts.map(({ v, label, Icon }) => (
+    <button
+      type="button"
+      data-theme-value={v}
+      aria-pressed="false"
+      aria-label={label}
+      title={label}
+      class:list={[
+        "inline-flex items-center justify-center rounded-full text-muted transition-colors hover:text-fg aria-pressed:bg-surface-2 aria-pressed:text-fg",
+        big ? "h-11 px-4 gap-2 text-sm font-medium" : "h-8 w-8",
+      ]}
+    >
+      <Icon size={16} aria-hidden="true" />
+      {big && <span>{label}</span>}
+    </button>
+  ))}
+</div>

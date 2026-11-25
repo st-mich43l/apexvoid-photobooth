@@ -1,0 +1,78 @@
+---
+import Logo from "../common/Logo.astro";
+import LanguageSwitch from "../navigation/LanguageSwitch.astro";
+import { useDict, pathFor, type Locale } from "../../i18n";
+import { REPO_URL } from "../../config/site";
+
+interface Props {
+  locale: Locale;
+}
+const { locale } = Astro.props;
+const t = useDict(locale);
+const year = new Date().getUTCFullYear();
+const cols = [
+  {
+    title: t.footer.product,
+    links: [
+      { href: pathFor("features", locale), label: t.nav.features },
+      { href: pathFor("download", locale), label: t.nav.download },
+      { href: pathFor("releases", locale), label: t.nav.releases },
+    ],
+  },
+  {
+    title: t.footer.project,
+    links: [
+      { href: pathFor("docs", locale), label: t.nav.docs },
+      { href: pathFor("community", locale), label: t.nav.community },
+      { href: REPO_URL, label: t.nav.github, external: true },
+    ],
+  },
+  {
+    title: t.footer.legal,
+    links: [
+      { href: pathFor("privacy", locale), label: t.footer.privacy },
+      { href: pathFor("licenses", locale), label: t.footer.licenses },
+    ],
+  },
+];
+---
+
+<footer class="border-t border-line bg-elevated">
+  <div class="container-site py-16">
+    <div class="grid gap-12 md:grid-cols-[1.4fr_repeat(3,1fr)]">
+      <div>
+        <Logo />
+        <p class="mt-4 max-w-xs text-sm text-muted">{t.footer.blurb}</p>
+        <div class="mt-6">
+          <LanguageSwitch locale={locale} />
+        </div>
+      </div>
+      {cols.map((c) => (
+        <nav aria-label={c.title}>
+          <p class="text-sm font-semibold">{c.title}</p>
+          <ul class="mt-4 space-y-1">
+            {c.links.map((l) => (
+              <li>
+                <a
+                  href={l.href}
+                  class="inline-flex min-h-10 items-center text-sm text-muted no-underline hover:text-fg"
+                  {...("external" in l ? { target: "_blank", rel: "noopener" } : {})}
+                >
+                  {l.label}
+                  {"external" in l && <span class="sr-only"> {t.a11y.newTab}</span>}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+    </div>
+    <hr class="rule mt-14" />
+    <div class="mt-6 flex flex-col gap-2 text-xs text-subtle sm:flex-row sm:justify-between">
+      <p>
+        © {year} {t.footer.copyright}
+      </p>
+      <p>{t.footer.unofficial}</p>
+    </div>
+  </div>
+</footer>
