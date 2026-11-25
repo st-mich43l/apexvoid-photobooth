@@ -1,7 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ S: {} as Record<string, unknown>, api: { boothReadiness: vi.fn() } }));
+const h = vi.hoisted(() => ({ S: {} as Record<string, unknown>, api: { boothReadiness: vi.fn() }, fullscreen: false }));
+vi.mock("@wailsio/runtime", () => ({ Window: {
+  IsFullscreen: vi.fn(async () => h.fullscreen),
+  Fullscreen: vi.fn(async () => { h.fullscreen = true; }),
+  UnFullscreen: vi.fn(async () => { h.fullscreen = false; }),
+} }));
 vi.mock("./state", async () => {
   const { translate, formatTranslation } = await import("./i18n");
   return {
@@ -33,6 +38,7 @@ const css = readFileSync(`${(globalThis as unknown as { process: { cwd(): string
 
 beforeEach(() => {
   window.location.hash = "";
+  h.fullscreen = false;
   h.api.boothReadiness.mockReset().mockResolvedValue({ canStart: true, items: [] });
   h.S = { camera: { device: { name: "C", simulated: false }, state: "connected", reconnecting: false }, boot: { version: "t" }, location: {}, refreshReadiness: vi.fn() };
 });
@@ -82,13 +88,21 @@ describe("Studio navigation", () => {
 });
 
 describe("Studio layouts", () => {
-  it("portrait (and narrow windows) get a labelled top bar instead of an icon-only rail", () => {
-    const portrait = css.slice(css.indexOf("@media (orientation: portrait), (max-width: 760px)"));
-    expect(portrait).toMatch(/\.studio \{ grid-template-columns: 1fr !important/);
-    expect(portrait).toMatch(/\.studio nav \{[^}]*flex-direction: row/);
-    expect(portrait).toMatch(/overflow-x: auto/);
-    expect(portrait).toMatch(/\.studio nav \.booth-btn \{[^}]*display: inline-flex/); // Open Booth Mode stays reachable
-    expect(portrait).not.toMatch(/font-size: 0/);                                         // labels are never hidden
+  it("keeps the booth action in the header and shows the actual version", () => {
+    h.S.boot = { version: "0.2.0+abc1234" };
+    render(<Studio onBooth={vi.fn()} />);
+    expect(screen.getByText("v0.2.0+abc1234")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Booth Mode" }).closest("header")).toBeTruthy();
+    expect(screen.getByRole("navigation").classList.contains("bottom-nav")).toBe(true);
+  });
+  it("enters and leaves fullscreen", async () => {
+    render(<Studio onBooth={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enter fullscreen" }));
+    await screen.findByRole("button", { name: "Exit fullscreen" });
+    expect(h.fullscreen).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Exit fullscreen" }));
+    await screen.findByRole("button", { name: "Enter fullscreen" });
+    expect(h.fullscreen).toBe(false);
   });
   it("Prepare Booth is two columns on wide screens and one in portrait", () => {
     expect(css).toMatch(/\.prep-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -96,6 +110,5 @@ describe("Studio layouts", () => {
   });
   it("controls stay comfortable to touch", () => {
     expect(css).toMatch(/\.stepper button \{ min-width: 44px; min-height: 44px/);
-    expect(css).toMatch(/\.studio nav button \{[^}]*min-height: 56px/);
   });
 });
