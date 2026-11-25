@@ -39,9 +39,11 @@ shapes and the embedded Go fonts (BSD licence): there is no third-party artwork.
 stay resolvable as hidden *legacy* frames so old sessions and settings still work.
 
 **Minimal default.** A new installation offers guests only the undecorated **Plain** frame for each photo count (4, 3, 2 and
-1 photos, plus the 6-photo sheet); **Plain 2×6 · 4 photos** is preselected. Every decorated design and every other layout is
-still in the catalogue: Studio → Frames → *Offer* switches them on (the switches are stored in `templates/frame-state.json`).
-Existing installations keep whatever the operator already switched on.
+1 photos, plus the 6-photo sheet); **Plain 2×6 · 4 photos** is preselected. Studio → Frames initially shows those five
+plain samples plus Rose Pink and Film Strip four-photo samples. Custom frames and built-ins already offered, favorited,
+or preselected remain visible. Select **Show all built-in designs** to browse the complete original catalogue; the frame
+builder still offers all nine layouts. Existing choices and historical frame definitions remain unchanged (built-in switches
+are stored in `templates/frame-state.json`).
 
 ## One renderer
 
