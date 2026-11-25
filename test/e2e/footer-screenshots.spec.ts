@@ -23,3 +23,40 @@ test.describe("footer screenshots", () => {
     });
   }
 });
+
+test.describe("footer behavior", () => {
+  test.skip(({ isMobile }) => isMobile, "viewport scenarios are set explicitly");
+
+  test("keeps all localized destinations visible without overflow at requested widths", async ({ page }) => {
+    for (const width of [320, 360, 390, 430, 768, 1024, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/download/");
+      const footer = page.locator("footer");
+      const visibleLinkHrefs = await footer.locator("a:visible").evaluateAll((links) =>
+        links.map((link) => (link as HTMLAnchorElement).pathname),
+      );
+      for (const href of ["/features/", "/download/", "/releases/", "/docs/", "/community/", "/privacy/", "/licenses/"]) {
+        expect(visibleLinkHrefs.filter((value) => value === href), `${href} visible at ${width}px`).toHaveLength(1);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `overflow at ${width}px`).toBeLessThanOrEqual(0);
+      const clipped = await footer.locator("a:visible").evaluateAll((links) =>
+        links.filter((link) => {
+          const rect = link.getBoundingClientRect();
+          return rect.left < -1 || rect.right > window.innerWidth + 1;
+        }).length,
+      );
+      expect(clipped, `clipped footer links at ${width}px`).toBe(0);
+    }
+  });
+
+  test("footer language switch preserves the current localized route", async ({ page }) => {
+    await page.goto("/download/");
+    const footer = page.locator("footer");
+    await footer.locator('[data-locale-link="vi"]').click();
+    await expect(page).toHaveURL(/\\/vi\\/download\\/$/);
+    await expect(page.locator("html")).toHaveAttribute("lang", "vi");
+    await page.locator("footer [data-locale-link=\"en\"]").click();
+    await expect(page).toHaveURL(/\\/download\\/$/);
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  });
+});
