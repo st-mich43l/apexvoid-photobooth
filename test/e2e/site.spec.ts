@@ -315,7 +315,7 @@ test.describe("layout", () => {
     for (const width of [320, 360, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 840 });
       await page.goto("/download/");
-      await expect(panel(page)).toHaveAttribute("data-state", "available");
+      await expect(page.locator("[data-download-panel]")).toHaveAttribute("data-state", "available");
       const overflow = await page.evaluate(() => {
         const viewport = document.documentElement.clientWidth;
         return Array.from(document.querySelectorAll("main *"))
@@ -323,8 +323,13 @@ test.describe("layout", () => {
             if (element.closest("pre")) return false;
             const rect = element.getBoundingClientRect();
             const style = getComputedStyle(element);
-            return rect.width > 0 && style.display !== "none" && style.visibility !== "hidden" &&
-              element.getClientRects().length > 0 && (rect.left < -1 || rect.right > viewport + 1);
+            return (
+              rect.width > 0 &&
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              element.getClientRects().length > 0 &&
+              (rect.left < -1 || rect.right > viewport + 1)
+            );
           })
           .map((element) => ({
             tag: element.tagName.toLowerCase(),
