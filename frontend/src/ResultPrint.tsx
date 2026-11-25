@@ -1,6 +1,7 @@
+import { useLocale } from "./locale";
 import { translate } from "./i18n";
 import { useEffect, useRef, useState } from "react";
-import { api, toAppError } from "./api";
+import { api } from "./api";
 import { newRequestId } from "./printInfo";
 import { Icon } from "./icons";
 import { GuestMessage } from "./guest/parts";
@@ -12,7 +13,8 @@ import { PrintPanel } from "./PrintPanel";
  *  Studio: the full print dialog with the real placement preview. The honest wording matters: a job in the queue is not paper in the tray. */
 export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolean }) {
   const { settings } = useApp();
-  const t = (key: Parameters<typeof translate>[1]) => translate(settings?.language, key);
+  const language = useLocale(settings?.language);
+  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; msg: string }>({ kind: "idle", msg: "" });
   const reqId = useRef(newRequestId()); // one id per tap: a double tap prints once
@@ -34,10 +36,10 @@ export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolea
     setState({ kind: "sending", msg: "" });
     try {
       const j = await api.printResult(mediaId, reqId.current);
-      setState({ kind: "sent", msg: j.status === "failed" ? j.detail : t("printerSentHint") });
-    } catch (e) {
-      const err = toAppError(e);
-      setState({ kind: "error", msg: /unknown/i.test(err.message) ? t("printerUnknown") : t("printerAttention") });
+      setState(j.status === "failed" ? { kind: "error", msg: t("printerAttention") } : { kind: "sent", msg: t("printerSentHint") });
+    } catch {
+      // A failed request may have reached the spooler; never invite a blind retry.
+      setState({ kind: "error", msg: t("printerUnknown") });
     }
   };
   return (

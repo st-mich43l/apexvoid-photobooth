@@ -1,3 +1,4 @@
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { formatTranslation, translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
@@ -42,8 +43,9 @@ export function SettingsPage() {
       <h1>{translate(settings?.language, "settings")}</h1>
       <ErrorNote error={save.error ?? other.error} />
       <section className="card"><h3>{t("languageSection")}</h3>
-        <label>{t("interfaceLanguage")}<select value={draft.language ?? "en"} onChange={(e) => set("language", e.target.value as "en" | "vi")}>
-          <option value="en">English</option><option value="vi">{t("vietnamesePreview")}</option>
+        <label>{t("interfaceLanguage")}<LanguageSwitcher /></label>
+        <label>{t("guestLanguage")}<select value={draft.guestLanguage ?? "en"} onChange={(e) => set("guestLanguage", e.target.value as "en" | "vi")}>
+          <option value="en">English — EN</option><option value="vi">Tiếng Việt — VI</option>
         </select></label>
         <p className="muted small">{t("translationPreview")}</p>
       </section>

@@ -13,6 +13,8 @@ export interface ExitDeps {
 }
 
 export class ExitBlockedError extends Error {}
+/** The session was closed safely, but the native window could not be restored. */
+export class ExitWindowError extends Error {}
 
 const real = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -71,5 +73,5 @@ export async function safeExit(d: ExitDeps): Promise<void> {
   }
 
   step("Restoring the desktop window…");
-  await d.leaveFullscreen();
+  try { await d.leaveFullscreen(); } catch (e) { throw new ExitWindowError(e instanceof Error ? e.message : String(e)); }
 }

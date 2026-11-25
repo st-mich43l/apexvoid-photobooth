@@ -7,7 +7,7 @@ import { useApp, useT } from "../state";
 import type { FramesResult, LibrarySummary, PrintersResult } from "../types";
 import { PageHeader, Fact, PrepCard, StateBlock, StatusPill } from "./parts";
 import { QuickSettings } from "./QuickSettings";
-import { groupView, itemsOf, VIEW_LABEL, viewOf, type View } from "./status";
+import { groupView, itemsOf, readinessHeadline, VIEW_LABEL, viewOf, type View } from "./status";
 import { TestPrint } from "./TestPrint";
 import { useLatest } from "./latest";
 
@@ -56,7 +56,7 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
 
       <section className={`prep-hero status-${status}`} aria-label={t("boothReadiness")}>
         <div>
-          <h2 aria-live="polite">{readiness?.headline ?? t("checkingStatus")}</h2>
+          <h2 aria-live="polite">{readinessHeadline(readiness, t)}</h2>
           <p>{readiness?.detail || (readiness?.canStart ? t("guestsCanTakePhotos") : "")}</p>
           {demo && <p className="demo-note" role="note"><StatusPill view="demo" /> {t("notHardwareCheck")}</p>}
         </div>

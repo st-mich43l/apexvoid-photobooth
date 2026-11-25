@@ -1,3 +1,4 @@
+import type { TranslationKey } from "../i18n";
 import type { BoothReadiness, ReadinessGroup, ReadinessItem } from "../types";
 
 /** What the operator sees. One vocabulary everywhere in Studio (Dashboard, Prepare Booth, Camera, Printer, Diagnostics). */
@@ -46,3 +47,16 @@ export const FIX: Record<string, [page: string, label: string]> = {
   storage: ["settings", "Library settings"], library: ["settings", "Library settings"], space: ["settings", "Library settings"],
   frames: ["frames", "Manage frames"], printer: ["printer", "Printer setup"], session: ["photo", "Open the session"], interrupted: ["gallery", "Open Gallery"],
 };
+
+/** Translate application-owned readiness headlines by stable status, never by English text. */
+export function readinessHeadline(r: BoothReadiness | null | undefined, t: (key: TranslationKey) => string): string {
+  if (!r) return t("checkingStatus");
+  switch (r.status) {
+    case "reconnecting": return t("statusReconnecting");
+    case "attention": return t(r.canStart ? "statusReadyAttention" : "statusAttention");
+    case "setup_required": return t("setupRequired");
+    case "demo": return t("statusDemo");
+    case "ready": return t("readyForGuests");
+    default: return r.headline;
+  }
+}

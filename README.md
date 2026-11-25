@@ -69,3 +69,7 @@ The production-style CI build embeds both dependencies and Windows resources. Ru
 | [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md) | Device, touchscreen, filesystem and endurance test procedures |
 | [Architecture](docs/ARCHITECTURE.md) | Application components and design decisions |
 | [Third-party notices](docs/THIRD-PARTY.md) | Embedded components and their notices |
+
+### Interface languages
+
+Studio offers English and Vietnamese. Settings can choose a separate default guest language, and guests can choose a temporary language on the Booth welcome screen. Translation coverage and outstanding Windows acceptance work are tracked in [the UX7 audit](docs/UX7_AUDIT.md).

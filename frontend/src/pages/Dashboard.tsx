@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes } from "../format";
 import { useApp, useT } from "../state";
+import { readinessHeadline } from "../operator/status";
 import { Icon } from "../icons";
 import type { Media, PrintersResult, ReadinessItem } from "../types";
 
@@ -56,7 +57,7 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
   };
   const todo: ReadinessItem[] = (readiness?.items ?? []).filter((it) => it.state === "problem" || it.state === "warn");
   const status = readiness?.status ?? (connected ? "ready" : "setup_required");
-  const headline = readiness?.headline ?? (connected ? t("readyForGuests") : t("setupRequired"));
+  const headline = readiness ? readinessHeadline(readiness, t) : (connected ? t("readyForGuests") : t("setupRequired"));
   const sub = readiness?.detail || (connected ? t("guestReadyHint") : t("connectCameraHint"));
 
   return (

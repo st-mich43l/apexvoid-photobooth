@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { applyColor, cropRect, type CropUI } from "../edits";
-import { useApp } from "../state";
+import { useApp, useT } from "../state";
 import { ErrorNote, Modal, useAction } from "../ui";
 import type { Edits, Media } from "../types";
 
@@ -16,6 +16,7 @@ function initial(m: Media): { rot: number; b: number; c: number; s: number } {
  *  as the Go renderer; saving stores a recipe + render, never touching the original. */
 export function Editor({ media, onClose, onSaved }: { media: Media; onClose: () => void; onSaved: (m: Media) => void }) {
   const { mediaUrl, toast } = useApp();
+  const { t } = useT();
   const init = useMemo(() => initial(media), [media]);
   const [rot, setRot] = useState(init.rot);
   const [b, setB] = useState(init.b);
@@ -68,40 +69,40 @@ export function Editor({ media, onClose, onSaved }: { media: Media; onClose: () 
   );
 
   return (
-    <Modal title="Edit photo" onClose={onClose} wide>
+    <Modal title={t("editPhoto")} onClose={onClose} wide>
       <div className="editor">
-        <div className="canvas-wrap"><canvas ref={canvas} aria-label="Edit preview" /></div>
+        <div className="canvas-wrap"><canvas ref={canvas} aria-label={t("editPreview")} /></div>
         <div className="panel">
           <ErrorNote error={error} />
-          <h4>Rotate</h4>
+          <h4>{t("rotatePhoto")}</h4>
           <div className="row">
             <button onClick={() => setRot((r) => (r + 270) % 360)}>↺ 90°</button>
             <button onClick={() => setRot((r) => (r + 90) % 360)}>↻ 90°</button>
             <span className="muted">{rot}°</span>
           </div>
-          <h4>Crop</h4>
+          <h4>{t("cropPhoto")}</h4>
           <div className="seg wrap">
-            {ASPECTS.map(([n, a]) => <button key={n} className={crop.aspect === a ? "on" : ""} onClick={() => setCrop({ ...crop, aspect: a, zoom: a === null ? 1 : Math.min(crop.zoom, 1) })}>{n}</button>)}
+            {ASPECTS.map(([n, a]) => <button key={n} className={crop.aspect === a ? "on" : ""} onClick={() => setCrop({ ...crop, aspect: a, zoom: a === null ? 1 : Math.min(crop.zoom, 1) })}>{n === "Free" ? t("freeCrop") : n}</button>)}
           </div>
-          <label className="slider">Zoom<input type="range" min={0.2} max={1} step={0.01} value={crop.zoom} onChange={(e) => setCrop({ ...crop, zoom: Number(e.target.value) })} /><output>{Math.round(crop.zoom * 100)}%</output></label>
-          <label className="slider">Left–right<input type="range" min={0} max={1} step={0.01} value={crop.cx} onChange={(e) => setCrop({ ...crop, cx: Number(e.target.value) })} /><output /></label>
-          <label className="slider">Up–down<input type="range" min={0} max={1} step={0.01} value={crop.cy} onChange={(e) => setCrop({ ...crop, cy: Number(e.target.value) })} /><output /></label>
-          <h4>Colour</h4>
-          {slider("Brightness", b, setB)}
-          {slider("Contrast", c, setC)}
-          {slider("Saturation", s, setS)}
-          <p className="muted small">The original file is never changed. Edits are saved as a separate render.</p>
+          <label className="slider">{t("zoom")}<input type="range" min={0.2} max={1} step={0.01} value={crop.zoom} onChange={(e) => setCrop({ ...crop, zoom: Number(e.target.value) })} /><output>{Math.round(crop.zoom * 100)}%</output></label>
+          <label className="slider">{t("leftRight")}<input type="range" min={0} max={1} step={0.01} value={crop.cx} onChange={(e) => setCrop({ ...crop, cx: Number(e.target.value) })} /><output /></label>
+          <label className="slider">{t("upDown")}<input type="range" min={0} max={1} step={0.01} value={crop.cy} onChange={(e) => setCrop({ ...crop, cy: Number(e.target.value) })} /><output /></label>
+          <h4>{t("color")}</h4>
+          {slider(t("brightness"), b, setB)}
+          {slider(t("contrast"), c, setC)}
+          {slider(t("saturation"), s, setS)}
+          <p className="muted small">{t("originalUnchanged")}</p>
         </div>
       </div>
       <footer>
-        <button onClick={reset}>Reset</button>
+        <button onClick={reset}>{t("reset")}</button>
         <button disabled={busy} onClick={() => run(async () => {
           const m = await api.saveEdits(media.id, { rotate: 0, crop: null, brightness: 0, contrast: 0, saturation: 0 });
-          toast("Reverted to the original"); onSaved(m); onClose();
-        })}>Revert to original</button>
+          toast(t("revertedOriginal")); onSaved(m); onClose();
+        })}>{t("revertOriginal")}</button>
         <button className="primary" disabled={busy} onClick={() => run(async () => {
-          const m = await api.saveEdits(media.id, recipe()); toast("Edits saved"); onSaved(m); onClose();
-        })}>Save</button>
+          const m = await api.saveEdits(media.id, recipe()); toast(t("editsSaved")); onSaved(m); onClose();
+        })}>{t("save")}</button>
       </footer>
     </Modal>
   );

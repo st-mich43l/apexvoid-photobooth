@@ -15,3 +15,21 @@ describe("language resources", () => {
     expect(translate("vi", "builderRepeatPhoto")).toContain("Lặp số ảnh");
   });
 });
+
+it("has nonempty translations with matching named placeholders", async () => {
+  const { enAll, vi } = await import("./i18n");
+  expect(Object.keys(vi).sort()).toEqual(Object.keys(enAll).sort());
+  const placeholders = (value: string) => [...new Set(value.match(/\{[A-Za-z][A-Za-z0-9_]*\}/g) ?? [])].sort();
+  for (const key of Object.keys(enAll) as (keyof typeof enAll)[]) {
+    expect(enAll[key].trim(), `empty English ${key}`).not.toBe("");
+    expect(vi[key].trim(), `empty Vietnamese ${key}`).not.toBe("");
+    expect(placeholders(vi[key]), `placeholders in ${key}`).toEqual(placeholders(enAll[key]));
+  }
+});
+
+
+it("has no duplicate keys across dictionary domains", async () => {
+  const { translationDomains } = await import("./i18n");
+  const keys = translationDomains.flatMap(Object.keys);
+  expect(keys.filter((key, i) => keys.indexOf(key) !== i)).toEqual([]);
+});

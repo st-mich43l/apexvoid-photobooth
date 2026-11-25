@@ -350,3 +350,19 @@ describe("portrait and landscape", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("independent guest language", () => {
+  it("uses the guest default, keeps a temporary selection for the session, and resets it on finish", async () => {
+    S.settings = { ...(S.settings as Settings), language: "en", guestLanguage: "vi" };
+    mount();
+    expect(screen.getByText("Cười lên nào!")).toBeTruthy();
+    expect(document.documentElement.lang).toBe("vi");
+    fireEvent.change(screen.getByLabelText("Ngôn ngữ của khách"), { target: { value: "en" } });
+    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    await toPhotoScreen();
+    expect(screen.queryByLabelText("Guest language")).toBeNull();
+    fireEvent.click(screen.getByText("Finish"));
+    expect(await screen.findByText("Cười lên nào!")).toBeTruthy();
+    expect((S.settings as Settings).language).toBe("en");
+  });
+});

@@ -24,3 +24,6 @@
   .studio-shell .bottom-nav { justify-content: flex-start; }
   .studio-shell .page { padding-inline: 16px; }
 }
+.language-switcher { display: inline-flex; position: relative; align-items: center; }
+.language-switcher select { width: auto; min-height: 44px; max-width: 170px; padding: 8px 30px 8px 10px; border-radius: 14px; font-size: 12px; }
+.language-switcher [role="alert"] { position: absolute; right: 0; top: 100%; z-index: 40; width: 230px; padding: 10px; border-radius: 10px; background: #3a1a2b; color: #fff; }

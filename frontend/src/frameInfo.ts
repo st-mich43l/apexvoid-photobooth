@@ -1,3 +1,4 @@
+import { formatTranslation, photoCount, translate, type TranslationKey } from "./i18n";
 import type { Frame, FrameChoice, Variant } from "./types";
 
 export const photosLabel = (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`;
@@ -26,7 +27,13 @@ export function fitFor(frame: Frame, taken: number | undefined): Fit {
   return frame.photos < taken ? { kind: "fewer", need: frame.photos, have: taken } : { kind: "more", need: frame.photos, have: taken };
 }
 
-export function explainFit(f: Fit, name: string): string {
+export function categoryLabel(category: string, language?: string): string {
+  const keys: Record<string, TranslationKey> = { Classic: "categoryClassic", "Korean Pastel": "categoryPastel", Retro: "categoryRetro", Special: "categorySpecial", Plain: "categoryPlain", Custom: "categoryCustom" };
+  return keys[category] ? translate(language, keys[category]) : category;
+}
+
+export function explainFit(f: Fit, name: string, language?: string): string {
+  if (language === "vi" && f.kind !== "ok") return formatTranslation(language, f.kind === "fewer" ? "fitFewer" : "fitMore", { name, need: photoCount(language, f.need), have: photoCount(language, f.have), first: photoCount(language, f.need), havePhotos: photoCount(language, f.have) });
   switch (f.kind) {
     case "fewer": return `“${name}” uses ${photosLabel(f.need)}, but you took ${f.have}. You can use the first ${f.need}, or pick a design for ${f.have} photos.`;
     case "more": return `“${name}” needs ${photosLabel(f.need)}, but you took ${f.have}. Pick a design for ${f.have} photos, or start over to take ${f.need}.`;
