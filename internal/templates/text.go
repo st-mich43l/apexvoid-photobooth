@@ -23,6 +23,12 @@ import (
 //go:embed fonts/NotoSans-Regular.ttf
 var notoSans []byte
 
+//go:embed fonts/OFL.txt
+var notoLicense string
+
+// FontLicense returns the license accompanying the embedded Noto Sans font.
+func FontLicense() string { return notoLicense }
+
 var (
 	fontOnce sync.Once
 	fontSet  map[string]*opentype.Font
