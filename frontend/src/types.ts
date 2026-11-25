@@ -115,7 +115,11 @@ export interface PNGFrameImport { draft: FrameDef; asset: AssetInfo; windows: nu
 export interface AssetInfo { name: string; format: string; width: number; height: number; hasAlpha: boolean; bytes: number }
 export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
 /** What the guest picked: stays with the session from the first shot to the printed result. */
-export interface FrameChoice { id: string; name: string; variantId: string; caption: string; photos: number; format: string }
+export interface FrameChoice {
+  id: string; name: string; variantId: string; caption: string; photos: number; format: string;
+  /** Slot geometry used to frame each guest capture like the saved composition. */
+  photoSlots?: Array<{ photo: number; w: number; h: number; focusX?: number; focusY?: number }>;
+}
 export interface TemplatesResult { templates: Template[]; errors: string[]; dir: string }
 
 export interface Printer { name: string; default: boolean; status: "ready" | "offline" | "error" | "unknown"; detail?: string; port?: string; driver?: string }

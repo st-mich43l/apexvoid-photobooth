@@ -44,7 +44,7 @@ export function SimulatedRibbon() {
 }
 
 /** Live view: an <img> on the loopback MJPEG stream, re-opened after drops. */
-export function LivePreview({ className = "" }: { className?: string }) {
+export function LivePreview({ className = "", fit = "contain", objectPosition = "50% 50%" }: { className?: string; fit?: "contain" | "cover"; objectPosition?: string }) {
   const { camera, previewUrl, settings } = useApp();
   const [failed, setFailed] = useState(0);
   const timer = useRef<number | undefined>(undefined);
@@ -66,6 +66,7 @@ export function LivePreview({ className = "" }: { className?: string }) {
         key={`${previewUrl}-${failed}`}
         src={previewUrl}
         alt="Live camera preview"
+        style={{ objectFit: fit, objectPosition }}
         onError={() => { timer.current = window.setTimeout(() => setFailed((n) => n + 1), 800); }}
       />
     </div>
