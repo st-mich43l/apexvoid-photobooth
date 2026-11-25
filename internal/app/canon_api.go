@@ -53,6 +53,7 @@ type CanonStatus struct {
 	Items          []Readiness         `json:"items"`
 	Recommendation string              `json:"recommendation,omitempty"`
 	Guide          []string            `json:"guide"`
+	GuideCodes     []string            `json:"guideCodes"`
 	Verification   string              `json:"verification"`
 }
 
@@ -73,7 +74,7 @@ const canonVerification = "Automated tests use a simulated Canon SDK and the Win
 // reads the SDK folder statically, lists attached bodies and reports what the
 // connected camera has actually done in this session.
 func (s *Service) CanonStatus() CanonStatus {
-	st := CanonStatus{Platform: runtime.GOOS + "/" + runtime.GOARCH, Detected: []camera.DeviceInfo{}, Conflicts: []string{}, Guide: canonGuide, Verification: canonVerification}
+	st := CanonStatus{Platform: runtime.GOOS + "/" + runtime.GOARCH, Detected: []camera.DeviceInfo{}, Conflicts: []string{}, Guide: canonGuide, GuideCodes: []string{"usb_mode", "photo_mode", "image_quality", "close_apps", "usb_cable", "sdk"}, Verification: canonVerification}
 	st.SDK = edsdk.SDKStatus(s.settings.Get().CanonSDKDir)
 	if h, ok := s.edsdk.Health(); ok {
 		st.Driver = &h

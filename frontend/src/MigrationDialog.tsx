@@ -7,7 +7,7 @@ import type { MigrationReport } from "./types";
 
 /** Offers to copy the old %LOCALAPPDATA% library to Documents\apexvoid-studio. Nothing happens without a click. */
 export function MigrationDialog({ onClose }: { onClose: () => void }) {
-  const { location, toast } = useApp();
+  const { location, toast, settings } = useApp();
   const { t, tf } = useT();
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [report, setReport] = useState<MigrationReport | null>(null);
@@ -28,14 +28,14 @@ export function MigrationDialog({ onClose }: { onClose: () => void }) {
             <li>{t("copyVerified")}</li>
             <li>{t("copyResume")}</li>
             <li>{t("restartRequired")}</li>
-            <li>{tf("freeSpaceNow", { space: bytes(location.freeBytes) })}</li>
+            <li>{tf("freeSpaceNow", { space: bytes(location.freeBytes, settings?.language) })}</li>
           </ul>
           <ErrorNote error={error} />
-          {busy && <div role="status"><div className="progress"><i style={{ width: `${pct}%` }} /></div><p className="muted small">{tf("copyingPercent", { percent: pct })} {progress ? `(${bytes(progress.done)} / ${bytes(progress.total)})` : ""}</p></div>}
+          {busy && <div role="status"><div className="progress"><i style={{ width: `${pct}%` }} /></div><p className="muted small">{tf("copyingPercent", { percent: pct })} {progress ? `(${bytes(progress.done, settings?.language)} / ${bytes(progress.total, settings?.language)})` : ""}</p></div>}
         </>)}
         {report && (<>
           <div className="note warn"><div><strong>{t("restartNow")}</strong> {t("toStartNewLibrary")}</div></div>
-          <p>{tf("copiedSummary", { files: report.files + report.skipped, bytes: bytes(report.bytes), sessions: report.sessions, media: report.mediaRows })}</p>
+          <p>{tf("copiedSummary", { files: report.files + report.skipped, bytes: bytes(report.bytes, settings?.language), sessions: report.sessions, media: report.mediaRows })}</p>
           <p className="muted small">{t("oldLibraryAt")} <code>{report.source}</code>. {t("deleteAfterCheck")}</p>
           {report.symlinks.length > 0 && <p className="muted small">{tf("skippedShortcuts", { count: report.symlinks.length })}</p>}
         </>)}

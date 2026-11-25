@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, on } from "../api";
-import { jobActive, jobKind, paperLabel } from "../printInfo";
+import { jobActive, jobKind, paperLabel, printerStatusLabel } from "../printInfo";
 import { PrintPanel } from "../PrintPanel";
 import { useApp, useT } from "../state";
 import { Badge, Confirm, ErrorNote, useAction } from "../ui";
@@ -66,9 +66,9 @@ export function PrinterPage() {
         <dl className="facts">
           <Fact label={t("printer")}>{printer || <span className="muted">{t("noPrinter")}</span>}</Fact>
           {!digital && <>
-            <Fact label={t("printerWindowsReports")}>{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? t("notVerified") : cur.status} /> : <span className="warn-text">{t("printerNotFound")}</span>}</Fact>
+            <Fact label={t("printerWindowsReports")}>{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? t("notVerified") : printerStatusLabel(cur.status, settings.language)} /> : <span className="warn-text">{t("printerNotFound")}</span>}</Fact>
             <Fact label={t("paperSize")}>{settings.printPaper || <span className="muted">{t("paperNotSet")}</span>}</Fact>
-            <Fact label={t("testPrint")}>{lastTest ? <>{lastTest.detail || t(jobStatusKey[lastTest.status])} <span className="muted small">{when(lastTest.createdAt)}</span></> : <span className="muted">{t("testNotRequested")}</span>}</Fact>
+            <Fact label={t("testPrint")}>{lastTest ? <>{lastTest.detail || t(jobStatusKey[lastTest.status])} <span className="muted small">{when(lastTest.createdAt, settings.language)}</span></> : <span className="muted">{t("testNotRequested")}</span>}</Fact>
           </>}
         </dl>
         <p className="muted small">{digital ? t("digitalPickPrinter") : !cur ? t("printerRemovedDigital") : cur.status !== "ready" ? t("printerNotReadyDigital") : t("printerReadyCaveat")}</p>
@@ -85,7 +85,7 @@ export function PrinterPage() {
               <li key={p.name}>
                 <div>
                   <strong>{p.name}</strong>{" "}
-                  <Badge kind={p.status === "ready" ? "ok" : p.status === "offline" ? "warn" : "err"}>{p.status}</Badge>
+                  <Badge kind={p.status === "ready" ? "ok" : p.status === "offline" ? "warn" : "err"}>{printerStatusLabel(p.status, settings.language)}</Badge>
                   {p.default && <Badge kind="info">{t("windowsDefault")}</Badge>}
                   {printer === p.name && <Badge kind="info">{t("usedByBooth")}</Badge>}
                   {p.detail && <div className="muted small">{p.detail}</div>}
@@ -143,7 +143,7 @@ export function PrinterPage() {
         {recent.length === 0 ? <p className="muted">{t("previewTakeSessionFirst")}</p> : (<>
           <div className="strip-row">
             {recent.map((m) => (
-              <button key={m.id} className={`thumb-btn ${m.kind} ${pick === m.id ? "picked" : ""}`} onClick={() => setPick(m.id)} aria-label={`${m.kind} ${m.id}`}>
+              <button key={m.id} className={`thumb-btn ${m.kind} ${pick === m.id ? "picked" : ""}`} onClick={() => setPick(m.id)} aria-label={tf("mediaNamed", { kind: m.kind === "photo" ? t("photo").toLowerCase() : m.kind === "video" ? t("video").toLowerCase() : t("photoStrip").toLowerCase(), id: m.id })}>
                 {m.thumbRel ? <img src={mediaUrl(m.id, "thumb", m.editedRel || m.thumbRel)} alt="" /> : <div className="no-thumb">{m.kind}</div>}
                 <span className="tag">{m.kind}</span>
               </button>
@@ -160,8 +160,8 @@ export function PrinterPage() {
           <table className="table jobs"><tbody>
             {jobs.map((j) => (
               <tr key={j.id}>
-                <td><strong>{j.kind === "test" ? t("testPage") : j.mediaId.slice(0, 8)}</strong>{j.parentId && <span className="muted small"> · reprint #{j.attempt - 1}</span>}
-                  <div className="muted small">{when(j.createdAt)}</div></td>
+                <td><strong>{j.kind === "test" ? t("testPage") : j.mediaId.slice(0, 8)}</strong>{j.parentId && <span className="muted small"> · {tf("reprintNumber", { number: j.attempt - 1 })}</span>}
+                  <div className="muted small">{when(j.createdAt, settings.language)}</div></td>
                 <td>{j.printer}<div className="muted small">{j.paperName} · {j.copies}× · {j.orientation}/{j.fit}</div></td>
                 <td><Badge kind={jobKind(j.status)}>{t(jobStatusKey[j.status])}</Badge>{jobActive(j.status) && <span className="spinner tiny" />}
                   <div className="muted small">{j.detail}</div>{j.status === "unknown" && <div className="muted small">{t("unknownPrintHelp")}</div>}</td>

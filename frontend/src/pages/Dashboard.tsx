@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes } from "../format";
 import { useApp, useT } from "../state";
+import { readinessDetail, readinessHeadline, readinessTranslation } from "../operator/status";
+import { printerStatusLabel } from "../printInfo";
+import { backendLabel } from "../sourceInfo";
 import { Icon } from "../icons";
 import type { Media, PrintersResult, ReadinessItem } from "../types";
 
@@ -56,8 +59,8 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
   };
   const todo: ReadinessItem[] = (readiness?.items ?? []).filter((it) => it.state === "problem" || it.state === "warn");
   const status = readiness?.status ?? (connected ? "ready" : "setup_required");
-  const headline = readiness?.headline ?? (connected ? t("readyForGuests") : t("setupRequired"));
-  const sub = readiness?.detail || (connected ? t("guestReadyHint") : t("connectCameraHint"));
+  const headline = readiness ? readinessHeadline(readiness, t) : (connected ? t("readyForGuests") : t("setupRequired"));
+  const sub = readiness ? readinessDetail(readiness, t) : (connected ? t("guestReadyHint") : t("connectCameraHint"));
 
   return (
     <div className="page dash">
@@ -87,7 +90,7 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
             {todo.map((it) => (
               <li key={it.key} className={it.state}>
                 <span className="todo-dot" aria-hidden="true" />
-                <div><strong>{it.label}</strong><span>{it.detail}</span>{it.action && <em>{it.action}</em>}</div>
+                <div>{settings.language === "vi" ? <><strong>{readinessTranslation(it, t).label}</strong><span>{readinessTranslation(it, t).detail}</span><em>{readinessTranslation(it, t).action}</em><details><summary>{t("technicalDetails")}</summary>{it.detail} {it.action}</details></> : <><strong>{it.label}</strong><span>{it.detail}</span>{it.action && <em>{it.action}</em>}</>}</div>
                 {FIX[it.key] && <button onClick={() => go(FIX[it.key][0])}>{FIX[it.key][1]}</button>}
               </li>
             ))}
@@ -97,17 +100,17 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
 
       <div className="stat-grid">
         <StatCard icon="camera" label={t("camera")} tone={camTone} status={camStatus}
-          value={connected ? camera.device!.name : camera.reconnecting ? t("cameraReconnectingStatus") : t("noCamera")}
-          sub={connected ? camera.device!.driver : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : t("plugCameraHint")}
+          value={connected ? camera.device!.simulated ? t("sourceSimulated") : camera.device!.name : camera.reconnecting ? t("cameraReconnectingStatus") : t("noCamera")}
+          sub={connected ? backendLabel(camera.device!.driver, settings.language) : camera.lastError ? `${camera.lastError}${camera.lastAction ? ` — ${camera.lastAction}` : ""}` : t("plugCameraHint")}
           action={t("cameraSetup")} onAction={() => go("camera")} />
         <StatCard icon="printer" label={t("printer")} tone={prTone}
-          status={printer ? (printer.status === "ready" ? t("windowsReady") : printer.status) : settings.printerName ? t("notFound") : t("digitalOnly")}
+          status={printer ? (printer.status === "ready" ? t("windowsReady") : printerStatusLabel(printer.status, settings.language)) : settings.printerName ? t("notFound") : t("digitalOnly")}
           value={printer ? printer.name : settings.printerName ? `${settings.printerName} ${t("notFound").toLowerCase()}` : t("noPrinterSelected")}
           sub={printer || settings.printerName ? t("spoolerNotice") : t("choosePrinterHint")}
           action={t("printerSetup")} onAction={() => go("printer")} />
         <StatCard icon="storage" label={t("storage")} tone={lowDisk ? "err" : interrupted ? "warn" : "ok"}
           status={lowDisk ? t("lowSpace") : interrupted ? t("checkSessions") : t("healthy")}
-          value={lib.freeBytes >= 0 ? `${bytes(lib.freeBytes)} ${t("freeBytes")}` : t("unknownPrintHelp")}
+          value={lib.freeBytes >= 0 ? `${bytes(lib.freeBytes, settings.language)} ${t("freeBytes")}` : t("unknownPrintHelp")}
           sub={interrupted ? tf("interruptedSessions", { count: interrupted }) : tf("savedMediaCount", { photos: lib.photos, videos: lib.videos })}
           action={t("openGallery")} onAction={() => go("gallery")} />
       </div>
@@ -118,7 +121,7 @@ export function Dashboard({ go, onBooth }: { go: (p: string) => void; onBooth?: 
       ) : (
         <div className="strip-row">
           {recent.map((m) => (
-            <button key={m.id} className="thumb-btn" onClick={() => go("gallery")} aria-label={`${m.kind} ${m.id}`}>
+            <button key={m.id} className="thumb-btn" onClick={() => go("gallery")} aria-label={tf("mediaNamed", { kind: m.kind === "photo" ? t("photo").toLowerCase() : m.kind === "video" ? t("video").toLowerCase() : t("photoStrip").toLowerCase(), id: m.id })}>
               {m.thumbRel ? <img src={mediaUrl(m.id, "thumb", m.editedRel)} alt="" /> : <div className="no-thumb">{m.kind}</div>}
               {m.simulated && <span className="sim-tag">SIM</span>}
             </button>

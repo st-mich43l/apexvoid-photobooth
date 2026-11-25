@@ -18,7 +18,7 @@ function WelcomeArt() {
 export interface WelcomeProps {
   language?: string; blocked: boolean; resetting: boolean; guestText: string; readiness: BoothReadiness | null;
   resetFailed: boolean; resetError: string; modeError?: string;
-  onStart: () => void; onRetryReset: () => void;
+  onStart: () => void; onRetryReset: () => void; onLanguageChange?: (language: "en" | "vi") => void;
 }
 
 /** The first thing a guest sees. One big action; any reason it cannot start is stated plainly, never hidden by the artwork. */
@@ -30,15 +30,20 @@ export function Welcome(p: WelcomeProps) {
       <WelcomeArt />
       <div className="g-welcome-card">
         <div className="g-rise r1"><BrandMark /></div>
+        {p.onLanguageChange && <label className="guest-language">{t("guestLanguageLabel")}
+          <select aria-label={t("guestLanguageLabel")} value={p.language === "vi" ? "vi" : "en"} disabled={p.resetting} onChange={e => p.onLanguageChange?.(e.target.value as "en" | "vi")}>
+            <option value="en">English — EN</option><option value="vi">Tiếng Việt — VI</option>
+          </select>
+        </label>}
         <h1 className="g-rise r2">{t("welcomeTitle")}</h1>
         <p className="g-sub g-rise r3">{sub}</p>
         {p.blocked && (
-          <GuestMessage kind="warn" hint={p.readiness ? `Host: ${p.readiness.status === "attention" ? "Operator attention required" : p.readiness.headline}` : undefined}>
+          <GuestMessage kind="warn" hint={p.readiness ? t(p.readiness.status === "reconnecting" ? "hostReconnect" : p.readiness.status === "attention" ? "hostAttention" : "hostSetup") : undefined}>
             {p.guestText}
           </GuestMessage>
         )}
         {p.resetFailed && !p.resetting && (
-          <GuestMessage kind="warn" role="alert" hint={`Host: ${p.resetError}`} action={<button type="button" className="g-btn g-secondary" onClick={p.onRetryReset}>{t("tryAgain")}</button>}>
+          <GuestMessage kind="warn" role="alert" hint={t("hostRecovery")} action={<button type="button" className="g-btn g-secondary" onClick={p.onRetryReset}>{t("tryAgain")}</button>}>
             {t("tidy")}
           </GuestMessage>
         )}

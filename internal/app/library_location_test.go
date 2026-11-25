@@ -176,3 +176,38 @@ func TestKioskPINLifecycleAndLockout(t *testing.T) {
 		t.Fatal("PIN not cleared")
 	}
 }
+
+func TestStructuredPINVerificationPreservesLockout(t *testing.T) {
+	s, _, _ := newTestApp(t)
+	if err := s.SetKioskPin("", "2468"); err != nil {
+		t.Fatal(err)
+	}
+	if result := s.VerifyKioskPinDetailed("0000"); result.OK || result.Code != "pin_wrong" {
+		t.Fatalf("wrong PIN: %+v", result)
+	}
+	for i := 0; i < 3; i++ {
+		s.VerifyKioskPinDetailed("0000")
+	}
+	if result := s.VerifyKioskPinDetailed("0000"); result.OK || result.Code != "pin_locked" || result.RetrySeconds != 30 {
+		t.Fatalf("lockout: %+v", result)
+	}
+	if result := s.VerifyKioskPinDetailed("2468"); result.OK || result.Code != "pin_locked" || result.RetrySeconds < 1 {
+		t.Fatalf("locked correct PIN: %+v", result)
+	}
+}
+
+func TestStructuredPINSettingRetainsLegacyBehavior(t *testing.T) {
+	s, _, _ := newTestApp(t)
+	if r := s.SetKioskPinDetailed("", "12"); r.OK || r.Code != "pin_setting_failed" || r.Diagnostic == "" {
+		t.Fatalf("invalid PIN: %+v", r)
+	}
+	if r := s.SetKioskPinDetailed("", "2468"); !r.OK {
+		t.Fatalf("set PIN: %+v", r)
+	}
+	if r := s.SetKioskPinDetailed("0000", "1357"); r.OK || r.Code != "pin_wrong" {
+		t.Fatalf("wrong current PIN: %+v", r)
+	}
+	if err := s.VerifyKioskPin("2468"); err != nil {
+		t.Fatalf("old PIN was replaced: %v", err)
+	}
+}

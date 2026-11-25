@@ -165,7 +165,7 @@ func main() {
 	}
 
 	h := &hub{subs: map[chan []byte]struct{}{}}
-	opts := app.Options{Version: "uxharness", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
+	opts := app.Options{Version: "0.2.0", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
 		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}, PickFolder: func() (string, error) { return filepath.Join(dir, "sample-exports"), nil }}
 	var wd *fakeWebcam
 	if *webcam {

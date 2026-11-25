@@ -1,10 +1,18 @@
 import { useRef, useState, type ReactNode } from "react";
+import { formatTranslation, type TranslationKey } from "../i18n";
+import { categoryLabel } from "../frameInfo";
+import { useLocale } from "../locale";
 import { Categories } from "./categories";
 import { addVariant, imageWarnings, removeVariant, type Selection } from "./draft";
 import type { AssetInfo, FrameDef, Layer, Slot, Variant } from "../types";
 import { useT } from "../state";
 
-const SHAPES = ["heart", "star", "sparkle", "flower", "cloud", "triangle", "dot", "square", "sprocket", "diamond"];
+const translateSlots = (count: number, language: string) => formatTranslation(language, "photoSlots", { count });
+const SHAPES = ["heart", "star", "sparkle", "flower", "cloud", "triangle", "dot", "square", "sprocket", "diamond"] as const;
+const SHAPE_LABELS: Record<(typeof SHAPES)[number], TranslationKey> = {
+  heart: "shapeHeart", star: "shapeStar", sparkle: "shapeSparkle", flower: "shapeFlower", cloud: "shapeCloud",
+  triangle: "shapeTriangle", dot: "shapeDot", square: "shapeSquare", sprocket: "shapeSprocket", diamond: "shapeDiamond",
+};
 const FONTS = [["sans", "builderRegular"], ["bold", "builderBold"], ["italic", "builderItalic"], ["mono", "builderMono"]] as const;
 const TOKENS = [["", "builderCustom"], ["accent", "builderAccent"], ["text", "builderTextToken"], ["border", "builderBorderToken"], ["bg", "builderBackground"]] as const;
 
@@ -22,14 +30,15 @@ export function Num({ label, value, onChange, step = 0.01, min, max, unit = "in"
 const hex = (s?: string) => (s && /^#[0-9a-fA-F]{6}$/.test(s) ? s : "#000000");
 export function ColorInput({ label, value, onChange, tokens }: { label: string; value?: string; onChange: (v: string) => void; tokens?: boolean }) {
   const { t } = useT();
+  const useLanguage = useLocale();
   const isToken = !!value && !value.startsWith("#");
   return (
     <Field label={label}>
       <span className="fb-color">
-        {tokens && <select aria-label={`${label} source`} value={isToken ? value : ""} onChange={(e) => onChange(e.target.value || hex(undefined))}>{TOKENS.map(([v, k]) => <option key={v} value={v}>{t(k)}</option>)}</select>}
+        {tokens && <select aria-label={formatTranslation(useLanguage, "labelSource", { label })} value={isToken ? value : ""} onChange={(e) => onChange(e.target.value || hex(undefined))}>{TOKENS.map(([v, k]) => <option key={v} value={v}>{t(k)}</option>)}</select>}
         {!isToken && <>
           <input type="color" aria-label={label} value={hex(value)} onChange={(e) => onChange(e.target.value)} />
-          <input type="text" aria-label={`${label} hex`} value={value ?? ""} maxLength={7} onChange={(e) => onChange(e.target.value)} />
+          <input type="text" aria-label={formatTranslation(useLanguage, "labelHex", { label })} value={value ?? ""} maxLength={7} onChange={(e) => onChange(e.target.value)} />
         </>}
       </span>
     </Field>
@@ -100,10 +109,10 @@ export function Properties({ draft, selection, assets, importing, onChange, onIm
           <p className="muted small">{t("builderCaptionHelp")}</p>
           <Field label={t("builderFont")}><select aria-label={t("builderFont")} value={l.font || "sans"} onChange={(e) => set({ font: e.target.value })}>{FONTS.map(([v, k]) => <option key={v} value={v}>{t(k)}</option>)}</select></Field>
           <Num label={t("builderTextSize")} value={l.sizeIn ?? 0.15} step={0.01} min={0.02} onChange={(v) => set({ sizeIn: v }, `ts:${id}`)} />
-          <Field label={t("builderAlign")}><select aria-label={t("builderAlign")} value={l.align || "center"} onChange={(e) => set({ align: e.target.value })}><option>left</option><option>center</option><option>right</option></select></Field>
+          <Field label={t("builderAlign")}><select aria-label={t("builderAlign")} value={l.align || "center"} onChange={(e) => set({ align: e.target.value })}><option value="left">{t("alignLeft")}</option><option value="center">{t("alignCenter")}</option><option value="right">{t("alignRight")}</option></select></Field>
         </>}
         {(l.kind === "shape" || l.kind === "pattern") && (
-          <Field label={t(l.kind === "shape" ? "builderShape" : "builderElement")}><select aria-label={t("builderShape")} value={l.shape || "heart"} onChange={(e) => set({ shape: e.target.value })}>{SHAPES.map((s) => <option key={s}>{s}</option>)}</select></Field>
+          <Field label={t(l.kind === "shape" ? "builderShape" : "builderElement")}><select aria-label={t("builderShape")} value={l.shape || "heart"} onChange={(e) => set({ shape: e.target.value })}>{SHAPES.map((s) => <option key={s} value={s}>{t(SHAPE_LABELS[s])}</option>)}</select></Field>
         )}
         {l.kind === "pattern" && <>
           <Num label={t("builderElementSize")} value={l.size ?? 0.1} step={0.01} min={0.02} onChange={(v) => set({ size: v }, `ps:${id}`)} />
@@ -115,7 +124,7 @@ export function Properties({ draft, selection, assets, importing, onChange, onIm
         {l.kind === "image" && <>
           <Field label={t("builderFitMode")}><select aria-label={t("builderFitMode")} value={l.fit || "contain"} onChange={(e) => set({ fit: e.target.value })}><option value="contain">{t("builderContain")}</option><option value="cover">{t("builderCover")}</option></select></Field>
           <ImageImport label={t("builderReplaceImage")} busy={importing} onPick={onImport("layer", id)} />
-          {l.asset && assets[l.asset] && <p className="muted small">{assets[l.asset].width}×{assets[l.asset].height} px{assets[l.asset].hasAlpha ? " · transparent" : ""}</p>}
+          {l.asset && assets[l.asset] && <p className="muted small">{assets[l.asset].width}×{assets[l.asset].height} px{assets[l.asset].hasAlpha ? ` · ${t("transparent")}` : ""}</p>}
         </>}
         {l.kind !== "image" && <ColorInput label={t("builderColor")} tokens value={l.color} onChange={(v) => set({ color: v }, `c:${id}`)} />}
         <Num label={t("builderOpacity")} unit="0–1" step={0.05} min={0} max={1} value={l.opacity ?? 1} onChange={(v) => set({ opacity: v }, `o:${id}`)} />
@@ -130,18 +139,20 @@ export function Properties({ draft, selection, assets, importing, onChange, onIm
 
 function Asset({ name, assets, draft, use }: { name?: string; assets: Record<string, AssetInfo>; draft: FrameDef; use: "overlay" | "background" }) {
   const { t } = useT();
+  const language = useLocale();
   if (!name) return <p className="muted small">{t("builderNoAsset")}</p>;
   const a = assets[name];
   return (
     <div className="muted small">
-      {a ? `${a.width}×${a.height} px · ${a.format.toUpperCase()}${a.hasAlpha ? " · transparent" : ""}` : name}
-      {a && imageWarnings(a, draft, use).map((w, i) => <div key={i} className="fb-warn">⚠ {w}</div>)}
+      {a ? `${a.width}×${a.height} px · ${a.format.toUpperCase()}${a.hasAlpha ? ` · ${t("transparent")}` : ""}` : name}
+      {a && imageWarnings(a, draft, use, language).map((w, i) => <div key={i} className="fb-warn">⚠ {w}</div>)}
     </div>
   );
 }
 
 function FrameProps({ draft, assets, importing, onChange, onImport }: Omit<PanelProps, "selection">) {
   const { t } = useT();
+  const language = useLocale();
   const set = (p: Partial<FrameDef>, key?: string) => onChange({ ...draft, ...p }, key);
   const [open, setOpen] = useState<string | null>(draft.variants?.[0]?.id ?? null);
   const setVariant = (id: string, p: Partial<Variant>, key?: string) => onChange({ ...draft, variants: (draft.variants ?? []).map((v) => (v.id === id ? { ...v, ...p } : v)) }, key);
@@ -149,11 +160,11 @@ function FrameProps({ draft, assets, importing, onChange, onImport }: Omit<Panel
     <div className="fb-props" aria-label={t("builderFrameProperties")}>
       <h3>{t("builderFrame")}</h3>
       <Field label={t("builderLayerName")}><input aria-label={t("builderFrameName")} value={draft.name} maxLength={60} onChange={(e) => set({ name: e.target.value }, "name")} /></Field>
-      <Field label={t("builderCategory")}><select aria-label={t("builderCategory")} value={draft.category} onChange={(e) => set({ category: e.target.value })}>{Categories.map((c) => <option key={c}>{c}</option>)}</select></Field>
+      <Field label={t("builderCategory")}><select aria-label={t("builderCategory")} value={draft.category} onChange={(e) => set({ category: e.target.value })}>{Categories.map((c) => <option key={c} value={c}>{categoryLabel(c, language)}</option>)}</select></Field>
       <Field label={t("builderDescription")}><input aria-label={t("builderDescription")} value={draft.description ?? ""} maxLength={300} onChange={(e) => set({ description: e.target.value }, "desc")} /></Field>
       <label className="check"><input type="checkbox" checked={draft.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> {t("builderOfferInBooth")}</label>
       <label className="check"><input type="checkbox" checked={!!draft.captionEnabled} onChange={(e) => set({ captionEnabled: e.target.checked })} /> {t("builderAllowCaption")}</label>
-      <p className="muted small">{draft.widthIn}×{draft.heightIn} in · {draft.slots.length} photo slot(s) · {Math.round(draft.widthIn * draft.dpi)}×{Math.round(draft.heightIn * draft.dpi)} px</p>
+      <p className="muted small">{draft.widthIn}×{draft.heightIn} in · {translateSlots(draft.slots.length, language)} · {Math.round(draft.widthIn * draft.dpi)}×{Math.round(draft.heightIn * draft.dpi)} px</p>
       <Field label={t("builderPrintResolution")}><select aria-label={t("builderPrintResolution")} value={draft.dpi} onChange={(e) => set({ dpi: Number(e.target.value) })}>{[150, 200, 300, 600].map((d) => <option key={d} value={d}>{d} dpi{d === 300 ? ` ${t("builderRecommended")}` : ""}</option>)}</select></Field>
 
       <h4>{t("builderColorsBorders")}</h4>

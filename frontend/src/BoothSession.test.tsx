@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BoothReadiness, Settings, ShootSnapshot, VideoState } from "./types";
 
@@ -276,7 +276,7 @@ describe("Finish and the next session", () => {
     await screen.findByText(/still tidying up the last session/);
     const take = screen.getByRole("button", { name: /Take photos/ }) as HTMLButtonElement;
     expect(take.disabled).toBe(false);               // the guest is never stuck behind it
-    expect(screen.getByText(/Host: the photos are still being saved/)).toBeTruthy();
+    expect(screen.getByText(/Host: Check session recovery/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(screen.queryByText(/still tidying up/)).toBeNull());
   });
@@ -349,4 +349,36 @@ describe("portrait and landscape", () => {
     expect(screen.getByRole("button", { name: /Take photos/ })).toBeTruthy();
     vi.unstubAllGlobals();
   });
+});
+
+describe("independent guest language", () => {
+  it("uses the guest default, keeps a temporary selection for the session, and resets it on finish", async () => {
+    S.settings = { ...(S.settings as Settings), language: "en", guestLanguage: "vi" };
+    mount();
+    expect(screen.getByText("Cười lên nào!")).toBeTruthy();
+    expect(document.documentElement.lang).toBe("vi");
+    fireEvent.change(screen.getByLabelText("Ngôn ngữ của khách"), { target: { value: "en" } });
+    expect(screen.getByText("Say cheese!")).toBeTruthy();
+    await toPhotoScreen();
+    expect(screen.queryByLabelText("Guest language")).toBeNull();
+    fireEvent.click(screen.getByText("Finish"));
+    expect(await screen.findByText("Cười lên nào!")).toBeTruthy();
+    expect((S.settings as Settings).language).toBe("en");
+  });
+});
+
+it("resets the temporary guest language after a confirmed cancellation", async () => {
+  S.settings = { ...(S.settings as Settings), language: "vi", guestLanguage: "en" };
+  mount();
+  fireEvent.change(screen.getByLabelText("Guest language"), { target: { value: "vi" } });
+  fireEvent.click(screen.getByRole("button", { name: "Chụp ảnh" }));
+  await screen.findByRole("button", { name: "Tiếp tục" });
+  fireEvent.click(screen.getByRole("button", { name: "Tiếp tục" }));
+  await screen.findByTestId("photo-flow");
+  setShoot(shoot("COUNTDOWN"));
+  fireEvent.click(screen.getByRole("button", { name: "Trang chủ" }));
+  const dialog = screen.getByRole("dialog", { name: "Rời phiên chụp này?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rời đi" }));
+  expect(await screen.findByText("Say cheese!")).toBeTruthy();
+  expect((S.settings as Settings).language).toBe("vi");
 });

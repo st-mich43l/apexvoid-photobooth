@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, toAppError, AppError } from "../api";
-import { ErrorNote, Modal } from "../ui";
+import { ErrorNote, LocalizedDiagnostic, Modal } from "../ui";
 import type { AssetInfo, Frame, FrameDef, LayerKind } from "../types";
 import { Canvas } from "./Canvas";
 import { addLayer, addSlot, duplicateLayer, duplicateSlot, moveLayer, removeLayer, removeSlot, type Selection } from "./draft";
@@ -20,7 +20,7 @@ interface Props {
   onSaved: (f: Frame) => void;
 }
 
-const ELEMENTS: Array<[LayerKind, string]> = [["text", "Text"], ["rect", "Rectangle"], ["ellipse", "Ellipse"], ["shape", "Shape"], ["pattern", "Pattern"]];
+const ELEMENTS = [["text", "builderText"], ["rect", "builderRectangle"], ["ellipse", "builderEllipse"], ["shape", "builderShape"], ["pattern", "builderPatternLabel"]] as const;
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable);
 const readAsDataUrl = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("The file could not be read.")); r.readAsDataURL(f); });
 
@@ -101,7 +101,7 @@ export function FrameBuilder({ initial, isNew, notes, knownAssets, onClose, onSa
 
   // ---- importing images (validated and copied by the backend) ----
   const doImport = (use: "overlay" | "background" | "layer", layerId?: string) => async (file: File) => {
-    if (file.size > 15 * 1024 * 1024) { setError(new AppError("That image is larger than 15 MB.", "Choose a smaller PNG or JPEG.")); return; }
+    if (file.size > 15 * 1024 * 1024) { setError(new AppError(t("imageTooLarge"), t("imageChooseSmaller"))); return; }
     setImporting(true); setError(null);
     try {
       const info = await api.importFrameImage(await readAsDataUrl(file));
@@ -146,8 +146,8 @@ export function FrameBuilder({ initial, isNew, notes, knownAssets, onClose, onSa
         <button onClick={close}>{t("builderBack")}</button>
         <input className="fb-title" aria-label={t("frameNameTitle")} value={draft.name} maxLength={60} onChange={(e) => change({ ...draft, name: e.target.value }, "name")} />
         <span className="fb-spacer" />
-        <button onClick={() => setHist(undo)} disabled={!canUndo(hist)} aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
-        <button onClick={() => setHist(redo)} disabled={!canRedo(hist)} aria-label="Redo" title="Redo (Ctrl+Y)">↷</button>
+        <button onClick={() => setHist(undo)} disabled={!canUndo(hist)} aria-label={t("undo")} title={t("undoShortcut")}>↶</button>
+        <button onClick={() => setHist(redo)} disabled={!canRedo(hist)} aria-label={t("redo")} title={t("redoShortcut")}>↷</button>
         <label className="check" title={t("builderSnapHint")}><input type="checkbox" checked={snap} onChange={(e) => setSnap(e.target.checked)} /> {t("builderSnap")}</label>
         <label className="check"><input type="checkbox" checked={grid} onChange={(e) => setGrid(e.target.checked)} /> {t("builderGrid")}</label>
         <div className="seg" role="group" aria-label={t("builderZoom")}>
@@ -168,16 +168,16 @@ export function FrameBuilder({ initial, isNew, notes, knownAssets, onClose, onSa
           </div>
         )}
         <ErrorNote error={error} onClose={() => setError(null)} />
-        {previewError && <div className="note warn" role="status"><div>Preview: {previewError}</div></div>}
+        {previewError && <div className="note warn" role="status"><div>{t("builderPreview")}: <LocalizedDiagnostic text={previewError} summary="errorFrame" /></div></div>}
       </div>
 
       <div className="fb-body">
-        <aside className="fb-left" aria-label="Layers and elements">
+        <aside className="fb-left" aria-label={t("builderLayersElements")}>
           <h3>{t("builderAdd")}</h3>
           <div className="fb-add">
             <button onClick={addPhotoSlot}>＋ {t("builderPhotoSlot")}</button>
-            {ELEMENTS.map(([k, n]) => <button key={k} onClick={() => addEl(k)}>＋ {n}</button>)}
-            <ImageImport label="＋ Image…" busy={importing} onPick={doImport("layer")} />
+            {ELEMENTS.map(([k, n]) => <button key={k} onClick={() => addEl(k)}>＋ {t(n)}</button>)}
+            <ImageImport label={`＋ ${t("builderImageAdd")}`} busy={importing} onPick={doImport("layer")} />
           </div>
           <h3>{t("builderPhotoSlot")} ({draft.slots.length})</h3>
           <ul className="fb-list" aria-label={t("builderPhotoSlot")}>
@@ -223,7 +223,7 @@ export function FrameBuilder({ initial, isNew, notes, knownAssets, onClose, onSa
 
       {fullOpen && (
         <Modal title={t("builderPreview")} onClose={() => setFullOpen(false)} wide>
-          <div className="viewer">{full ? <img src={full} alt="Full preview" style={{ maxHeight: "74vh" }} /> : <div className="center-msg"><div className="spinner" /></div>}
+          <div className="viewer">{full ? <img src={full} alt={t("builderFullPreview")} style={{ maxHeight: "74vh" }} /> : <div className="center-msg"><div className="spinner" /></div>}
             <p className="muted small">{draft.widthIn}×{draft.heightIn} in · {Math.round(draft.widthIn * draft.dpi)}×{Math.round(draft.heightIn * draft.dpi)} px at {draft.dpi} dpi. {t("builderPreviewDetails")}</p></div>
         </Modal>
       )}
