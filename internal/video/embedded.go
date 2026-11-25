@@ -47,6 +47,15 @@ func builtInFFmpeg() (string, error) {
 	return builtInPath, builtInErr
 }
 
+// EmbeddedLicense returns the bundled FFmpeg license, if this build embeds FFmpeg.
+func EmbeddedLicense() string {
+	_, license, ok := embeddedFFmpeg()
+	if !ok {
+		return ""
+	}
+	return string(license)
+}
+
 // IsBuiltIn reports whether path is the unpacked copy from this executable.
 func IsBuiltIn(path string) bool {
 	if _, _, ok := embeddedFFmpeg(); !ok || path == "" {

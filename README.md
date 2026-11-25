@@ -1,41 +1,71 @@
 # ApexVoid Photobooth
 
-Camera-operated photobooth desktop software for Windows (macOS/Linux later): connects to real
-cameras, shows live view, shoots photos with a countdown, records video, manages sessions and a local media
-library, composes photo strips at exact print size, and (later) prints.
+[![CI](https://github.com/st-mich43l/apexvoid-photobooth/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/st-mich43l/apexvoid-photobooth/actions/workflows/ci.yml)
+[![Platform: Windows x64](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078D4?logo=windows&logoColor=white)](docs/INSTALL.md)
+[![Go 1.26](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Wails 3](https://img.shields.io/badge/Wails-3-DF0000)](https://v3.wails.io/)
+[![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](frontend/package.json)
+[![TypeScript 5.9](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](frontend/package.json)
+[![Database: SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)](docs/ARCHITECTURE.md)
+[![Local first](https://img.shields.io/badge/data-local%20first-6f42c1)](docs/INSTALL.md#back-up-and-restore-the-complete-library)
 
-It is **standalone**: no server, Docker, Enterprise/CRM/ERP integration, account system or external database.
-Data lives in a local SQLite file and ordinary folders; the app makes no network connections.
+A local-first Windows photobooth for events: connect a camera, guide guests through a touchscreen photo session, compose a frame, manage the media library, and print or export the result. Studio gives the operator setup and recovery controls; Booth Mode provides the guest-facing experience.
 
-**Stack:** Wails 3 + Go · React + TypeScript + Vite · SQLite (pure Go) · FFmpeg (external) · Canon EDSDK (external, not bundled).
+![Booth Mode welcome screen](docs/img/ux2/01-welcome-landscape.png)
 
-## What works, and how it was verified
+*Screenshot from the browser test harness with simulated content; it is not evidence of physical hardware or Windows WebView2 acceptance.*
 
-| Area | Status | Verified by |
-|---|---|---|
-| Camera abstraction, capability model, reconnect, single-capture lock | working | CI unit + contract tests |
-| Simulated (mock) camera | dev tool, always labelled SIMULATED | CI |
-| **Canon EOS R50 via EDSDK** (discover, live view, shutter, JPEG original download, USB-drop recovery, clean release) | **implemented, NOT hardware-tested** | adapter logic tested against a fake SDK in CI; the regular PR compiles the DLL binding; physical camera operation has not been verified |
-| **UVC / webcam via FFmpeg** (preview, stills, MP4 recording, mic selection) | pipeline tested with a synthetic FFmpeg source; **real DirectShow device untested** | CI |
-| Canon movie start/stop + movie file transfer via EDSDK | **not implemented, unverified** (see docs/CAMERAS.md) | — |
-| Photo state machine (IDLE→PREVIEW→COUNTDOWN→CAPTURING→REVIEW→SAVING→COMPLETED, ERROR, CANCELLED) | working | CI incl. race detector, cancel, retake, disconnect, repeat sessions |
-| Media library: sessions, originals never overwritten, thumbnails, gallery, edit (rotate/crop/brightness/contrast/saturation), export, trash/restore, crash recovery | working | CI |
-| Layouts (2×6 strips, 4×6 sheets, single, custom JSON/overlay) at exact size and DPI | working | CI |
-| Printing (Windows spooler + GDI): enumeration, capabilities, real page geometry, preview, submission, spooler job tracking, history, reprint | **implemented**; physical paper output **NOT verified** on any printer (see docs/PRINTING.md for what CI proves) | unit tests, Windows struct tests, CI file-port printer step |
-| **Frame builder** (custom frames, **Import PNG as frame** with automatic photo windows, drag/resize slots, transparent PNG overlay import, atomic storage) **300 / 600 dpi output** and **two-up 4×6 printing of 2×6 strips**, Booth *Print* | working; unit/UI/golden-image tests; the Windows CI job runs the whole frame flow | CI; **not run in WebView2, with a real camera or on paper** — [docs/FRAMES.md](docs/FRAMES.md), checklist F1–F9 in [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md) |
-| **Frame selection before capture**: 17 original designs × 9 layouts, colour options, optional caption, frame decides the photo count, per-session immutable snapshot, change design after capture without retaking | working with the simulated camera; unit/UI tests | CI; **not yet run inside WebView2 or with a real camera** — see [docs/FRAMES.md](docs/FRAMES.md) |
-| Studio (operator) and Booth (guest) UI | working in simulated mode; screenshots checked in a browser harness | manual; **not yet run inside WebView2 on Windows** |
-| Windows x64 single-file exe (FFmpeg built in) | built by CI as an unsigned test artifact; self-tests run on the Windows runner (start-up, built-in FFmpeg unpacks and finds an H.264 encoder, camera probe, printing to a file-port printer) | CI |
+## Features
 
-Guest-experience audit and session-safety rules: [docs/UX1_AUDIT.md](docs/UX1_AUDIT.md) (manual WebView2 checks: section G of the hardware tests). Hardware acceptance steps: [docs/HARDWARE_TESTS.md](docs/HARDWARE_TESTS.md). Camera setup and the EOS R50 video findings:
+- **Guest sessions:** frame selection, live preview, countdown, capture, review, individual retakes and a fullscreen Booth Mode.
+- **Cameras:** Canon EDSDK integration for compatible EOS cameras, Windows webcam capture through FFmpeg, and a clearly labelled simulated camera for testing.
+- **Frames and printing:** built-in layouts, a frame builder, custom PNG frames, 300/600 DPI composition, Windows printer setup, print history and reprints.
+- **Media library:** local SQLite metadata and files, paginated session browsing, search, editing, session ZIP export, recoverable trash and restoration.
+- **Operator tools:** setup and readiness checks, English and Vietnamese interface resources, offline support diagnostics, and library backup and recovery guidance.
 
-Operator set-up (Prepare Booth, camera/printer set-up, readiness states, support summary): [docs/UX3_DESIGN.md](docs/UX3_DESIGN.md); the audit it started from: [docs/UX3_AUDIT.md](docs/UX3_AUDIT.md). Hardware/WebView2 checks there are marked UNVERIFIED until run.
-[docs/CAMERAS.md](docs/CAMERAS.md). Market review and decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Install/build/test: [docs/INSTALL.md](docs/INSTALL.md).
+## Download and run
 
-## Quick start (no camera)
-Run the app, Settings → enable **Simulated camera**, Camera → Connect, Photo → Start.
+1. Open the latest **successful master** [CI run](https://github.com/st-mich43l/apexvoid-photobooth/actions/workflows/ci.yml?query=branch%3Amaster) and download **ApexVoidPhotobooth-windows-x64**. GitHub wraps the artifact in a ZIP; the ZIP contains one file: `ApexVoidPhotobooth.exe`.
+2. Extract and run the executable on Windows 10 or 11 x64. The build is unsigned. Microsoft Edge WebView2 Evergreen Runtime must be installed; see [installation instructions](docs/INSTALL.md) for online and offline setup.
+3. On first use, the app automatically extracts its embedded Canon EDSDK DLLs and FFmpeg into the current user's cache. No separate SDK or FFmpeg installation is required for this build. An explicitly configured or nearby SDK/FFmpeg can take precedence.
+4. Connect a compatible camera and select it in **Studio → Camera**. To explore without hardware, enable **Simulated camera** in Settings and connect the simulated device.
 
-## Removed from the previous application
-Enterprise integration, CRM/ERP SDK, roles/workspaces, guest care, booking, café POS/catalog, PostgreSQL,
-Docker runtime, remote registration and the legacy web UI. Git history is preserved.
+The portable executable keeps photos, session metadata and settings outside the application file. The default media library is `Documents\apexvoid-studio`; settings are stored separately under `%APPDATA%\ApexVoidPhotobooth`. See [Install and recovery](docs/INSTALL.md) before moving or backing up a library.
+
+## Verification and hardware status
+
+CI runs Go tests and race checks, frontend type checking and tests, simulated session endurance, Windows builds, executable self-tests, and Windows spooler/GDI checks where a file-port printer is available. Trusted master builds also validate Canon SDK extraction and initialization on Windows. Pull requests do not receive the vault password and do not publish the Canon-enabled artifact.
+
+The Canon EOS R50, real webcams, physical printer output, Windows touchscreen/WebView2 journey, and power-loss recovery require testing on the target hardware. Software tests and a software printer do not establish physical delivery or production readiness. See [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md), [hardware results](docs/UX6_HARDWARE_RESULTS.md), and [release checklist](docs/UX6_RELEASE_CHECKLIST.md).
+
+## Development
+
+Prerequisites: Go 1.26, Node.js 22 and npm. FFmpeg is needed for local webcam/video tests; the ordinary `go build` below does not embed FFmpeg or Canon DLLs.
+
+```sh
+cd frontend
+npm ci
+npm run typecheck
+npm test
+npm run build
+cd ..
+
+go test ./internal/...
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build \\
+  -ldflags "-H windowsgui -s -w" \\
+  -o ApexVoidPhotobooth.exe ./cmd/photobooth
+```
+
+The production-style CI build embeds both dependencies and Windows resources. Run `ApexVoidPhotobooth.exe --notices notices.txt` to export the bundled third-party license notices to a new file. See [local Canon build instructions](docs/INSTALL.md#local-portable-build-with-canon-edsdk) and [third-party notices](docs/THIRD-PARTY.md).
+
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [Install and recovery](docs/INSTALL.md) | Portable build, prerequisites, backup, restore and troubleshooting |
+| [Cameras](docs/CAMERAS.md) | Canon and webcam setup, supported behavior and limitations |
+| [Printing](docs/PRINTING.md) | Printer setup, calibration, spooler status and reprints |
+| [Frames](docs/FRAMES.md) | Frame layouts, the builder and custom artwork |
+| [Windows acceptance](docs/UX6_WINDOWS_ACCEPTANCE.md) | Device, touchscreen, filesystem and endurance test procedures |
+| [Architecture](docs/ARCHITECTURE.md) | Application components and design decisions |
+| [Third-party notices](docs/THIRD-PARTY.md) | Embedded components and their notices |
