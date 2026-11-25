@@ -27,6 +27,10 @@ jobs:
           git diff --exit-code go.mod go.sum
       - name: gofmt
         run: test -z "$(gofmt -l cmd internal)"
+      - name: Version consistency (frontend/package.json is the authority) and release tooling tests
+        run: |
+          python3 scripts/release/release.py check-version
+          python3 -m unittest discover -s scripts/release -v
       - name: vet (portable packages)
         run: go vet ./internal/...
       - name: vet (Windows build of the whole app, incl. Canon EDSDK DLL binding)
@@ -65,6 +69,8 @@ jobs:
     name: Windows x64 build and self-tests
     runs-on: windows-latest
     needs: [go, frontend]
+    outputs:
+      release_sha256: ${{ steps.candidate.outputs.sha256 }}
     env:
       FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-11-21-12-37/ffmpeg-n8.1.3-39-g660b5aa7db-win64-lgpl-8.1.zip
       FFMPEG_SHA256: 47d2e37e5ab9dc775cf5e5e595a817a11534c2fd6533a16db476f45dd8a7ce83
@@ -182,6 +188,25 @@ jobs:
           Copy-Item $out dist\ci-evidence\ci-print-output.$ext
           Copy-Item print-real.json dist\ci-evidence\print-selftest-report.json
           Copy-Item selftest.json dist\ci-evidence\selftest-report.json -ErrorAction SilentlyContinue
+      # The executable every check above validated, kept unchanged for the publish job (no rebuild).
+      - name: Record the release candidate checksum (master only)
+        id: candidate
+        if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\ApexVoidPhotobooth.exe -Algorithm SHA256).Hash.ToLower()
+          "sha256=$h" >> $env:GITHUB_OUTPUT
+          "Standard release candidate SHA-256: $h" >> $env:GITHUB_STEP_SUMMARY
+      - name: Keep the validated executable and its notices (master only)
+        if: steps.candidate.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-standard
+          path: |
+            dist/ApexVoidPhotobooth.exe
+            notices-ci.txt
+          if-no-files-found: error
+          retention-days: 30
   # Trusted master builds can use the vaulted SDK. Pull requests, including
   # forks, never receive the vault password.
   canon-portable:
@@ -317,6 +342,13 @@ jobs:
           if (-not $ff.ok -or $ff.detail -notlike '*built into this application*') { throw 'Bundled FFmpeg was not found' }
           $enc = $r.checks | Where-Object { $_.name -eq 'H.264 encoder' }
           if (-not $enc.ok -or -not $r.frameFlow.ok -or -not $r.frameFlow600.ok) { throw 'Portable executable failed encoder or frame-flow checks' }
+      - name: Keep the notices exported by the validated executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-canon-notices
+          path: notices-ci.txt
+          if-no-files-found: error
+          retention-days: 30
       - name: Remove the artifact if validation fails
         if: failure()
         shell: pwsh
@@ -328,3 +360,132 @@ jobs:
             gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$env:ARTIFACT_ID"
             if ($LASTEXITCODE -ne 0) { throw 'Could not remove the failed build artifact' }
           }
+
+  # ---------------------------------------------------------------- official releases (docs/RELEASING.md)
+  # Decides, without secrets, whether this run publishes: master only, publishing enabled and every gate
+  # approved in release/publication.json, approved notes in docs/releases/v<version>.md, and a version that is
+  # not published yet (a manual run may retry it: identical files are a no-op, different files a conflict).
+  release-gate:
+    name: Release decision
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    needs: [go, frontend, windows, canon-portable, canon-windows-smoke]
+    outputs:
+      publish: ${{ steps.decide.outputs.publish }}
+      version: ${{ steps.decide.outputs.version }}
+      variant: ${{ steps.decide.outputs.variant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: decide
+        run: python3 scripts/release/release.py eligibility --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF"
+
+  # Publishes the executable validated above to photobooth.apexvoid.net through ansible-library. Retry a failed
+  # publication with "Re-run failed jobs": it reuses this run's artifacts and never rebuilds.
+  publish:
+    name: Publish to photobooth.apexvoid.net
+    needs: [go, frontend, windows, canon-portable, canon-windows-smoke, release-gate]
+    if: needs.release-gate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: photobooth-release
+      url: https://photobooth.apexvoid.net/download/
+    concurrency:
+      group: photobooth-release
+      cancel-in-progress: false
+    env:
+      # Pinned: the publisher, its storage contract and the pinned VPS host key. Bump deliberately.
+      ANSIBLE_LIBRARY_REF: bf688bcfc0cc52493490764814588bd23bdd7b58
+      VERSION: ${{ needs.release-gate.outputs.version }}
+      VARIANT: ${{ needs.release-gate.outputs.variant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch the validated standard executable
+        if: env.VARIANT == 'standard'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-candidate-standard
+          path: candidate
+      - name: Fetch the validated Canon executable
+        if: env.VARIANT == 'canon'
+        uses: actions/download-artifact@v4
+        with:
+          name: ApexVoidPhotobooth-windows-x64
+          path: candidate/dist
+      - name: Fetch the Canon executable's notices
+        if: env.VARIANT == 'canon'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-candidate-canon-notices
+          path: candidate
+      - uses: actions/checkout@v4
+        with:
+          repository: st-mich43l/ansible-library
+          ref: ${{ env.ANSIBLE_LIBRARY_REF }}
+          path: .ansible-library
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Assemble and validate the release package
+        id: package
+        env:
+          EXPECTED_SHA256: ${{ env.VARIANT == 'canon' && needs.canon-portable.outputs.sha256 || needs.windows.outputs.release_sha256 }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_SHA256"
+          python3 scripts/release/release.py assemble --exe candidate/dist/ApexVoidPhotobooth.exe --notices candidate/notices-ci.txt \
+            --out "$RUNNER_TEMP/release" --commit "$GITHUB_SHA" --variant "$VARIANT" --expected-sha256 "$EXPECTED_SHA256" \
+            --candidate-manifest "$RUNNER_TEMP/candidate-manifest.json"
+          python3 -I .ansible-library/roles/publish_photobooth_release/files/publish_release.py --root "$RUNNER_TEMP/unused" \
+            validate "$RUNNER_TEMP/candidate-manifest.json"
+      - name: Publish through ansible-library
+        working-directory: .ansible-library
+        env:
+          VAULT_PASS: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet 'ansible-core==2.21.4'
+          ansible-playbook playbooks/publish-photobooth-release.yml \
+            -e release_src="$RUNNER_TEMP/release" -e release_version="$VERSION" -e release_sha256="$SHA256" \
+            --vault-password-file <(printf '%s' "$VAULT_PASS")
+      - name: Verify the public download from outside
+        env:
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          base=https://photobooth.apexvoid.net/downloads
+          name="ApexVoidPhotobooth-v${VERSION}-windows-x64.exe"
+          curl -fsS -H 'Cache-Control: no-cache' "$base/index.json" -o "$RUNNER_TEMP/index.json"
+          python3 -c "import json,sys; m=json.load(open(sys.argv[1])); assert any(r['version']==sys.argv[2] for r in m['releases']), 'not in manifest'" "$RUNNER_TEMP/index.json" "$VERSION"
+          mkdir -p "$RUNNER_TEMP/verify" && cd "$RUNNER_TEMP/verify"
+          curl -fsS -o "$name" "$base/releases/v$VERSION/$name"
+          curl -fsS -o SHA256SUMS "$base/releases/v$VERSION/SHA256SUMS"
+          sha256sum -c SHA256SUMS
+          test "$(sha256sum "$name" | cut -d' ' -f1)" = "$SHA256"
+      - name: Summary
+        if: always()
+        env:
+          SHA256: ${{ steps.package.outputs.sha256 }}
+          SIZE: ${{ steps.package.outputs.size }}
+        run: |
+          {
+            echo "## Release v${VERSION} (${VARIANT})"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Executable | \`ApexVoidPhotobooth-v${VERSION}-windows-x64.exe\` |"
+            echo "| SHA-256 | \`${SHA256:-n/a}\` |"
+            echo "| Size | ${SIZE:-n/a} bytes |"
+            echo "| Signed | no (not code-signed) |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| ansible-library | \`${ANSIBLE_LIBRARY_REF}\` |"
+            echo "| Download page | https://photobooth.apexvoid.net/download/ |"
+            echo
+            echo "Job status: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
