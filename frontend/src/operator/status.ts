@@ -60,3 +60,23 @@ export function readinessHeadline(r: BoothReadiness | null | undefined, t: (key:
     default: return r.headline;
   }
 }
+
+/** Readiness prose is composed in Go for logs and the legacy API; render a stable localized summary in Studio. */
+export function readinessDetail(r: BoothReadiness | null | undefined, t: (key: TranslationKey) => string): string {
+  if (!r) return t("checkingStatus");
+  switch (r.status) {
+    case "reconnecting": return t("readinessReconnectingDetail");
+    case "setup_required": return t("readinessSetupDetail");
+    case "attention": return t("readinessAttentionDetail");
+    case "demo": return t("readinessDemoDetail");
+    case "ready": return t("guestReadyHint");
+    default: return r.detail || t("readinessAttentionDetail");
+  }
+}
+
+/** Presentation by stable readiness key. Diagnostic text remains available separately. */
+export function readinessTranslation(item: ReadinessItem, t: (key: TranslationKey) => string): { label: string; detail: string; action: string } {
+  const labels: Record<string, TranslationKey> = { camera: "readinessCamera", capture: "readinessCapture", storage: "readinessStorage", library: "readinessLibrary", space: "readinessSpace", frames: "readinessFrames", session: "readinessSession", interrupted: "readinessInterrupted", printer: "readinessPrinter" };
+  const actions: Record<string, TranslationKey> = { camera: "readinessCameraHelp", capture: "readinessCaptureHelp", storage: "readinessStorageHelp", library: "readinessStorageHelp", space: "readinessStorageHelp", frames: "readinessFrameHelp", session: "readinessSessionHelp", interrupted: "readinessRecoveryHelp", printer: "readinessPrinterHelp" };
+  return { label: labels[item.key] ? t(labels[item.key]) : item.label, detail: t(item.state === "ok" ? (item.verification === "demo" ? "notHardwareCheck" : "notVerified") : "readinessIssue"), action: actions[item.key] ? t(actions[item.key]) : "" };
+}

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes } from "../format";
+import { printerStatusLabel } from "../printInfo";
 import { Icon } from "../icons";
+import { frameDisplayName } from "../frameInfo";
 import { backendLabel, kindLabel } from "../sourceInfo";
 import { useApp, useT } from "../state";
 import type { FramesResult, LibrarySummary, PrintersResult } from "../types";
 import { PageHeader, Fact, PrepCard, StateBlock, StatusPill } from "./parts";
 import { QuickSettings } from "./QuickSettings";
-import { groupView, itemsOf, readinessHeadline, VIEW_LABEL, viewOf, type View } from "./status";
+import { groupView, itemsOf, readinessHeadline, readinessTranslation, VIEW_LABEL, viewOf, type View } from "./status";
 import { TestPrint } from "./TestPrint";
 import { useLatest } from "./latest";
 
@@ -71,7 +73,7 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
           <dl className="facts">
             <Fact label={t("photoCamera")}>{camera.device ? <>{camera.device.name}{demo && <> <StatusPill view="demo" label={t("simulated").toUpperCase()} /></>}</> : <span className="muted">{t("noneConnected")}</span>}</Fact>
             <Fact label={t("connection")}>{camera.reconnecting ? t("cameraReconnectingStatus") : camera.device ? (camera.state === "error" ? t("problem") : t("connected")) : t("notConnected")}</Fact>
-            <Fact label={t("typeDriver")}>{camera.device ? `${kindLabel(camera.device.kind)} · ${backendLabel(camera.device.driver)}` : "—"}</Fact>
+            <Fact label={t("typeDriver")}>{camera.device ? `${kindLabel(camera.device.kind, settings.language)} · ${backendLabel(camera.device.driver, settings.language)}` : "—"}</Fact>
             <Fact label={t("preferredCamera")}>{settings.photoCamera.name || <span className="muted">{t("noneChosenConnectedUsed")}</span>}</Fact>
             <Fact label={t("preview")}>{camera.liveView ? t("liveViewAvailable") : camera.device ? t("previewOffFirstGuest") : "—"}</Fact>
             <Fact label={t("stillCapture")}>{caps ? t(caps.stillCapture === "supported" ? "captureSupported" : caps.stillCapture === "unverified" ? "captureUnverified" : "captureUnsupported") : "—"}</Fact>
@@ -88,7 +90,7 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
             <Fact label={t("printing")}>{digital ? t("digitalOnlyNormalChoice") : t("printingOn")}</Fact>
             {!digital && <>
               <Fact label={t("printer")}>{settings.printerName}</Fact>
-              <Fact label={t("windowsReports")}>{printer ? printer.status : printers ? <span className="warn-text">{t("notFoundLower")}</span> : "…"}</Fact>
+              <Fact label={t("windowsReports")}>{printer ? printerStatusLabel(printer.status, settings.language) : printers ? <span className="warn-text">{t("notFoundLower")}</span> : "…"}</Fact>
               <Fact label={t("paperSize")}>{settings.printPaper || <span className="muted">{t("notSetChoosePrinter")}</span>}</Fact>
             </>}
           </dl>
@@ -100,10 +102,10 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
         <PrepCard id="frames" icon="frames" title={t("frames")} view={groupView(frm)}
           actions={<button onClick={() => go("frames")}>{t("manageFrames")}</button>}>
           <div className="frames-row">
-            {def && <img className="def-frame" src={frameUrl(def.id, "", 240)} alt={`${t("defaultFrame")}: ${def.name}`} loading="lazy" />}
+            {def && <img className="def-frame" src={frameUrl(def.id, "", 240)} alt={`${t("defaultFrame")}: ${frameDisplayName(def, settings.language)}`} loading="lazy" />}
             <dl className="facts">
               <Fact label={t("offeredToGuests")}>{frames ? tf("framesOfferedCount", { count: frames.frames.length, label: t(frames.frames.length === 1 ? "frame" : "framesCount") }) : "…"}</Fact>
-              <Fact label={t("preselected")}>{def ? <>{def.name} <span className="muted small">{def.format} · {tf("photoCountCompact", { count: def.photos, label: t(def.photos === 1 ? "photoWord" : "photosWord") })}</span></> : <span className="muted">{t("noSelection")}</span>}</Fact>
+              <Fact label={t("preselected")}>{def ? <>{frameDisplayName(def, settings.language)} <span className="muted small">{def.format} · {tf("photoCountCompact", { count: def.photos, label: t(def.photos === 1 ? "photoWord" : "photosWord") })}</span></> : <span className="muted">{t("noSelection")}</span>}</Fact>
             </dl>
           </div>
           <Lines items={frm} />
@@ -113,7 +115,7 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
           actions={<><button onClick={() => go("settings")}>{t("librarySettings")}</button><button onClick={() => { void api.openLibraryFolder(); }}><Icon name="folder" size={16} /> {t("openMediaFolder")}</button></>}>
           <dl className="facts">
             <Fact label={t("mediaFolder")}><code className="path">{location.path}</code></Fact>
-            <Fact label={t("freeSpace")}>{location.freeBytes >= 0 ? bytes(location.freeBytes) : t("unknown")}</Fact>
+            <Fact label={t("freeSpace")}>{location.freeBytes >= 0 ? bytes(location.freeBytes, settings.language) : t("unknown")}</Fact>
             <Fact label={t("writable")}>{sto.find((i) => i.key === "storage")?.state === "problem" ? <span className="warn-text">{t("no")}</span> : t("yes")}</Fact>
             <Fact label={t("interruptedSessions")}>{lib.interrupted.length > 0 ? <span className="warn-text">{tf("interruptedRecovered", { count: lib.interrupted.length })}</span> : t("none")}</Fact>
           </dl>
@@ -135,13 +137,15 @@ export function PreparePage({ go, onOpenBooth, opening }: { go: (page: string) =
 
 /** The readiness lines that need a word: problems, warnings, demo and unverified, each with what to do. */
 function Lines({ items }: { items: ReturnType<typeof itemsOf> }) {
+  const { settings } = useApp();
+  const { t } = useT();
   const shown = items.filter((i) => viewOf(i) !== "ready" && viewOf(i) !== "info");
   if (shown.length === 0) return null;
   return (
     <ul className="lines">
       {shown.map((i) => {
         const v = viewOf(i);
-        return <li key={i.key} className={`v-${v}`}><StatusPill view={v} /><span><strong>{i.label}.</strong> {i.detail} {i.action && <em>{i.action}</em>}</span><span className="sr-only">{VIEW_LABEL[v]}</span></li>;
+        return <li key={i.key} className={`v-${v}`}><StatusPill view={v} /><span>{settings.language === "vi" ? <><strong>{readinessTranslation(i, t).label}.</strong> {readinessTranslation(i, t).detail} <em>{readinessTranslation(i, t).action}</em><details><summary>{t("technicalDetails")}</summary>{i.detail} {i.action}</details></> : <><strong>{i.label}.</strong> {i.detail} {i.action && <em>{i.action}</em>}</>}</span><span className="sr-only">{VIEW_LABEL[v]}</span></li>;
       })}
     </ul>
   );

@@ -54,7 +54,7 @@ export function CameraPage() {
       {locked && <div className="note info" role="status"><div>{t("cameraLocked")}</div></div>}
       {sim && <div className="note info" role="status"><div><strong>{t("demoModeTitle")}</strong> {t("cameraDemoNote")}</div></div>}
       <ErrorNote error={err} onClose={() => { act.clear(); scan.clear(); }} />
-      {!err && camera.lastError && <ErrorNote error={{ name: "", message: camera.lastError, action: camera.lastAction || guidance(activeDev, camera.lastError) }} />}
+      {!err && camera.lastError && <ErrorNote error={{ name: "", message: camera.lastError, action: camera.lastAction || guidance(activeDev, camera.lastError, settings.language) }} />}
       {src && !src.ffmpegFound && <div className="note warn"><div>{t("cameraFFmpegMissing")}</div></div>}
 
       <div className="two-col sources">
@@ -69,7 +69,7 @@ export function CameraPage() {
                   <div>
                     <strong>{d.name}</strong> {status(d)}
                     {isPref(d, "photo") && <Badge kind="info">{t("photoDefault")}</Badge>}
-                    <div className="muted small">{kindLabel(d.kind)} · {backendLabel(d.driver)}{d.usbId ? ` · USB ${d.usbId}` : ""}</div>
+                    <div className="muted small">{kindLabel(d.kind, settings.language)} · {backendLabel(d.driver, settings.language)}{d.usbId ? ` · USB ${d.usbId}` : ""}</div>
                   </div>
                   {active === d.id
                     ? <button disabled={act.busy || locked} onClick={() => act.run(() => api.disconnectCamera())}>{t("disconnect")}</button>
@@ -138,7 +138,7 @@ export function CameraPage() {
           <p className="muted small">{t("driverInfo")}</p>
           <ul className="list compact">
             {camera.drivers.map((d) => (
-              <li key={d.name}><div><strong>{backendLabel(d.name)}</strong> {d.available ? <Badge kind="ok">{t("cameraReady")}</Badge> : <Badge kind="info">{t("cameraUnavailable")}</Badge>}
+              <li key={d.name}><div><strong>{backendLabel(d.name, settings.language)}</strong> {d.available ? <Badge kind="ok">{t("cameraReady")}</Badge> : <Badge kind="info">{t("cameraUnavailable")}</Badge>}
                 {d.problem && <div className="muted small">{d.problem}</div>}</div></li>
             ))}
           </ul>

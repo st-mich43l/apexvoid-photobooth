@@ -1,7 +1,7 @@
-import { translate } from "../i18n";
+import { formatTranslation, photoCount, translate } from "../i18n";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon } from "../icons";
-import { photosLabel, swatch } from "../frameInfo";
+import { frameDisplayName, swatch } from "../frameInfo";
 import type { Frame } from "../types";
 
 /** Small, composable pieces of the guest (Booth) interface. Colours, sizes and motion live in guest.css as tokens. */
@@ -22,7 +22,7 @@ export type Step = 1 | 2 | 3 | 4;
 export function StepIndicator({ step, language }: { step: Step; language?: string }) {
   const labels = (["frameStep", "shootStep", "reviewStep", "doneStep"] as const).map((key) => translate(language, key));
   return (
-    <ol className="g-steps" aria-label={`Step ${step} of ${STEPS.length}: ${labels[step - 1]}`}>
+    <ol className="g-steps" aria-label={formatTranslation(language, "stepDescription", { step, total: STEPS.length, label: labels[step - 1] })}>
       {labels.map((label, i) => (
         <li key={label} className={i + 1 === step ? "now" : i + 1 < step ? "done" : ""} aria-current={i + 1 === step ? "step" : undefined}>
           <span className="g-step-dot">{i + 1 < step ? <Icon name="check" size={14} /> : i + 1}</span>
@@ -76,9 +76,9 @@ export function LoadingState({ children }: { children: ReactNode }) {
 }
 
 /** "2×6 strip" → big "2×6" + small "strip". */
-export function LayoutBadge({ format }: { format: string }) {
+export function LayoutBadge({ format, language }: { format: string; language?: string }) {
   const [size, ...rest] = format.split(" ");
-  return <span className="g-layout"><b>{size}</b>{rest.length > 0 && <span>{rest.join(" ")}</span>}</span>;
+  return <span className="g-layout"><b>{size}</b>{rest.length > 0 && <span>{language === "vi" && rest.join(" ") === "strip" ? translate(language, "layoutStrip") : language === "vi" && rest.join(" ") === "sheet" ? translate(language, "layoutSheet") : rest.join(" ")}</span>}</span>;
 }
 
 /** One small rectangle per photo the frame takes. */
@@ -87,29 +87,29 @@ export function PhotoDots({ n }: { n: number }) {
 }
 
 /** The colour variants a frame has, as small dots (the first is the frame's own colour). */
-export function ColorDots({ frame, max = 5 }: { frame: Frame; max?: number }) {
+export function ColorDots({ frame, max = 5, language }: { frame: Frame; max?: number; language?: string }) {
   const vs = frame.variants ?? [];
   if (vs.length < 2) return null;
   const shown = vs.slice(0, max);
   return (
-    <span className="g-colordots" title={`${vs.length} colours`}>
+    <span className="g-colordots" title={formatTranslation(language, "colorCount", { count: vs.length })}>
       {shown.map((v, i) => <i key={v.id} style={{ background: i === 0 ? frame.background : swatch(v, frame) }} />)}
       {vs.length > max && <em>+{vs.length - max}</em>}
     </span>
   );
 }
 
-export function FrameThumb({ frame, src, selected, mismatch, note, onSelect }:
-  { frame: Frame; src: string; selected: boolean; mismatch?: boolean; note?: string; onSelect: () => void }) {
+export function FrameThumb({ frame, src, selected, mismatch, note, onSelect, language }:
+  { frame: Frame; src: string; selected: boolean; mismatch?: boolean; note?: string; onSelect: () => void; language?: string }) {
   return (
     <button type="button" role="radio" aria-checked={selected} data-frame={frame.id} className={`g-frame ${selected ? "on" : ""} ${mismatch ? "mismatch" : ""}`} onClick={onSelect}>
       <span className="g-frame-img">
-        <img src={src} alt={`${frame.name} frame`} loading="lazy" decoding="async" draggable={false} />
+        <img src={src} alt={formatTranslation(language, "frameAlt", { name: frameDisplayName(frame, language) })} loading="lazy" decoding="async" draggable={false} />
         {selected && <span className="g-frame-check" aria-hidden="true"><Icon name="check" size={20} /></span>}
       </span>
-      <span className="g-frame-name">{frame.name}</span>
-      <span className="g-frame-meta"><LayoutBadge format={frame.format} /><PhotoDots n={frame.photos} /><span>{photosLabel(frame.photos)}</span></span>
-      <span className="g-frame-foot"><ColorDots frame={frame} />{mismatch && note && <span className="g-frame-warn">{note}</span>}</span>
+      <span className="g-frame-name">{frameDisplayName(frame, language)}</span>
+      <span className="g-frame-meta"><LayoutBadge format={frame.format} language={language} /><PhotoDots n={frame.photos} /><span>{photoCount(language, frame.photos)}</span></span>
+      <span className="g-frame-foot"><ColorDots frame={frame} language={language} />{mismatch && note && <span className="g-frame-warn">{note}</span>}</span>
     </button>
   );
 }

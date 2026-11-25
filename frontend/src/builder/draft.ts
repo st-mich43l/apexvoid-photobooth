@@ -1,3 +1,4 @@
+import { formatTranslation, translate } from "../i18n";
 import type { AssetInfo, FrameDef, Layer, LayerKind, Slot } from "../types";
 
 /** Pure edits of a frame draft. Every function returns a new object (the editor keeps history of them). */
@@ -87,14 +88,14 @@ export const removeVariant = (d: FrameDef, id: string): FrameDef => {
 };
 
 /** Hints about an imported image relative to where it will be used, so print problems show up before saving. */
-export function imageWarnings(info: AssetInfo, d: FrameDef, use: "overlay" | "background" | "image"): string[] {
+export function imageWarnings(info: AssetInfo, d: FrameDef, use: "overlay" | "background" | "image", language?: string): string[] {
   const out: string[] = [];
   const cw = Math.round(d.widthIn * d.dpi), ch = Math.round(d.heightIn * d.dpi);
   if (use !== "image") {
     const a = info.width / info.height, b = cw / ch;
-    if (Math.abs(a - b) / b > 0.02) out.push(`Its proportions differ from the ${cw}×${ch} px canvas, so it will be stretched.`);
-    if (info.width < cw * 0.9 || info.height < ch * 0.9) out.push(`It is smaller than the ${cw}×${ch} px canvas at ${d.dpi} dpi and may look soft when printed.`);
+    if (Math.abs(a - b) / b > 0.02) out.push(formatTranslation(language, "imageProportions", { width: cw, height: ch }));
+    if (info.width < cw * 0.9 || info.height < ch * 0.9) out.push(formatTranslation(language, "imageSoft", { width: cw, height: ch, dpi: d.dpi }));
   }
-  if (use === "overlay" && !info.hasAlpha) out.push("This image has no transparency: it will cover the photos. Use a PNG with transparent windows.");
+  if (use === "overlay" && !info.hasAlpha) out.push(translate(language, "imageNoAlpha"));
   return out;
 }

@@ -1,3 +1,4 @@
+import { translate } from "./i18n";
 import type { JobStatus, Paper } from "./types";
 
 export const jobLabel: Record<JobStatus, string> = {
@@ -7,6 +8,11 @@ export const jobLabel: Record<JobStatus, string> = {
 export const jobKind = (s: JobStatus): "ok" | "warn" | "err" | "info" =>
   s === "completed" ? "ok" : s === "removed" ? "info" : s === "failed" ? "err" : s === "unknown" ? "warn" : "info";
 export const jobActive = (s: JobStatus): boolean => s === "submitting" || s === "queued" || s === "printing";
+
+export function printerStatusLabel(status: string, language?: string): string {
+  const keys = { ready: "printerStatusReady", offline: "printerStatusOffline", error: "printerStatusError", unknown: "printerStatusUnknown" } as const;
+  return status in keys ? translate(language, keys[status as keyof typeof keys]) : status;
+}
 
 /** A new id per user action: the backend never prints the same id twice. */
 export const newRequestId = (): string =>
@@ -24,7 +30,7 @@ export function pickPaper(papers: Paper[], saved: string, wantIn?: [number, numb
   return papers[0]?.name ?? "";
 }
 
-export function describeMargins(m: [number, number, number, number]): string {
+export function describeMargins(m: [number, number, number, number], language?: string): string {
   const f = (n: number) => `${Math.max(0, n).toFixed(1)} mm`;
-  return `left ${f(m[0])}, top ${f(m[1])}, right ${f(m[2])}, bottom ${f(m[3])}`;
+  return `${translate(language, "marginLeft")} ${f(m[0])}, ${translate(language, "marginTop")} ${f(m[1])}, ${translate(language, "marginRight")} ${f(m[2])}, ${translate(language, "marginBottom")} ${f(m[3])}`;
 }

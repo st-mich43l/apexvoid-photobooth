@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useApp, useT } from "../state";
-import { Badge, ErrorNote, useAction } from "../ui";
+import { Badge, ErrorNote, LocalizedDiagnostic, useAction } from "../ui";
 import { VideoFlow } from "../VideoFlow";
 import { usePrepareMode } from "../usePrepareMode";
 import type { VDevices } from "../types";
@@ -49,7 +49,7 @@ export function VideoPage() {
               <select value={`${v.width}x${v.height}@${v.fps}`} onChange={(e) => {
                 const [wh, fps] = e.target.value.split("@"); const [w, h] = wh.split("x").map(Number); update({ width: w, height: h, fps: Number(fps) });
               }}>
-                {!modes.some((m) => m.width === v.width && m.height === v.height) && <option value={`${v.width}x${v.height}@${v.fps}`}>{v.width}×{v.height} @ {v.fps} (requested)</option>}
+                {!modes.some((m) => m.width === v.width && m.height === v.height) && <option value={`${v.width}x${v.height}@${v.fps}`}>{v.width}×{v.height} @ {v.fps} ({t("videoRequested")})</option>}
                 {modes.map((m, i) => { const fps = Math.min(30, Math.round(m.fpsMax || 30)); return (
                   <option key={i} value={`${m.width}x${m.height}@${fps}`}>{m.width}×{m.height} @ {fps} fps ({m.format})</option>); })}
               </select>
@@ -69,7 +69,7 @@ export function VideoPage() {
           {" "}<Badge kind="info">{t("previewPauseHint")}</Badge></p>
         <button onClick={scan} disabled={q.busy}>{t("rescanDevices")}</button>
       </section>
-      {modeError && <div className="note err" role="alert"><div>{modeError}</div></div>}
+      {modeError && <div className="note err" role="alert"><div><LocalizedDiagnostic text={modeError} summary="errorCamera" /></div></div>}
       {ready ? <VideoFlow variant="studio" /> : !modeError && <p className="muted">{t("preparingVideoCamera")}</p>}
       {dialog}
     </div>

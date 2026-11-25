@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { api, toAppError } from "../api";
 import { sessionGate } from "../sessionGate";
+import { formatTranslation, translate } from "../i18n";
+import { useLocale } from "../locale";
 import { useApp } from "../state";
-import { Confirm } from "../ui";
+import { Confirm, LocalizedDiagnostic } from "../ui";
 import type { Frame, ShootStateName } from "../types";
 
 const LOCKED: ShootStateName[] = ["COUNTDOWN", "CAPTURING", "REVIEW", "SAVING"];
@@ -29,14 +31,17 @@ type Result = { kind: "ok"; mediaId: string; sim: boolean; grab: boolean; sessio
  * never as a hardware check.
  */
 export function CameraTest() {
-  const { camera, shoot, mediaUrl } = useApp();
+  const { camera, shoot, mediaUrl, settings } = useApp();
+  const language = useLocale(settings?.language);
+  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
+  const tf = (key: Parameters<typeof translate>[1], values: Record<string, string | number>) => formatTranslation(language, key, values);
   const [ask, setAsk] = useState<Frame | "none" | null>(null);
   const [running, setRunning] = useState(false);
   const [res, setRes] = useState<Result | null>(null);
   const sim = !!camera.device?.simulated;
   const locked = LOCKED.includes(shoot?.state);
   const ready = !!camera.device && !camera.reconnecting && camera.state !== "error";
-  const reason = !camera.device ? "Connect a camera first." : camera.reconnecting ? "The camera is reconnecting." : locked ? "A photo session is running — wait for it to finish." : camera.state === "error" ? "The camera reported an error." : "";
+  const reason = !camera.device ? t("cameraTestConnect") : camera.reconnecting ? t("cameraTestReconnecting") : locked ? t("cameraTestBusy") : camera.state === "error" ? t("cameraTestCameraError") : "";
 
   const begin = async () => {
     const { frames } = await api.listFrames(false);
@@ -61,7 +66,7 @@ export function CameraTest() {
       setRes({ kind: "ok", mediaId: s.resultId || s.taken[0]?.mediaId || "", sim, grab: camera.device?.driver === "uvc", sessionId });
     } catch (e) {
       const err = toAppError(e);
-      setRes({ kind: "fail", message: err.message, action: err.action || "Check the cable and that the camera is in photo mode, then try again." });
+      setRes({ kind: "fail", message: err.message, action: err.action || t("cameraTestRecovery") });
     } finally {
       await sessionGate.reset();           // the one safe way back to IDLE; the photos already taken stay in the library
       if (liveBefore) void api.startLiveView().catch(() => {});
@@ -70,32 +75,32 @@ export function CameraTest() {
   };
 
   return (
-    <section className="card camera-test" aria-label="Camera test">
-      <h3>Camera test <span className="muted small">optional</span></h3>
-      <p className="muted small">Checks that the shutter fires and the photo reaches the PC. It takes {sim ? "a simulated" : "a real"} photo, which is saved in the Gallery as “Operator camera test” and kept.</p>
+    <section className="card camera-test" aria-label={t("cameraTestTitle")}>
+      <h3>{t("cameraTestTitle")} <span className="muted small">{t("optional")}</span></h3>
+      <p className="muted small">{tf("cameraTestIntro", { kind: t(sim ? "cameraTestSimulated" : "cameraTestReal") })}</p>
       <div className="row">
-        <button className="primary" disabled={!ready || locked || running} onClick={() => { void begin(); }}>{running ? "Testing…" : "Run camera test…"}</button>
+        <button className="primary" disabled={!ready || locked || running} onClick={() => { void begin(); }}>{running ? t("cameraTesting") : t("cameraTestRun")}</button>
         {reason && <span className="muted small">{reason}</span>}
       </div>
       {res?.kind === "ok" && (
         <div className="test-result ok" role="status">
-          {res.mediaId && <img src={mediaUrl(res.mediaId, "preview")} alt="Camera test photo" />}
+          {res.mediaId && <img src={mediaUrl(res.mediaId, "preview")} alt={t("cameraTestAlt")} />}
           <div>
-            <strong>{res.sim ? "Demo test finished" : "Test photo saved"}</strong>
-            <p>{res.sim ? "This was the SIMULATED camera: a test pattern. It does not verify real hardware." : res.grab ? "The camera delivered a photo. Photos from a webcam are frame grabs from the video stream, not full-resolution originals." : "The camera delivered a photo."} It is in the Gallery as “Operator camera test”.</p>
+            <strong>{t(res.sim ? "cameraTestDemoDone" : "cameraTestSaved")}</strong>
+            <p>{t(res.sim ? "cameraTestDemoDetail" : res.grab ? "cameraTestWebcamDetail" : "cameraTestDelivered")} {t("cameraTestGallery")}</p>
           </div>
         </div>
       )}
       {res?.kind === "fail" && (
-        <div className="test-result fail" role="alert"><div><strong>The camera test failed.</strong><p>{res.message}</p><p className="action">{res.action}</p></div>
-          <button onClick={() => { void begin(); }} disabled={!ready || running}>Try again</button></div>
+        <div className="test-result fail" role="alert"><div><strong>{t("cameraTestFailed")}</strong><div><LocalizedDiagnostic text={`${res.message} ${res.action}`} summary="cameraTestDetails" /></div></div>
+          <button onClick={() => { void begin(); }} disabled={!ready || running}>{t("tryAgain")}</button></div>
       )}
-      {ask === "none" && <Confirm title="No frame to test with" body={<p>Switch on at least one frame on the Frames page first. The test uses the normal photo session.</p>} confirmLabel="OK" onYes={() => setAsk(null)} onNo={() => setAsk(null)} />}
+      {ask === "none" && <Confirm title={t("cameraTestNoFrame")} body={<p>{t("cameraTestNoFrameHint")}</p>} confirmLabel={t("ok")} onYes={() => setAsk(null)} onNo={() => setAsk(null)} />}
       {ask && ask !== "none" && (
-        <Confirm title={sim ? "Run a demo camera test?" : "Take a real test photo?"} confirmLabel={sim ? "Run demo test" : "Take test photo"} onNo={() => setAsk(null)} onYes={() => { void run(ask); }}
+        <Confirm title={t(sim ? "cameraTestDemoTitle" : "cameraTestRealTitle")} confirmLabel={t(sim ? "cameraTestDemoAction" : "cameraTestRealAction")} onNo={() => setAsk(null)} onYes={() => { void run(ask); }}
           body={<>
-            <p>{sim ? "The SIMULATED camera will produce a test pattern. This does not test real hardware." : <>The camera <strong>will fire its shutter</strong> {ask.photos === 1 ? "once" : `${ask.photos} times`} after a countdown.</>}</p>
-            <p>It uses the “{ask.name}” frame and the normal photo session. The result is saved to the library as <strong>Operator camera test</strong> and is not deleted automatically.</p>
+            <p>{sim ? t("cameraTestDemoWarning") : (ask.photos === 1 ? t("cameraTestShutterOne") : tf("cameraTestShutter", { count: ask.photos }))}</p>
+            <p>{tf("cameraTestFrame", { name: ask.name })}</p>
           </>} />
       )}
     </section>

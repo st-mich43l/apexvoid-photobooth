@@ -241,7 +241,7 @@ func TestFailedRetakeKeepsPreviousPhoto(t *testing.T) {
 		t.Fatal(err)
 	}
 	s = e.waitState(capture.Review)
-	if s.Warning == "" || s.Taken[0].MediaID != first {
+	if s.Warning == "" || s.WarningCode != "retake_failed" || s.Taken[0].MediaID != first {
 		t.Fatalf("expected warning and old photo kept: %+v", s)
 	}
 	if m, _ := e.store.Media(first); m.Status != sessions.MediaActive {

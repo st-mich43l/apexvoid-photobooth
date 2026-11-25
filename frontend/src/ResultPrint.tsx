@@ -24,8 +24,8 @@ export function ResultPrint({ mediaId, booth }: { mediaId: string; booth: boolea
   if (!booth) {
     return (
       <>
-        <button onClick={() => setOpen(true)}>Print…</button>
-        {open && <Modal title="Print" onClose={() => setOpen(false)} wide><div className="modal-body"><PrintPanel mediaId={mediaId} onPrinted={() => setOpen(false)} /></div></Modal>}
+        <button onClick={() => setOpen(true)}>{t("printEllipsis")}</button>
+        {open && <Modal title={t("print")} onClose={() => setOpen(false)} wide><div className="modal-body"><PrintPanel mediaId={mediaId} onPrinted={() => setOpen(false)} /></div></Modal>}
       </>
     );
   }

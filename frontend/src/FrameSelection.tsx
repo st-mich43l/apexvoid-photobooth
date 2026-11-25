@@ -1,7 +1,7 @@
-import { translate } from "./i18n";
+import { formatTranslation, photoCount, translate } from "./i18n";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, toAppError } from "./api";
-import { choiceOf, explainFit, filterFrames, fitFor, photoCounts, photosLabel, swatch } from "./frameInfo";
+import { choiceOf, explainFit, filterFrames, fitFor, categoryLabel, frameDisplayName, variantDisplayName, layoutLabel, photoCounts, swatch } from "./frameInfo";
 import { GuestFrames } from "./guest/GuestFrames";
 import { LoadingState, GuestMessage, SecondaryAction } from "./guest/parts";
 import { useLocale } from "./locale";
@@ -29,6 +29,7 @@ interface Props {
 export function FrameSelection({ variant, initial, takenPhotos, title, confirmLabel, backLabel, busy, onConfirm, onBack }: Props) {
   const { settings, frameUrl } = useApp();
   const language = useLocale(settings.language);
+  const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
   const [frames, setFrames] = useState<Frame[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -92,82 +93,82 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
   return (
     <div className={`frames ${booth ? "booth" : "studio"}`} data-testid="frame-selection">
       <header className="frames-head">
-        {onBack && <button className="back" onClick={onBack} disabled={busy}>← {backLabel ?? "Back"}</button>}
-        <h1>{title ?? "Choose your frame"}</h1>
+        {onBack && <button className="back" onClick={onBack} disabled={busy}>← {backLabel ?? t("back")}</button>}
+        <h1>{title ?? t("framesTitle")}</h1>
       </header>
 
       {error && (
-        <div className="note err" role="alert"><div><strong>The frames could not be loaded.</strong><div className="action">{error}</div></div><button onClick={load}>Try again</button></div>
+        <div className="note err" role="alert"><div><strong>{t("frameError")}</strong><div className="action">{error}</div></div><button onClick={load}>{t("tryAgain")}</button></div>
       )}
-      {!error && !frames && <div className="center-msg" role="status"><div className="spinner" />Loading frames…</div>}
+      {!error && !frames && <div className="center-msg" role="status"><div className="spinner" />{t("loadingFrames")}</div>}
       {frames && frames.length === 0 && (
-        <div className="note warn" role="status"><div>No frames are available{booth ? ". Please ask the host." : ". Enable some on the Frames page."}</div></div>
+        <div className="note warn" role="status"><div>{t("noFramesStudio")}</div></div>
       )}
 
       {frames && frames.length > 0 && (
         <div className="frames-body">
           <div className="frames-list">
-            <div className="filters" role="group" aria-label="Frame categories">
+            <div className="filters" role="group" aria-label={t("frameCategories")}>
               {["All", ...categories].map((c) => (
-                <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>
+                <button key={c} className={`chip ${category === c ? "on" : ""}`} aria-pressed={category === c} onClick={() => setCategory(c)}>{c === "All" ? t("all") : categoryLabel(c, language)}</button>
               ))}
             </div>
             {photoCounts(frames).length > 1 && (
-              <div className="filters" role="group" aria-label="Number of photos">
-                <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>Any photos</button>
+              <div className="filters" role="group" aria-label={t("numberPhotos")}>
+                <button className={`chip ${count === 0 ? "on" : ""}`} aria-pressed={count === 0} onClick={() => setCount(0)}>{t("anyPhotos")}</button>
                 {photoCounts(frames).map((n) => (
-                  <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photosLabel(n)}</button>
+                  <button key={n} className={`chip ${count === n ? "on" : ""}`} aria-pressed={count === n} onClick={() => setCount(n)}>{photoCount(language, n)}</button>
                 ))}
               </div>
             )}
-            {shown.length === 0 && <p className="muted">No frames match this filter.</p>}
-            <div className="frame-grid" role="radiogroup" aria-label="Frames">
+            {shown.length === 0 && <p className="muted">{t("noFramesMatch")}</p>}
+            <div className="frame-grid" role="radiogroup" aria-label={t("frames")}>
               {shown.map((f) => {
                 const mis = fitFor(f, takenPhotos).kind !== "ok";
                 return (
                   <button key={f.id} role="radio" aria-checked={f.id === pickId} className={`frame-card ${f.id === pickId ? "on" : ""} ${mis ? "mismatch" : ""}`} onClick={() => select(f)}>
-                    <img src={frameUrl(f.id, "", 360)} alt={`${f.name} frame`} loading="lazy" />
-                    <span className="fname">{f.name}</span>
-                    <span className="fmeta">{f.format} · {photosLabel(f.photos)}</span>
-                    {mis && <span className="fwarn">needs {photosLabel(f.photos)}</span>}
+                    <img src={frameUrl(f.id, "", 360)} alt={formatTranslation(language, "frameAlt", { name: frameDisplayName(f, language) })} loading="lazy" />
+                    <span className="fname">{frameDisplayName(f, language)}</span>
+                    <span className="fmeta">{layoutLabel(f.format, language)} · {photoCount(language, f.photos)}</span>
+                    {mis && <span className="fwarn">{formatTranslation(language, "needsPhotos", { count: f.photos })}</span>}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <aside className="frame-detail" aria-label="Selected frame">
+          <aside className="frame-detail" aria-label={t("selectedFrame")}>
             {picked ? (
               <>
-                <div className="big-preview"><img src={frameUrl(picked.id, variantId, 640, picked.captionEnabled ? caption.trim() : "")} alt={`${picked.name} preview`} /></div>
-                <h2>{picked.name}</h2>
-                <p className="muted">{picked.format} · {photosLabel(picked.photos)} · {picked.pixelW}×{picked.pixelH} px</p>
+                <div className="big-preview"><img src={frameUrl(picked.id, variantId, 640, picked.captionEnabled ? caption.trim() : "")} alt={formatTranslation(language, "framePreview", { name: frameDisplayName(picked, language) })} /></div>
+                <h2>{frameDisplayName(picked, language)}</h2>
+                <p className="muted">{layoutLabel(picked.format, language)} · {photoCount(language, picked.photos)} · {picked.pixelW}×{picked.pixelH} px</p>
                 {picked.variants && picked.variants.length > 1 && (
-                  <div className="swatches" role="radiogroup" aria-label="Colour">
+                  <div className="swatches" role="radiogroup" aria-label={t("chooseColor")}>
                     {picked.variants.map((v, i) => {
                       const on = variantId === v.id || (!variantId && i === 0);
                       return (
-                        <button key={v.id} role="radio" aria-checked={on} aria-label={v.name} title={v.name} className={`swatch ${on ? "on" : ""}`}
+                        <button key={v.id} role="radio" aria-checked={on} aria-label={variantDisplayName(picked, v, language)} title={variantDisplayName(picked, v, language)} className={`swatch ${on ? "on" : ""}`}
                           style={{ background: i === 0 ? picked.background : swatch(v, picked) }} onClick={() => setVariantId(i === 0 ? "" : v.id)} />
                       );
                     })}
                   </div>
                 )}
                 {picked.captionEnabled && (
-                  <label className="caption-line">Short caption (optional)
-                    <input value={caption} maxLength={40} placeholder="e.g. Mai & Nam" onChange={(e) => setCaption(e.target.value)} aria-label="Caption" />
+                  <label className="caption-line">{t("caption")}
+                    <input value={caption} maxLength={40} placeholder="e.g. Mai & Nam" onChange={(e) => setCaption(e.target.value)} aria-label={t("captionAria")} />
                   </label>
                 )}
-                {fit.kind !== "ok" && <div className="note warn" role="status"><div>{explainFit(fit, picked.name)}</div></div>}
+                {fit.kind !== "ok" && <div className="note warn" role="status"><div>{explainFit(fit, frameDisplayName(picked, language), language)}</div></div>}
                 <div className="frame-actions">
                   {fit.kind === "ok" && (
-                    <button className="primary big" disabled={busy} onClick={() => confirm({})}>{busy ? "Please wait…" : (confirmLabel ?? "Continue")}</button>
+                    <button className="primary big" disabled={busy} onClick={() => confirm({})}>{busy ? t("pleaseWait") : (confirmLabel ?? t("continueLabel"))}</button>
                   )}
-                  {fit.kind === "fewer" && <button className="primary big" disabled={busy} onClick={() => confirm({ useFirst: true })}>Use the first {fit.need} photos</button>}
-                  {fit.kind === "more" && <button className="primary big" disabled={busy} onClick={() => confirm({ restart: true })}>Start over with this frame</button>}
+                  {fit.kind === "fewer" && <button className="primary big" disabled={busy} onClick={() => confirm({ useFirst: true })}>{formatTranslation(language, "firstPhotos", { count: fit.need })}</button>}
+                  {fit.kind === "more" && <button className="primary big" disabled={busy} onClick={() => confirm({ restart: true })}>{t("restartFrame")}</button>}
                 </div>
               </>
-            ) : <p className="muted">Tap a frame to see it here.</p>}
+            ) : <p className="muted">{t("selectFrame")}</p>}
           </aside>
         </div>
       )}

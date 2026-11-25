@@ -1,13 +1,10 @@
+import { translate } from "./i18n";
 import type { DeviceInfo, Mode, SourceKind } from "./types";
 
-const KIND: Record<SourceKind, string> = {
-  dslr: "Canon camera (Canon SDK)", "dslr-uvc": "Canon camera in USB streaming (UVC) mode", webcam: "Webcam",
-  "capture-card": "Capture card", virtual: "Virtual (software) camera", simulated: "SIMULATED camera",
-};
-export const kindLabel = (k: SourceKind): string => KIND[k] ?? "Camera";
-
-export const backendLabel = (driver: string): string =>
-  driver === "canon-edsdk" ? "Canon EDSDK" : driver === "uvc" ? "Windows video device (FFmpeg/DirectShow)" : driver === "mock" ? "Mock (development)" : driver;
+const KIND = { dslr: "sourceCanon", "dslr-uvc": "sourceCanonUvc", webcam: "sourceWebcam", "capture-card": "sourceCaptureCard", virtual: "sourceVirtual", simulated: "sourceSimulated" } as const;
+export const kindLabel = (k: SourceKind, language?: string): string => translate(language, KIND[k] ?? "sourceCamera");
+export const backendLabel = (driver: string, language?: string): string =>
+  driver === "canon-edsdk" ? "Canon EDSDK" : driver === "uvc" ? translate(language, "backendUvc") : driver === "mock" ? translate(language, "backendMock") : driver;
 
 /** Video needs a streamed (UVC) source: the Canon SDK source and the simulated one are photo-only. */
 export const canRecordVideo = (d: DeviceInfo): boolean => d.driver === "uvc" && !d.duplicateOf;
@@ -38,20 +35,9 @@ export function modeOptions(modes?: Mode[]): Array<{ key: string; label: string;
 }
 
 /** Device-specific guidance for an error, so the operator knows what to try. */
-export function guidance(d: DeviceInfo | undefined, error?: string): string {
+export function guidance(d: DeviceInfo | undefined, error?: string, language?: string): string {
   if (!d || !error) return "";
-  const e = error.toLowerCase();
-  if (d.driver === "canon-edsdk") {
-    if (/busy|owned|in use/.test(e)) return "Close EOS Utility, EOS Webcam Utility and Canon Camera Connect, then reconnect.";
-    if (/sdk|dll/.test(e)) return "Copy the 64-bit EDSDK.dll and EdsImage.dll next to the app (see docs/CAMERAS.md).";
-    return "Check the USB cable, that the camera is on and in a photo mode, and that nothing else controls it.";
-  }
-  if (d.driver === "uvc") {
-    if (/ffmpeg/.test(e)) return "Place ffmpeg.exe next to the app or set its path in Settings.";
-    if (/another program|in use|busy|could not be opened/.test(e)) return "Close other programs using the camera (Teams, Zoom, browser tabs, OBS), then try again.";
-    if (d.kind === "dslr-uvc") return "Set the camera's USB mode to streaming/webcam, and close EOS Utility.";
-    if (d.kind === "virtual") return "Start the program that provides this virtual camera first.";
-    return "Check the USB connection and the Windows camera privacy settings (Settings → Privacy → Camera).";
-  }
+  if (d.driver === "canon-edsdk") return translate(language, "sourceCanonHelp");
+  if (d.driver === "uvc") return translate(language, d.kind === "dslr-uvc" ? "sourceStreamHelp" : d.kind === "virtual" ? "sourceVirtualHelp" : "sourceUvcHelp");
   return "";
 }

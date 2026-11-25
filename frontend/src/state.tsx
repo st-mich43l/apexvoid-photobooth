@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { api, on, toAppError, AppError } from "./api";
-import { useLocale } from "./locale";
+import { OperatorLocale, useLocale } from "./locale";
 import { formatTranslation, translate, type TranslationKey } from "./i18n";
 import type { BoothReadiness, BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
 
@@ -134,15 +134,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (!value) return <div className="splash"><div className="spinner" /><p>Starting…</p></div>;
   return (
     <C.Provider value={value}>
+      <OperatorLocale language={value.settings.language}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`}>
             <span>{t.msg}</span>
-            {t.undo && <button onClick={() => { t.undo?.(); setToasts((x) => x.filter((y) => y.id !== t.id)); }}>Undo</button>}
+            {t.undo && <button onClick={() => { t.undo?.(); setToasts((x) => x.filter((y) => y.id !== t.id)); }}>{translate(value.settings.language, "undo")}</button>}
           </div>
         ))}
       </div>
+      </OperatorLocale>
     </C.Provider>
   );
 }

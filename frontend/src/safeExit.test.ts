@@ -97,3 +97,10 @@ describe("exitImpact", () => {
     expect(exitImpact(vid(), sh("ERROR"))).toEqual({ recording: false, session: false, saving: false });
   });
 });
+
+it("reports stable progress codes while preserving the legacy diagnostic text", async () => {
+  const onProgress = vi.fn(), onStep = vi.fn();
+  await safeExit(deps({ video: vid({ state: "recording" }), onProgress, onStep }));
+  expect(onProgress.mock.calls.map(c => c[0])).toEqual(["stoppingVideo", "restoringWindow"]);
+  expect(onStep.mock.calls[0][0]).toContain("Stopping and saving");
+});

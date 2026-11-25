@@ -35,7 +35,8 @@ import { PrinterPage } from "../pages/PrinterPage";
 import { CameraTest } from "./CameraTest";
 import { PreparePage } from "./PreparePage";
 import { QuickSettings } from "./QuickSettings";
-import { blockers, groupView, itemsOf, viewOf } from "./status";
+import { blockers, groupView, itemsOf, readinessDetail, viewOf } from "./status";
+import { translate } from "../i18n";
 import { useOpenBooth } from "./useOpenBooth";
 import { useLatest } from "./latest";
 
@@ -70,6 +71,11 @@ const prepare = async (go = vi.fn(), open = vi.fn()) => { render(<PreparePage go
 const card = (name: string) => screen.getByRole("region", { name });
 
 describe("readiness vocabulary", () => {
+  it("summarizes backend readiness codes in the selected language", () => {
+    const r = R([], { status: "demo", detail: "A SIMULATED camera is connected." });
+    expect(readinessDetail(r, (key) => translate("vi", key))).toContain("Máy ảnh mô phỏng");
+    expect(readinessDetail(r, (key) => translate("en", key))).toContain("A simulated camera");
+  });
   it("maps backend lines to the six operator states", () => {
     expect(viewOf(item("camera", "camera", "problem"))).toBe("setup");
     expect(viewOf(item("printer", "printer", "problem", { required: false }))).toBe("warning");

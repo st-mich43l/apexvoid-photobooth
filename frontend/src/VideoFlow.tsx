@@ -3,7 +3,7 @@ import { api } from "./api";
 import { clock } from "./format";
 import { useApp, useT } from "./state";
 import { SourceChip } from "./SourceChip";
-import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
+import { ErrorNote, LocalizedDiagnostic, LivePreview, SimulatedRibbon, useAction } from "./ui";
 
 /** Video recording workflow shared by Studio and Booth. */
 export function VideoFlow({ variant, onDone }: { variant: "studio" | "booth"; onDone?: () => void }) {
@@ -25,9 +25,9 @@ export function VideoFlow({ variant, onDone }: { variant: "studio" | "booth"; on
       <SourceChip />
       <ErrorNote error={error} onClose={clear} />
       {video.state === "error" && (
-        <div className="note err"><div><strong>{video.error}</strong></div></div>
+        <div className="note err"><div>{video.error && <LocalizedDiagnostic text={video.error} summary="recordingWarning" />}</div></div>
       )}
-      {video.notice && <div className="note warn">{video.notice}</div>}
+      {video.notice && <div className="note warn"><LocalizedDiagnostic text={video.notice} summary="recordingWarning" /></div>}
       <div className="stage">
         <LivePreview className="stage-preview" />
         {rec && <div className="rec-pill"><i /> REC {clock(video.elapsedMs)} / {clock(video.maxSeconds * 1000)}</div>}

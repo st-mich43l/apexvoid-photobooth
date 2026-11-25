@@ -42,7 +42,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
   const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "frames" : "welcome"));
   const [asking, setAsking] = useState(false);
   const [fsError, setFsError] = useState("");
-  const { prepare, dialog: modeDialog, error: modeError } = usePrepareMode();
+  const { prepare, dialog: modeDialog, error: modeError } = usePrepareMode(guestLanguage);
   // the frame is chosen first (no camera, no live view, no session yet). Booth Mode is photo-only; video recording is a separate flow (Studio)
   const [frame, setFrame] = useState<FrameChoice | null>(null);
   const [preparing, setPreparing] = useState(false);
@@ -160,18 +160,18 @@ export function Booth({ onExited }: { onExited: () => void }) {
       </button>
       {fsError && (
         <div className="note warn fs-note" role="alert">
-          <div>Fullscreen is not active: {fsError} Booth Mode keeps working in a window.</div>
+          <div>{guestLanguage === "en" ? `Fullscreen is not active: ${fsError} Booth Mode keeps working in a window.` : translate(guestLanguage, "fullscreenInactive")}</div>
           <button onClick={goFullscreen}>{translate(guestLanguage, "retry")}</button>
         </div>
       )}
       {screen !== "welcome" && <GuestHeader step={step} language={guestLanguage} />}
       {screen === "welcome" && (
         <Welcome onLanguageChange={setGuestLanguage} language={guestLanguage} blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
-          modeError={modeError} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />
+          modeError={modeError ? translate(guestLanguage, "cameraNotReady") : ""} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />
       )}
       {screen === "frames" && (
         <>
-          {modeError && <GuestMessage kind="err">{modeError}</GuestMessage>}
+          {modeError && <GuestMessage kind="err">{translate(guestLanguage, "cameraNotReady")}</GuestMessage>}
           <FrameSelection variant="booth" busy={preparing} initial={frame ? { id: frame.id, variantId: frame.variantId, caption: frame.caption } : undefined}
             onConfirm={confirmFrame} onBack={goWelcome} backLabel={translate(guestLanguage, "home")} />
         </>

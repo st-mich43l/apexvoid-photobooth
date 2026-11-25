@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
 }));
 const { S, api, enter, leave } = h;
 vi.mock("./state", () => ({ useApp: () => h.S }));
-vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "" }) }));
+vi.mock("./api", () => ({ api: h.api, toAppError: (e: unknown) => Object.assign(new Error(e instanceof Error ? e.message : String(e)), { action: (e as { action?: string })?.action ?? "", code: (e as { code?: string })?.code, params: (e as { params?: Record<string, number> })?.params }) }));
 vi.mock("./fullscreen", () => ({ enterFullscreen: (...a: unknown[]) => h.enter(...a), leaveFullscreen: (...a: unknown[]) => h.leave(...a) }));
 vi.mock("./ShootFlow", () => ({
   ShootFlow: (p: { frame: { id: string; variantId: string }; onChangeFrame?: () => void }) => (
@@ -289,7 +289,7 @@ describe("Booth start button prepares the photo camera", () => {
     api.prepareMode.mockRejectedValueOnce(Object.assign(new Error("No camera available for Photo mode.\nConnect a webcam and press Refresh."), {}));
     render(<Booth onExited={() => {}} />);
     await choosePhoto();
-    await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /No camera available for Photo mode/.test(a.textContent ?? ""))).toBe(true));
+    await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /camera is not ready/i.test(a.textContent ?? ""))).toBe(true));
     expect(screen.queryByTestId("photo-flow")).toBeNull();
   });
 });
@@ -380,4 +380,16 @@ describe("Booth frame selection comes before the camera", () => {
     expect(screen.queryByRole("button", { name: /Video/ })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Take photos/ })).toHaveLength(1);
   });
+});
+
+
+it("localizes structured PIN lockout without allowing exit", async () => {
+  S.settings = { ...S.settings, kioskPinSet: true, guestLanguage: "vi", language: "en" };
+  api.verifyKioskPin.mockRejectedValueOnce(Object.assign(new Error("locked"), { code: "pin_locked", params: { seconds: 18 } }));
+  const exited = vi.fn(); render(<Booth onExited={exited} />);
+  fireEvent.click(screen.getByRole("button", { name: "Thoát chế độ buồng chụp" }));
+  fireEvent.change(screen.getByLabelText("Mã PIN nhân viên"), { target: { value: "1111" } });
+  fireEvent.click(screen.getByRole("button", { name: "Thoát buồng chụp" }));
+  expect((await screen.findByRole("alert")).textContent).toContain("18 giây");
+  expect(exited).not.toHaveBeenCalled();
 });
