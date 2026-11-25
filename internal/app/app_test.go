@@ -39,7 +39,7 @@ func newTestApp(t *testing.T) (*Service, string, *events) {
 	cfg := filepath.Join(t.TempDir(), "settings.json")
 	sm, _ := settings.Load(cfg)
 	st := sm.Get()
-	st.MediaDir, st.EnableMock, st.CountdownSeconds, st.Shots = root, true, 1, 2
+	st.MediaDir, st.EnableMock, st.CountdownSeconds, st.Shots = root, true, 1, 1
 	if err := sm.Save(st); err != nil {
 		t.Fatal(err)
 	}

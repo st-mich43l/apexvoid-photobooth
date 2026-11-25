@@ -67,7 +67,7 @@ func SelfTest(version string, args []string) int {
 	if err := svc.StartPreview(); err != nil {
 		return fail("preview", err)
 	}
-	if err := svc.StartShooting("plain.single", "", ""); err != nil {
+	if err := svc.StartShootingWithCount("plain.single", "", "", 1); err != nil {
 		return fail("shoot", err)
 	}
 	wait := func(want capture.State) bool {
@@ -134,7 +134,7 @@ func selfTestFrameFlow(svc *Service, wait func(capture.State) bool, dir string, 
 	if err := svc.StartPreview(); err != nil {
 		return out, err
 	}
-	if err := svc.StartShooting("rose-pink.strip4", "coral", ""); err != nil {
+	if err := svc.StartShootingWithCount("rose-pink.strip4", "coral", "", 4); err != nil {
 		return out, err
 	}
 	if !wait(capture.Review) {

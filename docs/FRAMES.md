@@ -1,7 +1,7 @@
 # Frames
 
 A **frame** is what a guest chooses before any photo is taken. It is a *layout* (where the photos go) plus a
-*design* (colours, borders, artwork, text). Choosing a frame also decides how many photos the session takes.
+*design* (colours, borders, artwork, text). Each session captures the operator-configured number of candidate photos (8 by default), then guests choose which distinct photos fill the frame's slots. Candidates stay out of the library until selected; unselected shots are deleted when the guest accepts. A frame still determines how many photos must be selected for its composition.
 
 ## Data model (`internal/templates`)
 

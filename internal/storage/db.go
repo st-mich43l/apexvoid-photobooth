@@ -43,7 +43,7 @@ var migrations = []string{
 		duration_ms INTEGER NOT NULL DEFAULT 0,
 		simulated INTEGER NOT NULL DEFAULT 0,
 		source TEXT NOT NULL DEFAULT '',
-		status TEXT NOT NULL DEFAULT 'active',   -- active | discarded | trashed | missing | partial
+		status TEXT NOT NULL DEFAULT 'active',   -- active | candidate | discarded | trashed | missing | partial
 		captured_at TEXT NOT NULL,
 		created_at TEXT NOT NULL
 	);

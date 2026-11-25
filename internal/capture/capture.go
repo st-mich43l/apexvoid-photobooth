@@ -53,9 +53,10 @@ type Store interface {
 
 // Config of one shooting session.
 type Config struct {
-	Shots      int
-	Countdown  int // seconds
-	TemplateID string
+	Shots       int
+	FramePhotos int
+	Countdown   int // seconds
+	TemplateID  string
 	// Frame selection, carried to Options.BeginSession untouched (the engine does not interpret it).
 	FrameID, VariantID, Caption string
 }
@@ -98,6 +99,9 @@ type Options struct {
 	// freezes the chosen frame for the session. An error aborts the session
 	// (nothing is shot) and is shown to the operator.
 	BeginSession func(sessionID string, cfg Config) error
+	// KeepSelectedPhotos keeps the selected captures for the frame and removes
+	// every other candidate photo from the session/library.
+	KeepSelectedPhotos func(sessionID string, selectedSlots []int) error
 	// OnChange receives every new snapshot, in order.
 	OnChange func(Snapshot)
 	// CaptureRetries is how many times a failed capture is retried (not for disconnects).
@@ -197,7 +201,7 @@ func (e *Engine) StartPreview(ctx context.Context) error {
 
 // Start begins a session: PREVIEW -> COUNTDOWN.
 func (e *Engine) Start(cfg Config) error {
-	if cfg.Shots < 1 || cfg.Shots > 12 || cfg.Countdown < 0 || cfg.Countdown > 30 {
+	if cfg.Shots < 1 || cfg.Shots > 12 || cfg.FramePhotos < 0 || cfg.FramePhotos > cfg.Shots || cfg.Countdown < 0 || cfg.Countdown > 30 {
 		return fmt.Errorf("invalid shooting configuration %+v", cfg)
 	}
 	e.mu.Lock()
@@ -285,7 +289,7 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 			e.failSession(sessionID, err)
 			return
 		}
-		m, err := e.o.Store.AddPhoto(sessionID, sessions.PhotoInput{Slot: slot, Data: photo.Data, Simulated: photo.Simulated, Source: photo.Source})
+		m, err := e.o.Store.AddPhoto(sessionID, sessions.PhotoInput{Slot: slot, Data: photo.Data, Simulated: photo.Simulated, Source: photo.Source, Candidate: true})
 		if m.ID == "" { // nothing was stored
 			e.failSession(sessionID, fmt.Errorf("could not save photo: %w", err))
 			return
@@ -461,16 +465,71 @@ func (e *Engine) Retake(slot int) error {
 // Accept finalises the session: REVIEW -> SAVING -> COMPLETED.
 func (e *Engine) Accept() error {
 	e.mu.Lock()
+	framePhotos := e.cfg.FramePhotos
+	e.mu.Unlock()
+	selected := make([]int, framePhotos)
+	for i := range selected {
+		selected[i] = i
+	}
+	return e.AcceptSelected(selected)
+}
+
+// AcceptSelected validates the chosen captures, moves them to the front of
+// the session's photo order, then finalizes the frame.
+func (e *Engine) AcceptSelected(selectedSlots []int) error {
+	e.mu.Lock()
 	if e.s.State != Review {
 		st := e.s.State
 		e.mu.Unlock()
 		return invalid(st, "accept")
 	}
 	sid := e.s.SessionID
+	framePhotos := e.cfg.FramePhotos
+	if framePhotos > 0 {
+		if len(selectedSlots) != framePhotos {
+			e.mu.Unlock()
+			return fmt.Errorf("select exactly %d photos for the frame", framePhotos)
+		}
+		taken := make(map[int]bool, len(e.s.Taken))
+		for _, shot := range e.s.Taken {
+			taken[shot.Slot] = true
+		}
+		seen := make(map[int]bool, len(selectedSlots))
+		for _, slot := range selectedSlots {
+			if !taken[slot] || seen[slot] {
+				e.mu.Unlock()
+				return fmt.Errorf("selected photos must be unique captures from this session")
+			}
+			seen[slot] = true
+		}
+	}
+	shots := append([]Shot(nil), e.s.Taken...)
 	e.gen++
 	gen := e.gen
 	e.mu.Unlock()
 	e.update(func(s *Snapshot) { s.State = Saving })
+	if e.o.KeepSelectedPhotos != nil && framePhotos > 0 {
+		if err := e.o.KeepSelectedPhotos(sid, selectedSlots); err != nil {
+			e.update(func(s *Snapshot) { s.State = Review })
+			return err
+		}
+	}
+	if !e.current(gen) {
+		return nil
+	}
+	if framePhotos > 0 {
+		bySlot := make(map[int]Shot, len(shots))
+		for _, shot := range shots {
+			bySlot[shot.Slot] = shot
+		}
+		ordered := make([]Shot, 0, len(selectedSlots))
+		for i, slot := range selectedSlots {
+			shot := bySlot[slot]
+			shot.Slot = i
+			ordered = append(ordered, shot)
+		}
+		e.update(func(s *Snapshot) { s.Taken = ordered })
+	}
 	var result string
 	var ferr error
 	if e.o.Finalize != nil {

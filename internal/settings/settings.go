@@ -41,8 +41,9 @@ type Settings struct {
 	GuestLanguage    string `json:"guestLanguage"`
 	MediaDir         string `json:"mediaDir"` // empty = default data directory
 	CountdownSeconds int    `json:"countdownSeconds"`
-	Shots            int    `json:"shots"`      // legacy: the frame now decides the photo count (1, 2, 3, 4 or 6)
-	TemplateID       string `json:"templateId"` // the frame preselected on the frame-selection screen
+	Shots            int    `json:"shots"`           // candidate photographs taken per session; the selected frame may use fewer
+	ShotsConfigured  bool   `json:"shotsConfigured"` // distinguishes the new operator preference from the old unused value
+	TemplateID       string `json:"templateId"`      // the frame preselected on the frame-selection screen
 	// OutputDPI is the print resolution of built-in frames: 300 (standard) or 600 (high). Custom frames keep the DPI set in the Frame Builder.
 	OutputDPI int `json:"outputDpi"`
 	// PreviewMirror flips the live preview horizontally (like a mirror) for guests. It is display only: photos are never mirrored.
@@ -72,7 +73,7 @@ type Settings struct {
 // Default returns factory settings.
 func Default() Settings {
 	return Settings{
-		Language: "en", GuestLanguage: "en", CountdownSeconds: 3, Shots: 4, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
+		Language: "en", GuestLanguage: "en", CountdownSeconds: 3, Shots: 8, ShotsConfigured: true, TemplateID: "plain.strip4", OutputDPI: 300, AutoReconnect: true,
 		PrintOrientation: "auto", PrintFit: "fit", PrintCopies: 1, PrintTwoUp: "auto",
 		Video: Video{Width: 1280, Height: 720, FPS: 30, MaxSeconds: 30},
 	}
@@ -125,10 +126,8 @@ func (s *Settings) Validate() error {
 	if s.CountdownSeconds < 1 || s.CountdownSeconds > 10 {
 		return errors.New("countdown must be 1-10 seconds")
 	}
-	switch s.Shots {
-	case 1, 2, 3, 4, 6:
-	default:
-		return errors.New("number of photographs must be 1, 2, 3, 4 or 6")
+	if s.Shots < 1 || s.Shots > 12 {
+		return errors.New("number of photographs must be 1–12")
 	}
 	if s.Video.Width < 160 || s.Video.Height < 120 || s.Video.FPS < 1 || s.Video.FPS > 120 {
 		return errors.New("invalid video resolution or frame rate")
@@ -195,9 +194,19 @@ func Load(path string) (*Manager, error) {
 		return nil, err
 	}
 	s := Default()
+	var fields map[string]json.RawMessage
+	_ = json.Unmarshal(b, &fields)
+	_, hasShotPreference := fields["shotsConfigured"]
 	if err := json.Unmarshal(b, &s); err != nil || s.Validate() != nil {
 		_ = os.Rename(path, path+".corrupt")
 		return m, nil
+	}
+	if !hasShotPreference {
+		// Older releases stored an unused legacy `shots` value while the frame
+		// controlled the capture count. Start those installations at the new
+		// eight-photo default; from here on the operator's preference is saved.
+		s.Shots = 8
+		s.ShotsConfigured = true
 	}
 	m.cur = s
 	return m, nil

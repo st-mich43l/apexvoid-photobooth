@@ -322,7 +322,7 @@ func (v *canonValidator) run(version string, sessionsN int) CanonValidationRepor
 			st.failErr("preview", err)
 			return
 		}
-		if err := s.StartShooting("plain.strip4", "", ""); err != nil {
+		if err := s.StartShootingWithCount("plain.strip4", "", "", 4); err != nil {
 			st.failErr("start shooting", err)
 			return
 		}
@@ -468,7 +468,7 @@ func (v *canonValidator) run(version string, sessionsN int) CanonValidationRepor
 				st.failErr(fmt.Sprintf("session %d preview", i+1), err)
 				return
 			}
-			if err := s.StartShooting("plain.single", "", ""); err != nil {
+			if err := s.StartShootingWithCount("plain.single", "", "", 1); err != nil {
 				st.failErr(fmt.Sprintf("session %d", i+1), err)
 				return
 			}

@@ -25,7 +25,7 @@ import (
 type FrameView struct {
 	templates.Template
 	Favorite bool   `json:"favorite"`
-	Photos   int    `json:"photos"` // photos the frame needs → the shot count of a session using it
+	Photos   int    `json:"photos"` // distinct photo slots the frame needs
 	Format   string `json:"format"`
 	PixelW   int    `json:"pixelW"`
 	PixelH   int    `json:"pixelH"`

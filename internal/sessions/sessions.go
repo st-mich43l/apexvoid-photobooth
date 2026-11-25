@@ -34,7 +34,8 @@ const (
 // Media status values.
 const (
 	MediaActive    = "active"
-	MediaDiscarded = "discarded" // replaced by a retake; file kept on disk
+	MediaCandidate = "candidate" // temporary capture available for session review, not shown in the library
+	MediaDiscarded = "discarded" // replaced by a retake; removed when the guest accepts
 	MediaTrashed   = "trashed"
 	MediaMissing   = "missing"
 	MediaPartial   = "partial" // recovered, possibly truncated recording
@@ -151,14 +152,26 @@ func b2i(b bool) int {
 func (s *Store) SetStatus(id, status, note string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	res, err := s.db.Exec(`UPDATE sessions SET status=?, note=CASE WHEN ?='' THEN note ELSE ? END, updated_at=? WHERE id=? AND status NOT IN ('trashing','trashed')`, status, note, note, s.ts(), id)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE sessions SET status=?, note=CASE WHEN ?='' THEN note ELSE ? END, updated_at=? WHERE id=? AND status NOT IN ('trashing','trashed')`, status, note, note, s.ts(), id)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return sql.ErrNoRows
 	}
-	return nil
+	if status == StatusCancelled || status == StatusFailed || status == StatusInterrupted {
+		// An unfinished session has no final selection. Keep its captured images
+		// available in the library so an operator can recover the session.
+		if _, err := tx.Exec(`UPDATE media SET status=? WHERE session_id=? AND status=?`, MediaActive, id, MediaCandidate); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // PhotoInput is a captured original to store.
@@ -167,6 +180,7 @@ type PhotoInput struct {
 	Data      []byte
 	Simulated bool
 	Source    string
+	Candidate bool // hide from the library until the guest accepts selected photos
 }
 
 // AddPhoto stores the original (exclusive create), derives preview and
@@ -197,8 +211,12 @@ func (s *Store) AddPhoto(sessionID string, in PhotoInput) (Media, error) {
 	if err := storage.WriteNew(origAbs, in.Data); err != nil {
 		return Media{}, err
 	}
+	status := MediaActive
+	if in.Candidate {
+		status = MediaCandidate
+	}
 	m := Media{ID: id, SessionID: sessionID, Kind: "photo", Slot: in.Slot, Width: w, Height: h, SizeBytes: int64(len(in.Data)),
-		Simulated: in.Simulated, Source: in.Source, Status: MediaActive, CapturedAt: s.ts()}
+		Simulated: in.Simulated, Source: in.Source, Status: status, CapturedAt: s.ts()}
 	sum := sha256.Sum256(in.Data)
 	m.SHA256 = hex.EncodeToString(sum[:])
 	if m.RelPath, err = l.Rel(origAbs); err != nil {
@@ -333,10 +351,106 @@ func (s *Store) ListMedia(sessionID string, limit, offset int) ([]Media, error) 
 	return out, rows.Err()
 }
 
-// DiscardMedia marks a photo as replaced by a retake. The file stays on disk
-// (the capture flow never deletes originals).
+// KeepSelectedPhotos moves the selected captures to the start of the session's
+// photo order and permanently removes all other candidate photos, including
+// replaced retake candidates. The frame compositor consumes the remaining
+// photos in slot order.
+func (s *Store) KeepSelectedPhotos(sessionID string, selectedSlots []int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.db.Query(`SELECT id,slot,status FROM media WHERE session_id=? AND kind='photo' AND status IN ('active','candidate','discarded') ORDER BY slot,id`, sessionID)
+	if err != nil {
+		return err
+	}
+	type photo struct {
+		id     string
+		slot   int
+		status string
+	}
+	var photos []photo
+	for rows.Next() {
+		var p photo
+		if err := rows.Scan(&p.id, &p.slot, &p.status); err != nil {
+			rows.Close()
+			return err
+		}
+		photos = append(photos, p)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	bySlot := make(map[int]photo, len(photos))
+	for _, p := range photos {
+		if p.status == MediaActive || p.status == MediaCandidate {
+			bySlot[p.slot] = p
+		}
+	}
+	ordered := make([]photo, 0, len(photos))
+	seen := make(map[int]bool, len(selectedSlots))
+	for _, slot := range selectedSlots {
+		p, ok := bySlot[slot]
+		if !ok || seen[slot] {
+			return fmt.Errorf("selected photo slot %d is missing or repeated", slot)
+		}
+		seen[slot] = true
+		ordered = append(ordered, p)
+	}
+	keep := make(map[string]bool, len(ordered))
+	for _, p := range ordered {
+		keep[p.id] = true
+	}
+	for _, p := range photos {
+		if keep[p.id] {
+			continue
+		}
+		if err := s.trashLocked(p.id, ""); err != nil {
+			return fmt.Errorf("remove unselected photo %s: %w", p.id, err)
+		}
+		if err := os.RemoveAll(filepath.Join(s.db.Layout.TrashDir(), p.id)); err != nil {
+			return fmt.Errorf("delete unselected photo %s: %w", p.id, err)
+		}
+		tx, err := s.db.Begin()
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(`DELETE FROM media_trash_ops WHERE media_id=?`, p.id); err == nil {
+			_, err = tx.Exec(`DELETE FROM media WHERE id=? AND status=?`, p.id, MediaTrashed)
+		}
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for i, p := range ordered {
+		if _, err := tx.Exec(`UPDATE media SET slot=? WHERE id=?`, len(ordered)+i+1, p.id); err != nil {
+			return err
+		}
+	}
+	for i, p := range ordered {
+		if _, err := tx.Exec(`UPDATE media SET slot=?,status=? WHERE id=?`, i, MediaActive, p.id); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`UPDATE sessions SET updated_at=? WHERE id=?`, s.ts(), sessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// DiscardMedia marks a photo as replaced by a retake. It remains available
+// through review and is pruned with the other unselected candidates on accept.
 func (s *Store) DiscardMedia(id string) error {
-	_, err := s.db.Exec(`UPDATE media SET status=? WHERE id=? AND status='active'`, MediaDiscarded, id)
+	_, err := s.db.Exec(`UPDATE media SET status=? WHERE id=? AND status IN ('active','candidate')`, MediaDiscarded, id)
 	return err
 }
 
@@ -686,6 +800,9 @@ func (s *Store) Verify(deep bool) (Report, error) {
 		if _, err := s.db.Exec(`UPDATE sessions SET status=?, updated_at=? WHERE id=?`, StatusInterrupted, s.ts(), id); err != nil {
 			return rep, fmt.Errorf("mark session %s interrupted: %w", id, err)
 		}
+	}
+	if _, err := s.db.Exec(`UPDATE media SET status=? WHERE status=? AND session_id IN (SELECT id FROM sessions WHERE status IN (?,?,?))`, MediaActive, MediaCandidate, StatusInterrupted, StatusCancelled, StatusFailed); err != nil {
+		return rep, err
 	}
 
 	rows, err = s.db.Query(`SELECT ` + mediaCols + ` FROM media WHERE status IN ('active','partial','missing')`)

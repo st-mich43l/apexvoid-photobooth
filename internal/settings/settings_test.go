@@ -12,7 +12,7 @@ func TestRoundTripAndDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g := m.Get(); g.CountdownSeconds != 3 || g.Shots != 4 {
+	if g := m.Get(); g.CountdownSeconds != 3 || g.Shots != 8 {
 		t.Fatalf("defaults %+v", g)
 	}
 	s := m.Get()
@@ -30,7 +30,7 @@ func TestValidation(t *testing.T) {
 	m, _ := Load(filepath.Join(t.TempDir(), "s.json"))
 	bad := []func(*Settings){
 		func(s *Settings) { s.CountdownSeconds = 0 },
-		func(s *Settings) { s.Shots = 5 },
+		func(s *Settings) { s.Shots = 13 },
 		func(s *Settings) { s.MediaDir = "relative/dir" },
 		func(s *Settings) { s.Video.FPS = 0 },
 	}
@@ -47,7 +47,7 @@ func TestCorruptFileFallsBackToDefaults(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "settings.json")
 	_ = os.WriteFile(p, []byte("{not json"), 0o644)
 	m, err := Load(p)
-	if err != nil || m.Get().Shots != 4 {
+	if err != nil || m.Get().Shots != 8 {
 		t.Fatalf("corrupt file should yield defaults: %v", err)
 	}
 	if _, err := os.Stat(p + ".corrupt"); err != nil {
