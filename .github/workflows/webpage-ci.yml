@@ -1,11 +1,14 @@
-# Website CI. Lives only on the `webpage` branch, so it never runs for the desktop application,
-# and the desktop CI (ci.yml on master/community) does not exist on this branch.
-# Linux only: no Go, no Windows runners, no vault, no Canon SDK, no desktop builds.
+# Website CI and deployment. Lives only on the `webpage` branch, so it never runs for the desktop
+# application, and the desktop CI (ci.yml on master/community) does not exist on this branch.
+# Linux only: no Go, no Windows runners, no Canon SDK, no desktop builds.
+# Pull requests and feature branches (`webpage-<topic>`) are only checked; a push to `webpage`
+# that passes every check is built into an image and deployed to photobooth.apexvoid.net.
+# (Git cannot hold `webpage/<topic>` next to `webpage`, so feature branches use a dash.)
 name: webpage-ci
 
 on:
   push:
-    branches: [webpage, "webpage/**"]
+    branches: [webpage, "webpage-*"]
   pull_request:
     branches: [webpage]
   workflow_dispatch:
@@ -15,7 +18,8 @@ permissions:
 
 concurrency:
   group: webpage-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # superseded checks are cancelled, but never a deployment that is already running
+  cancel-in-progress: ${{ github.ref != 'refs/heads/webpage' }}
 
 jobs:
   site:
@@ -66,3 +70,22 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Build the image (deploy/Dockerfile), push it to Docker Hub and deploy it with the shared
+  # pipeline (action-library -> ansible-library project `apexvoid-photobooth-webpage`).
+  # Only for pushes to `webpage` (or a manual run on it), and only after every check above passed.
+  deploy:
+    name: build · push · deploy
+    needs: site
+    if: github.ref == 'refs/heads/webpage' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    uses: st-mich43l/action-library/.github/workflows/build-push-deploy.yml@master
+    with:
+      project: apexvoid-photobooth-webpage
+      registry-namespace: mich43l
+      images: >-
+        [
+          {"name": "apexvoid-photobooth-webpage", "context": ".", "dockerfile": "deploy/Dockerfile"}
+        ]
+    secrets:
+      registry-token: ${{ secrets.DOCKERHUB_TOKEN }}
+      vault-password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
