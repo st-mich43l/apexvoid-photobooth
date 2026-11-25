@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type Dispatch, type SetStateAction } from "react";
 import { api, on, toAppError, AppError } from "./api";
+import { useLocale } from "./locale";
 import { formatTranslation, translate, type TranslationKey } from "./i18n";
 import type { BoothReadiness, BootInfo, CameraStatus, LibraryStatus, Settings, ShootSnapshot, VideoState } from "./types";
 
@@ -20,7 +21,7 @@ export interface Ctx {
   /** A frame preview rendered by the Go renderer (sample photos), at the given pixel width. */
   frameUrl: (id: string, variantId: string, width: number, caption?: string) => string;
   previewUrl: string;
-  setSettings: (s: Settings) => void;
+  setSettings: Dispatch<SetStateAction<Settings>>;
   toast: (msg: string, kind?: "ok" | "err", undo?: () => void) => void;
 }
 
@@ -33,9 +34,10 @@ export const useApp = (): Ctx => {
 
 export function useT() {
   const { settings } = useApp();
+  const language = useLocale(settings.language);
   return {
-    t: (key: TranslationKey) => translate(settings.language, key),
-    tf: (key: TranslationKey, values: Record<string, string | number>) => formatTranslation(settings.language, key, values),
+    t: (key: TranslationKey) => translate(language, key),
+    tf: (key: TranslationKey, values: Record<string, string | number>) => formatTranslation(language, key, values),
   };
 }
 
@@ -99,19 +101,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), undo ? 8000 : 5000);
   }, []);
 
+  // Keep media URLs stable when a preference changes; active previews and editors
+  // should not reload just because the operator switched languages.
+  const mediaBase = boot?.mediaBase, mediaToken = boot?.mediaToken;
+  const mediaUrl = useCallback((id: string, kind: "thumb" | "preview" | "basepreview" | "original" | "edited", v?: string) =>
+    `${mediaBase}/media/${id}/${kind}?t=${mediaToken}${v ? `&v=${encodeURIComponent(v)}` : ""}`, [mediaBase, mediaToken]);
+  const frameUrl = useCallback((id: string, variantId: string, width: number, caption = "") =>
+    `${mediaBase}/frame/${encodeURIComponent(id)}/${variantId ? encodeURIComponent(variantId) : "-"}?t=${mediaToken}&w=${width}${caption ? `&caption=${encodeURIComponent(caption)}` : ""}`, [mediaBase, mediaToken]);
+
   const value = useMemo<Ctx | null>(() => {
     if (!boot || !camera || !shoot || !video || !settings || !location) return null;
     const base = boot.mediaBase, tok = boot.mediaToken;
     return {
       boot, camera, shoot, video, settings, location, readiness, refreshReadiness, libraryVersion,
       bumpLibrary: () => setLib((v) => v + 1),
-      mediaUrl: (id, kind, v) => `${base}/media/${id}/${kind}?t=${tok}${v ? `&v=${encodeURIComponent(v)}` : ""}`,
-      frameUrl: (id, variantId, width, caption = "") => `${base}/frame/${encodeURIComponent(id)}/${variantId ? encodeURIComponent(variantId) : "-"}?t=${tok}&w=${width}${caption ? `&caption=${encodeURIComponent(caption)}` : ""}`,
+      mediaUrl, frameUrl,
       previewUrl: `${base}/preview.mjpg?t=${tok}&n=${previewNonce}`,
-      setSettings: setSettingsState,
+      setSettings: (next) => setSettingsState(cur => cur ? (typeof next === "function" ? next(cur) : next) : cur),
       toast,
     };
-  }, [boot, camera, shoot, video, settings, location, readiness, refreshReadiness, libraryVersion, previewNonce, toast]);
+  }, [boot, camera, shoot, video, settings, location, readiness, refreshReadiness, libraryVersion, previewNonce, toast, mediaUrl, frameUrl]);
 
   if (fatal) {
     return (

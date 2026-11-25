@@ -5,6 +5,7 @@ import { FrameSelection } from "./FrameSelection";
 import { enterFullscreen } from "./fullscreen";
 import { GuestHeader, GuestMessage, type Step } from "./guest/parts";
 import { Welcome } from "./guest/Welcome";
+import { GuestLocale, type Language } from "./locale";
 import { Icon } from "./icons";
 import { LeaveDialog } from "./LeaveDialog";
 import { sessionGate, useGate } from "./sessionGate";
@@ -35,6 +36,7 @@ export const IDLE_DONE_MS = 120_000;
 export function Booth({ onExited }: { onExited: () => void }) {
   const { camera, shoot, readiness, settings } = useApp();
   const gate = useGate();
+  const [guestLanguage, setGuestLanguage] = useState<Language>(() => settings.guestLanguage === "vi" ? "vi" : "en");
   const orientation = useOrientation();
   // #booth/photo deep-links into the frame choice (support, screenshots)
   const [screen, setScreen] = useState<Screen>(() => (window.location.hash === "#booth/photo" ? "frames" : "welcome"));
@@ -55,7 +57,7 @@ export function Booth({ onExited }: { onExited: () => void }) {
   const busy = useRef(false);     // one leave/finish at a time
   const starting = useRef(false); // one "choose frame → prepare camera" at a time
 
-  const goWelcome = useCallback(() => { setFrame(null); setScreen("welcome"); }, []);
+  const goWelcome = useCallback(() => { setFrame(null); setScreen("welcome"); setGuestLanguage(settings.guestLanguage === "vi" ? "vi" : "en"); }, [settings.guestLanguage]);
 
   /** Waits until no photo is being taken or saved (a shutter in flight must reach disk), then resets once. */
   const closeSession = useCallback(async (): Promise<boolean> => {
@@ -69,12 +71,12 @@ export function Booth({ onExited }: { onExited: () => void }) {
     busy.current = true; setLeaving(true); setLeaveError("");
     try {
       if (screen === "photo") {
-        if (!(await closeSession())) { setLeaveError("We could not close this session yet. Please try again, or ask the host."); return; }
+        if (!(await closeSession())) { setLeaveError(translate(guestLanguage, "sessionCloseFailed")); return; }
       }
       setConfirmLeave(false);
       goWelcome();
     } finally { busy.current = false; setLeaving(false); }
-  }, [screen, closeSession, goWelcome]);
+  }, [screen, closeSession, goWelcome, guestLanguage]);
 
   const requestHome = () => {
     if (busy.current) return;
@@ -144,34 +146,34 @@ export function Booth({ onExited }: { onExited: () => void }) {
   const hard = (readiness?.items ?? []).filter((i) => i.required && i.state === "problem");
   const onlyASession = hard.length > 0 && hard.every((i) => i.key === "session");
   const blocked = readiness ? !readiness.canStart && !onlyASession : !(camera.device && camera.state !== "error" && !camera.reconnecting);
-  const guestText = readiness && (readiness.status === "setup_required" || readiness.status === "reconnecting") ? readiness.guest : "The photo booth is not ready yet. Please ask the host.";
+  const guestText = translate(guestLanguage, readiness?.status === "reconnecting" ? "guestReconnecting" : "guestNotReady");
   const resetting = gate.phase === "resetting";
   // where the guest is in Frame → Shoot → Review → Done (informational only)
   const step: Step = screen === "frames" ? 1 : st === "REVIEW" || st === "SAVING" ? 3 : st === "COMPLETED" ? 4 : 2;
 
   return (
-    <div className="booth-root" data-orientation={orientation} data-screen={screen} data-state={screen === "photo" ? st : undefined} onPointerDown={() => setTouch((n) => n + 1)}>
+    <GuestLocale language={guestLanguage} operatorLanguage={settings.language}><div className="booth-root" data-orientation={orientation} data-screen={screen} data-state={screen === "photo" ? st : undefined} onPointerDown={() => setTouch((n) => n + 1)}>
       <SimulatedRibbon />
       <div className={`exit-corner ${holding ? "holding" : ""}`} data-testid="exit-corner" onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold} onPointerCancel={endHold} aria-hidden />
-      <button className="exit-btn" onClick={() => setAsking(true)} aria-label="Exit Booth Mode" title="Exit Booth Mode (Esc)">
-        <Icon name="exit" size={18} /> Exit Booth
+      <button className="exit-btn" onClick={() => setAsking(true)} aria-label={translate(guestLanguage, "exitBoothMode")} title={translate(guestLanguage, "exitBoothHint")}>
+        <Icon name="exit" size={18} /> {translate(guestLanguage, "exitBooth")}
       </button>
       {fsError && (
         <div className="note warn fs-note" role="alert">
           <div>Fullscreen is not active: {fsError} Booth Mode keeps working in a window.</div>
-          <button onClick={goFullscreen}>{translate(settings?.language, "retry")}</button>
+          <button onClick={goFullscreen}>{translate(guestLanguage, "retry")}</button>
         </div>
       )}
-      {screen !== "welcome" && <GuestHeader step={step} language={settings?.language} />}
+      {screen !== "welcome" && <GuestHeader step={step} language={guestLanguage} />}
       {screen === "welcome" && (
-        <Welcome language={settings?.language} blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
+        <Welcome onLanguageChange={setGuestLanguage} language={guestLanguage} blocked={blocked} resetting={resetting} guestText={guestText} readiness={readiness} resetFailed={gate.phase === "failed"} resetError={gate.error}
           modeError={modeError} onStart={() => setScreen("frames")} onRetryReset={() => { void sessionGate.reset(); }} />
       )}
       {screen === "frames" && (
         <>
           {modeError && <GuestMessage kind="err">{modeError}</GuestMessage>}
           <FrameSelection variant="booth" busy={preparing} initial={frame ? { id: frame.id, variantId: frame.variantId, caption: frame.caption } : undefined}
-            onConfirm={confirmFrame} onBack={goWelcome} backLabel={translate(settings?.language, "home")} />
+            onConfirm={confirmFrame} onBack={goWelcome} backLabel={translate(guestLanguage, "home")} />
         </>
       )}
       {screen === "photo" && frame && (
@@ -179,13 +181,13 @@ export function Booth({ onExited }: { onExited: () => void }) {
           onDone={finish} />
       )}
       {screen === "photo" && (
-        <button type="button" className="home-btn g-btn g-secondary" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}><Icon name="back" size={24} /><span>{translate(settings?.language, "home")}</span></button>
+        <button type="button" className="home-btn g-btn g-secondary" disabled={leaving || st === "CAPTURING" || st === "SAVING"} onClick={requestHome}><Icon name="back" size={24} /><span>{translate(guestLanguage, "home")}</span></button>
       )}
       {modeDialog}
       {confirmLeave && (
-        <LeaveDialog state={st} taken={shoot.taken.length} busy={leaving} error={leaveError} onKeep={() => setConfirmLeave(false)} onLeave={() => { void leave(); }} />
+        <LeaveDialog language={guestLanguage} state={st} taken={shoot.taken.length} busy={leaving} error={leaveError} onKeep={() => setConfirmLeave(false)} onLeave={() => { void leave(); }} />
       )}
       {asking && <ExitDialog onClose={() => setAsking(false)} onExited={onExited} />}
-    </div>
+    </div></GuestLocale>
   );
 }

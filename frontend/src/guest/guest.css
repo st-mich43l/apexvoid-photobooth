@@ -334,3 +334,5 @@
   .booth-root *, .booth-root *::before, .booth-root *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   .g-confetti { display: none; }
 }
+.booth-root .guest-language { display: inline-flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 14px; }
+.booth-root .guest-language select { width: auto; min-height: 48px; padding: 8px 34px 8px 12px; border-radius: 14px; }

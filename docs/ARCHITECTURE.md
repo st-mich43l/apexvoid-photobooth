@@ -119,3 +119,7 @@ Windows-specific code is confined to `camera/edsdk/dll_windows.go`, `video/proc_
 Operator PIN, GIF/boomerang, filters/effects/green screen, template designer UI, Windows print submission,
 print queue UX, cloud/QR sharing (optional, off by default), macOS/Linux packaging, Canon movie probing on hardware,
 auto-update, code signing.
+
+## Interface language
+
+The operator language is persisted through targeted settings patches. The optional `guestLanguage` setting chooses the default for each Booth session; a guest's welcome-screen choice is transient and scoped to Booth. Both default to English for older configurations. See [UX7_AUDIT.md](UX7_AUDIT.md) for remaining translation and Windows acceptance work.

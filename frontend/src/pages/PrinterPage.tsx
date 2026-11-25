@@ -68,7 +68,7 @@ export function PrinterPage() {
           {!digital && <>
             <Fact label={t("printerWindowsReports")}>{cur ? <StatusPill view={cur.status === "ready" ? "unverified" : "unavailable"} label={cur.status === "ready" ? t("notVerified") : cur.status} /> : <span className="warn-text">{t("printerNotFound")}</span>}</Fact>
             <Fact label={t("paperSize")}>{settings.printPaper || <span className="muted">{t("paperNotSet")}</span>}</Fact>
-            <Fact label={t("testPrint")}>{lastTest ? <>{lastTest.detail || t(jobStatusKey[lastTest.status])} <span className="muted small">{when(lastTest.createdAt)}</span></> : <span className="muted">{t("testNotRequested")}</span>}</Fact>
+            <Fact label={t("testPrint")}>{lastTest ? <>{lastTest.detail || t(jobStatusKey[lastTest.status])} <span className="muted small">{when(lastTest.createdAt, settings.language)}</span></> : <span className="muted">{t("testNotRequested")}</span>}</Fact>
           </>}
         </dl>
         <p className="muted small">{digital ? t("digitalPickPrinter") : !cur ? t("printerRemovedDigital") : cur.status !== "ready" ? t("printerNotReadyDigital") : t("printerReadyCaveat")}</p>
@@ -161,7 +161,7 @@ export function PrinterPage() {
             {jobs.map((j) => (
               <tr key={j.id}>
                 <td><strong>{j.kind === "test" ? t("testPage") : j.mediaId.slice(0, 8)}</strong>{j.parentId && <span className="muted small"> · reprint #{j.attempt - 1}</span>}
-                  <div className="muted small">{when(j.createdAt)}</div></td>
+                  <div className="muted small">{when(j.createdAt, settings.language)}</div></td>
                 <td>{j.printer}<div className="muted small">{j.paperName} · {j.copies}× · {j.orientation}/{j.fit}</div></td>
                 <td><Badge kind={jobKind(j.status)}>{t(jobStatusKey[j.status])}</Badge>{jobActive(j.status) && <span className="spinner tiny" />}
                   <div className="muted small">{j.detail}</div>{j.status === "unknown" && <div className="muted small">{t("unknownPrintHelp")}</div>}</td>

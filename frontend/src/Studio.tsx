@@ -11,6 +11,7 @@ import { Gallery } from "./pages/Gallery";
 import { PhotoPage } from "./pages/PhotoPage";
 import { SettingsPage } from "./pages/Settings";
 import { Frames } from "./pages/Frames";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Icon } from "./icons";
 import { PrinterPage } from "./pages/PrinterPage";
 import { VideoPage } from "./pages/VideoPage";
@@ -24,8 +25,9 @@ const NAV = [...NAV_MAIN, ...NAV_TOOLS];
 
 /** Studio Mode — the operator interface. */
 export function Studio({ onBooth }: { onBooth: () => void }) {
-  const { camera, boot, location } = useApp();
+  const { camera, boot, location, settings } = useApp();
   const { t } = useT();
+  useEffect(() => { document.documentElement.lang = settings.language === "vi" ? "vi" : "en"; }, [settings.language]);
   const [migrateOpen, setMigrateOpen] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenBusy, setFullscreenBusy] = useState(false);
@@ -67,6 +69,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
         <header className="topbar">
           <div className="brand"><span className="logo"><Icon name="camera" size={22} /></span><div><b>ApexVoid</b><small>Photobooth Studio</small></div></div>
           <div className="topbar-actions">
+            <LanguageSwitcher />
             <span className="app-version">{boot.version && (/^\d/.test(boot.version) ? `v${boot.version}` : boot.version)}</span>
             <span className="camera-status">{ok ? <Badge kind={camera.device!.simulated ? "sim" : "ok"}>{camera.device!.simulated ? t("demoCameraBadge") : camera.device!.name}</Badge>
               : camera.reconnecting ? <Badge kind="warn">{t("reconnectingBadge")}</Badge> : <Badge kind="err">{t("noCameraBadge")}</Badge>}</span>

@@ -40,7 +40,7 @@ beforeEach(() => {
   window.location.hash = "";
   h.fullscreen = false;
   h.api.boothReadiness.mockReset().mockResolvedValue({ canStart: true, items: [] });
-  h.S = { camera: { device: { name: "C", simulated: false }, state: "connected", reconnecting: false }, boot: { version: "t" }, location: {}, refreshReadiness: vi.fn() };
+  h.S = { settings: {}, camera: { device: { name: "C", simulated: false }, state: "connected", reconnecting: false }, boot: { version: "t" }, location: {}, refreshReadiness: vi.fn() };
 });
 afterEach(cleanup);
 

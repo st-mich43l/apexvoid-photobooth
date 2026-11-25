@@ -4,6 +4,7 @@ import { api, toAppError } from "./api";
 import { choiceOf, explainFit, filterFrames, fitFor, photoCounts, photosLabel, swatch } from "./frameInfo";
 import { GuestFrames } from "./guest/GuestFrames";
 import { LoadingState, GuestMessage, SecondaryAction } from "./guest/parts";
+import { useLocale } from "./locale";
 import { useApp } from "./state";
 import type { Frame, FrameChoice } from "./types";
 import { useOrientation } from "./useOrientation";
@@ -27,6 +28,7 @@ interface Props {
 /** Frame selection: browse, preview, pick a colour, confirm. Used before the camera starts. */
 export function FrameSelection({ variant, initial, takenPhotos, title, confirmLabel, backLabel, busy, onConfirm, onBack }: Props) {
   const { settings, frameUrl } = useApp();
+  const language = useLocale(settings.language);
   const [frames, setFrames] = useState<Frame[] | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -64,21 +66,21 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
     return (
       <div className="g-screen" data-testid="frame-selection">
         {error && (
-          <GuestMessage kind="err" action={<button type="button" className="g-btn g-secondary" onClick={load}>Try again</button>}>
-            <strong>{translate(settings.language, "frameError")}</strong> {error}
+          <GuestMessage kind="err" action={<button type="button" className="g-btn g-secondary" onClick={load}>{translate(language, "tryAgain")}</button>}>
+            <strong>{translate(language, "frameError")}</strong>
           </GuestMessage>
         )}
-        {!error && !frames && <LoadingState>{translate(settings.language, "loadingFrames")}</LoadingState>}
-        {frames && frames.length === 0 && <GuestMessage kind="warn">{translate(settings.language, "noFrames")}</GuestMessage>}
+        {!error && !frames && <LoadingState>{translate(language, "loadingFrames")}</LoadingState>}
+        {frames && frames.length === 0 && <GuestMessage kind="warn">{translate(language, "noFrames")}</GuestMessage>}
         {!(frames && frames.length > 0) && (
           <div className="g-actions">
-            {onBack && <SecondaryAction icon="back" className="g-back" disabled={busy} onClick={onBack}>{backLabel ?? "Back"}</SecondaryAction>}
+            {onBack && <SecondaryAction icon="back" className="g-back" disabled={busy} onClick={onBack}>{backLabel ?? translate(language, "back")}</SecondaryAction>}
           </div>
         )}
         {frames && frames.length > 0 && (
-          <GuestFrames language={settings.language} frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
+          <GuestFrames language={language} frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
             picked={picked} pickId={pickId} select={select} variantId={variantId} setVariantId={setVariantId} caption={caption} setCaption={setCaption}
-            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? translate(settings.language, "framesTitle")} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
+            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? translate(language, "framesTitle")} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
             confirm={confirm} portrait={portrait}
             thumbUrl={(f) => frameUrl(f.id, "", 420)}
             bigUrl={(f) => frameUrl(f.id, variantId, portrait ? 320 : 720, f.captionEnabled ? caption.trim() : "")} />

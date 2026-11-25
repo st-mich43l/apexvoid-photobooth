@@ -29,3 +29,7 @@ With copies of synthetic libraries, test default and OneDrive-redirected Documen
 ## Endurance targets
 
 Record start/end times, memory, handle count, CPU, failures and recovery observations for 100 simulated sessions, 20 physical Canon sessions, 30 physical prints, repeated device reconnects, an eight-hour idle soak, repeated Booth entry/exit and process/power interruption. These are proposed targets, not measured results. Record actual results in `UX6_HARDWARE_RESULTS.md`.
+
+## UX7 language acceptance
+
+UNVERIFIED: Repeat the desktop and kiosk flows above in English and Vietnamese, switching the operator language with unsaved settings and selecting the guest language separately. Confirm language persistence after restart, reset between guests, keyboard/touch operation, unclipped Vietnamese diacritics and labels, and all three resolutions and scaling levels. Record screenshots and any untranslated application-owned or device-supplied text. Do not mark UX7 complete until the open items in `UX7_AUDIT.md` are resolved.

@@ -7,6 +7,7 @@ import { LeaveDialog } from "./LeaveDialog";
 import { ResultPrint } from "./ResultPrint";
 import { sessionGate } from "./sessionGate";
 import { SourceChip } from "./SourceChip";
+import { useLocale } from "./locale";
 import { useApp } from "./state";
 import { ErrorNote, LivePreview, SimulatedRibbon, useAction } from "./ui";
 import type { FrameChoice } from "./types";
@@ -33,6 +34,7 @@ function useAfter(flag: boolean, ms: number): boolean {
 export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone }:
   { variant: "studio" | "booth"; frame: FrameChoice; onChangeFrame?: (current: FrameChoice) => void; onDone?: () => void }) {
   const { shoot, camera, mediaUrl, frameUrl, toast, settings } = useApp();
+  const language = useLocale(settings?.language);
   const [frame, setFrame] = useState(initialFrame);
   const [changing, setChanging] = useState(false);
   const [composed, setComposed] = useState<{ session: string; mediaId: string } | null>(null);
@@ -109,7 +111,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   const dialogs = (
     <>
       {abandon && (
-        <LeaveDialog state={s.state} taken={s.taken.length} busy={false} confirmLabel="Start over" onKeep={() => setAbandon(false)} onLeave={() => { void startOver(); }} />
+        <LeaveDialog language={language} state={s.state} taken={s.taken.length} busy={false} confirmLabel="Start over" onKeep={() => setAbandon(false)} onLeave={() => { void startOver(); }} />
       )}
       {changing && (
         <div className="design-picker" role="dialog" aria-modal="true" aria-label="Change design">
@@ -123,7 +125,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   if (booth) {
     return (
       <div className="shoot booth g-screen">
-        <GuestShoot language={settings?.language} s={s} camera={camera} frame={frame} countdownSeconds={settings?.countdownSeconds} busy={busy} error={!!error} onClearError={clear} slow={slow}
+        <GuestShoot language={language} s={s} camera={camera} frame={frame} countdownSeconds={settings?.countdownSeconds} busy={busy} error={!!error} onClearError={clear} slow={slow}
           mediaUrl={mediaUrl} frameUrl={frameUrl} resultId={resultId} finishing={finishing}
           print={resultId ? <ResultPrint mediaId={resultId} booth /> : null}
           onStart={() => run(() => api.startShooting(frame.id, frame.variantId, frame.caption))}

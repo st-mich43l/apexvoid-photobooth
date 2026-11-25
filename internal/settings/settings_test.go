@@ -134,3 +134,30 @@ func TestLanguagePersistsAcrossReload(t *testing.T) {
 		t.Fatalf("language was not persisted: %q", reloaded.Get().Language)
 	}
 }
+
+func TestGuestLanguageDefaultsAndPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"language":"vi"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := m.Get()
+	if s.Language != "vi" || s.GuestLanguage != "en" {
+		t.Fatalf("legacy settings: %+v", s)
+	}
+	s.GuestLanguage = "vi"
+	if err := m.Save(s); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := Load(path)
+	if err != nil || reloaded.Get().GuestLanguage != "vi" {
+		t.Fatalf("guest language did not persist: %v", err)
+	}
+	s.GuestLanguage = "fr"
+	if err := m.Save(s); err == nil {
+		t.Fatal("unsupported guest language accepted")
+	}
+}
