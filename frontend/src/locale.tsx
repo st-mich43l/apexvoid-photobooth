@@ -6,6 +6,9 @@ export function useLocale(fallback?: string): Language {
   const selected = useContext(Locale);
   return selected ?? (fallback === "vi" ? "vi" : "en");
 }
+export function OperatorLocale({ language, children }: { language?: string; children: ReactNode }) {
+  return <Locale.Provider value={language === "vi" ? "vi" : "en"}>{children}</Locale.Provider>;
+}
 /** Guest locale is scoped to Booth and never writes the operator preference. */
 export function GuestLocale({ language, operatorLanguage, children }: { language: Language; operatorLanguage?: string; children: ReactNode }) {
   useEffect(() => {

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, toAppError } from "./api";
 import { leaveFullscreen } from "./fullscreen";
-import { exitImpact, safeExit, ExitWindowError } from "./safeExit";
+import { exitImpact, safeExit, ExitWindowError, type ExitProgress } from "./safeExit";
 import { sessionGate } from "./sessionGate";
 import { useLocale } from "./locale";
-import { translate } from "./i18n";
+import { formatTranslation, translate } from "./i18n";
 import { useApp } from "./state";
 import { Modal } from "./ui";
 
@@ -15,7 +15,7 @@ export function ExitDialog({ onClose, onExited, leave = leaveFullscreen }: { onC
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState("");
+  const [step, setStep] = useState<ExitProgress | "">("");
   const [error, setError] = useState("");
   const [windowStuck, setWindowStuck] = useState(false);
 
@@ -39,17 +39,21 @@ export function ExitDialog({ onClose, onExited, leave = leaveFullscreen }: { onC
         stopRecording: () => api.stopRecording(),
         // the same coordinated reset every other way out uses, so Exit during a Finish cannot overlap it
         cancelShooting: async () => { if (!(await sessionGate.reset())) throw new Error("The photo session could not be closed. Try again in a moment."); },
-        leaveFullscreen: leave, onStep: setStep,
+        leaveFullscreen: leave, onProgress: setStep,
       });
       onExited();
     } catch (e) {
       const err = toAppError(e);
-      setError(err.action ? `${err.message} ${err.action}` : err.message);
+      if (err.code === "pin_wrong") setError(t("pinWrong"));
+      else if (err.code === "pin_locked") setError(formatTranslation(language, "pinLocked", { seconds: err.params?.seconds ?? 30 }));
+      else if (err.code === "pin_unavailable") setError(t("pinUnavailable"));
+      else setError(language === "vi" ? t("exitSafeError") : err.action ? `${err.message} ${err.action}` : err.message);
       // the data was saved/cancelled safely; only the window change failed
       if (e instanceof ExitWindowError) setWindowStuck(true);
     } finally { setBusy(false); setStep(""); }
   };
 
+  const stepKeys = { savingVideo: "exitProgressVideoSaving", stoppingVideo: "exitProgressVideoStop", finishingPhoto: "exitProgressPhoto", savingPhotos: "exitProgressPhotosSaving", closingSession: "exitProgressSession", restoringWindow: "exitProgressWindow" } as const;
   const label = impact.recording ? t("stopRecordExit") : t("exitBooth");
   return (
     <Modal title={t("exitTitle")} onClose={busy ? () => {} : onClose}>
@@ -64,7 +68,7 @@ export function ExitDialog({ onClose, onExited, leave = leaveFullscreen }: { onC
               onKeyDown={(e) => { if (e.key === "Enter" && pin.length >= 4 && !busy) go(); }} aria-label={t("operatorPin")} />
           </label>
         )}
-        {step && <p className="muted" role="status">{step}</p>}
+        {step && <p className="muted" role="status">{t(stepKeys[step])}</p>}
         {error && <div className="note err" role="alert"><div>{error}</div></div>}
       </div>
       <footer>

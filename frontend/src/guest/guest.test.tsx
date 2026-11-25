@@ -241,3 +241,9 @@ describe("step indicator", () => {
     expect(document.querySelector("li.now")?.getAttribute("aria-current")).toBe("step");
   });
 });
+
+it("renders safe localized capture warnings without diagnostic paths", () => {
+  render(<GuestShoot {...G(snap("COMPLETED", { warning: "disk failure C:\\private\\photos", warningCode: "composition_failed" }), { language: "vi" })} />);
+  expect(screen.getByText(/Ảnh đã được lưu nhưng chưa thể tạo dải ảnh/)).toBeTruthy();
+  expect(document.body.textContent).not.toContain("C:\\private");
+});

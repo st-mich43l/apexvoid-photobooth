@@ -34,7 +34,7 @@ export type ShootStateName = "IDLE" | "PREVIEW" | "COUNTDOWN" | "CAPTURING" | "R
 export interface Shot { slot: number; mediaId: string; simulated: boolean }
 export interface ShootSnapshot {
   state: ShootStateName; version: number; sessionId: string; shots: number; slot: number; remaining: number;
-  taken: Shot[]; error?: string; errorAction?: string; warning?: string; simulated: boolean; resultId?: string;
+  taken: Shot[]; error?: string; errorAction?: string; warning?: string; warningCode?: string; simulated: boolean; resultId?: string;
 }
 
 export interface VideoState {
@@ -117,7 +117,7 @@ export interface AssetInfo { name: string; format: string; width: number; height
 export interface FramesResult { frames: Frame[]; categories: string[]; errors: string[]; dir: string; default: string }
 /** What the guest picked: stays with the session from the first shot to the printed result. */
 export interface FrameChoice {
-  id: string; name: string; variantId: string; caption: string; photos: number; format: string;
+  id: string; name: string; builtin?: boolean; variantId: string; caption: string; photos: number; format: string;
   /** Slot geometry used to frame each guest capture like the saved composition. */
   photoSlots?: Array<{ photo: number; w: number; h: number; focusX?: number; focusY?: number }>;
 }
@@ -140,7 +140,7 @@ export interface PrintPreview {
 }
 
 export type CheckState = "ok" | "problem" | "warn" | "info";
-export interface Check { name: string; ok: boolean; detail: string; action?: string; state: CheckState; blocksGuests: boolean; scope: string }
+export interface Check { code?: string; name: string; ok: boolean; detail: string; action?: string; state: CheckState; blocksGuests: boolean; scope: string }
 export interface Diagnostics {
   platform: string; checks: Check[]; drivers: DriverStatus[]; conflicts: string[]; library: LibrarySummary;
   logDir: string; network: string; movieFindings: string[];
@@ -160,7 +160,7 @@ export interface CanonStatus {
     counters?: { captures: number; lateTransfers: number; invalidTransfers: number; lastFile?: string } };
   items: Readiness[];
   recommendation?: string;
-  guide: string[];
+  guide: string[]; guideCodes?: string[];
   verification: string;
 }
 

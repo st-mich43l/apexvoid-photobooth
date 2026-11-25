@@ -33,3 +33,12 @@ it("has no duplicate keys across dictionary domains", async () => {
   const keys = translationDomains.flatMap(Object.keys);
   expect(keys.filter((key, i) => keys.indexOf(key) !== i)).toEqual([]);
 });
+
+it("translates only built-in frame and colour names without changing stored custom names", async () => {
+  const { frameDisplayName, variantDisplayName } = await import("./frameInfo");
+  const variant = { id: "white", name: "White" };
+  expect(frameDisplayName({ id: "plain.strip4", name: "Plain", builtin: true }, "vi")).toBe("Đơn giản");
+  expect(frameDisplayName({ id: "custom.1", name: "Plain", builtin: false }, "vi")).toBe("Plain");
+  expect(variantDisplayName({ builtin: true }, variant, "vi")).toBe("Trắng");
+  expect(variantDisplayName({ builtin: false }, variant, "vi")).toBe("White");
+});

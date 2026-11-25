@@ -254,7 +254,7 @@ func TestInterruptedCompositionKeepsPhotosAndCanBeRecomposed(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := finish(t, s)
-	if done.ResultID != "" || done.Warning == "" {
+	if done.ResultID != "" || done.Warning == "" || done.WarningCode != "composition_failed" {
 		t.Fatalf("a failed composition must warn and leave no half-made image: %+v", done)
 	}
 	if n, _ := s.countPhotos(sn.SessionID); n != 4 {

@@ -79,6 +79,7 @@ type Snapshot struct {
 	Error       string `json:"error,omitempty"`
 	ErrorAction string `json:"errorAction,omitempty"`
 	Warning     string `json:"warning,omitempty"` // non-fatal, e.g. a failed retake (old photo kept)
+	WarningCode string `json:"warningCode,omitempty"`
 	Simulated   bool   `json:"simulated"`
 	ResultID    string `json:"resultId,omitempty"` // composed strip, if the finalizer produced one
 }
@@ -187,7 +188,10 @@ func (e *Engine) StartPreview(ctx context.Context) error {
 		return nil
 	}
 	e.mu.Unlock()
-	e.update(func(s *Snapshot) { s.State = Preview; s.Error, s.ErrorAction, s.Warning = "", "", "" })
+	e.update(func(s *Snapshot) {
+		s.State = Preview
+		s.Error, s.ErrorAction, s.Warning, s.WarningCode = "", "", "", ""
+	})
 	return nil
 }
 
@@ -273,6 +277,7 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 			if replace != "" { // failed retake: keep the old photo, back to review
 				e.update(func(s *Snapshot) {
 					s.State = Review
+					s.WarningCode = "retake_failed"
 					s.Warning = "Retake failed: " + err.Error() + " The previous photo was kept."
 				})
 				return
@@ -310,7 +315,7 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 	}
 	e.update(func(s *Snapshot) {
 		if e.gen == gen {
-			s.State, s.Remaining, s.Warning = Review, 0, ""
+			s.State, s.Remaining, s.Warning, s.WarningCode = Review, 0, "", ""
 		}
 	})
 }
@@ -365,6 +370,7 @@ func (e *Engine) awaitCamera(ctx context.Context, gen uint64) bool {
 	e.update(func(s *Snapshot) {
 		if e.gen == gen {
 			s.State, s.Remaining = Capturing, 0
+			s.WarningCode = "camera_reconnecting"
 			s.Warning = "The camera was disconnected. Waiting for it to reconnect - your photos and frame are kept."
 		}
 	})
@@ -387,7 +393,7 @@ func (e *Engine) awaitCamera(ctx context.Context, gen uint64) bool {
 		if err == nil {
 			e.update(func(s *Snapshot) {
 				if e.gen == gen {
-					s.Warning = ""
+					s.Warning, s.WarningCode = "", ""
 				}
 			})
 			return true
@@ -442,7 +448,9 @@ func (e *Engine) Retake(slot int) error {
 	e.stop, e.done = cancel, make(chan struct{})
 	done := e.done
 	e.mu.Unlock()
-	e.update(func(s *Snapshot) { s.State, s.Slot, s.Remaining, s.Warning = Countdown, slot, cfg.Countdown, "" })
+	e.update(func(s *Snapshot) {
+		s.State, s.Slot, s.Remaining, s.Warning, s.WarningCode = Countdown, slot, cfg.Countdown, "", ""
+	})
 	go func() {
 		defer close(done)
 		e.runShots(ctx, gen, sid, slot, 1, old)
@@ -476,6 +484,7 @@ func (e *Engine) Accept() error {
 		_ = e.o.Store.SetStatus(sid, sessions.StatusCompleted, "finalize: "+ferr.Error())
 		e.update(func(s *Snapshot) {
 			s.State = Completed
+			s.WarningCode = "composition_failed"
 			s.Warning = "Photos saved, but the strip could not be created: " + ferr.Error()
 		})
 		return nil

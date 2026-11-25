@@ -107,14 +107,15 @@ func main() {
 	barColour, textColour, borderColour := uint32(0x001a0b0f), uint32(0x00faeff3), uint32(0x0050242f)
 	windowTheme := &application.WindowTheme{TitleBarColour: &barColour, TitleTextColour: &textColour, BorderColour: &borderColour}
 	wapp.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             "main",
-		Title:            "ApexVoid Photobooth",
-		Width:            1360,
-		Height:           860,
-		StartState:       application.WindowStateMaximised,
-		Windows:          application.WindowsWindow{Theme: application.Dark, CustomTheme: application.ThemeSettings{DarkModeActive: windowTheme, DarkModeInactive: windowTheme}},
-		MinWidth:         900,
-		MinHeight:        620,
+		Name:       "main",
+		Title:      "ApexVoid Photobooth",
+		Width:      1360,
+		Height:     860,
+		StartState: application.WindowStateMaximised,
+		Windows:    application.WindowsWindow{Theme: application.Dark, CustomTheme: application.ThemeSettings{DarkModeActive: windowTheme, DarkModeInactive: windowTheme}},
+		// Keep the window usable at 200% scaling on compact 1366×768 displays.
+		MinWidth:         640,
+		MinHeight:        360,
 		BackgroundColour: application.NewRGB(15, 11, 26),
 		URL:              "/",
 	})

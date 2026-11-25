@@ -38,12 +38,12 @@ export function Welcome(p: WelcomeProps) {
         <h1 className="g-rise r2">{t("welcomeTitle")}</h1>
         <p className="g-sub g-rise r3">{sub}</p>
         {p.blocked && (
-          <GuestMessage kind="warn" hint={p.readiness ? `Host: ${p.readiness.status === "attention" ? "Operator attention required" : p.readiness.headline}` : undefined}>
+          <GuestMessage kind="warn" hint={p.readiness ? t(p.readiness.status === "reconnecting" ? "hostReconnect" : p.readiness.status === "attention" ? "hostAttention" : "hostSetup") : undefined}>
             {p.guestText}
           </GuestMessage>
         )}
         {p.resetFailed && !p.resetting && (
-          <GuestMessage kind="warn" role="alert" hint={`Host: ${p.resetError}`} action={<button type="button" className="g-btn g-secondary" onClick={p.onRetryReset}>{t("tryAgain")}</button>}>
+          <GuestMessage kind="warn" role="alert" hint={t("hostRecovery")} action={<button type="button" className="g-btn g-secondary" onClick={p.onRetryReset}>{t("tryAgain")}</button>}>
             {t("tidy")}
           </GuestMessage>
         )}

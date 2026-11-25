@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Window } from "@wailsio/runtime";
 import { enterFullscreen, leaveFullscreen } from "./fullscreen";
 import { useApp, useT } from "./state";
-import { Badge } from "./ui";
+import { Badge, LocalizedDiagnostic } from "./ui";
 import { MigrationDialog } from "./MigrationDialog";
 import { CameraPage } from "./pages/CameraPage";
 import { Dashboard } from "./pages/Dashboard";
@@ -78,7 +78,7 @@ export function Studio({ onBooth }: { onBooth: () => void }) {
           </div>
         </header>
         {fullscreenError && <div className="note warn banner" role="alert">{t("fullscreenFailed")}</div>}
-        {location.warning && <div className="note warn banner" role="alert"><div>{location.warning}</div></div>}
+        {location.warning && <div className="note warn banner" role="alert"><div><LocalizedDiagnostic text={location.warning} summary="storageWarning" /></div></div>}
         {location.restartRequired && <div className="note warn banner" role="alert"><div><strong>{t("restartRequiredBanner")}</strong> {t("libraryCopiedTo")} {location.defaultPath}. {t("closeReopenCapturePaused")}</div></div>}
         {location.migrationPending && !migrateOpen && <div className="note warn banner"><div>{t("libraryStillOld")}</div><button onClick={() => setMigrateOpen(true)}>{t("moveToDocuments")}</button></div>}
         {page === "dashboard" && <Dashboard go={go} />}

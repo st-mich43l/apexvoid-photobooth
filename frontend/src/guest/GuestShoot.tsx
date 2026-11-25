@@ -1,6 +1,6 @@
 import { formatTranslation, photoCount, translate } from "../i18n";
+import { frameDisplayName } from "../frameInfo";
 import { useState, type ReactNode } from "react";
-import { photosLabel } from "../frameInfo";
 import { Icon } from "../icons";
 import type { CameraStatus, FrameChoice, ShootSnapshot } from "../types";
 import { LivePreview } from "../ui";
@@ -11,7 +11,7 @@ export function PhotoSteps({ total, taken, current, retaking, language }: { tota
   const n = current != null ? current + 1 : Math.min(taken, total);
   const text = current != null ? (retaking ? formatTranslation(language, "retakingPhoto", { current: n }) : formatTranslation(language, "photoOf", { current: n, total })) : formatTranslation(language, "photosOf", { current: Math.min(taken, total), total });
   return (
-    <div className="steps" role="progressbar" aria-label="Photo progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={n}>
+    <div className="steps" role="progressbar" aria-label={translate(language, "photoProgress")} aria-valuemin={0} aria-valuemax={total} aria-valuenow={n}>
       <ol>{Array.from({ length: total }, (_, i) => <li key={i} className={current === i ? "now" : i < taken ? "done" : ""} aria-hidden="true" />)}</ol>
       <span>{text}</span>
     </div>
@@ -35,7 +35,7 @@ function PhotoTile({ slot, src, disabled, onRetake, language }: { slot: number; 
     <figure className="g-photo">
       <div className="g-photo-cell">
         <div className="g-photo-img" style={{ ["--ar" as string]: ar }}>
-          <img src={src} alt={`Photo ${slot + 1}`} decoding="async" draggable={false}
+          <img src={src} alt={formatTranslation(language, "photoNumber", { number: slot + 1 })} decoding="async" draggable={false}
             onLoad={(e) => { const i = e.currentTarget; if (i.naturalWidth && i.naturalHeight) setAr(i.naturalWidth / i.naturalHeight); }} />
           <span className="g-photo-num" aria-hidden="true">{slot + 1}</span>
         </div>
@@ -51,9 +51,9 @@ function PhotoTile({ slot, src, disabled, onRetake, language }: { slot: number; 
 function FrameChip({ frame, frameUrl, onChange, busy, language }: { frame: FrameChoice; frameUrl: GuestShootProps["frameUrl"]; onChange?: () => void; busy?: boolean; language?: string }) {
   return (
     <div className="g-chip-frame">
-      <figure aria-label={`Frame: ${frame.name}`}>
+      <figure aria-label={formatTranslation(language, "frameNamed", { name: frameDisplayName(frame, language) })}>
         <img src={frameUrl(frame.id, frame.variantId, 240, frame.caption)} alt="" decoding="async" draggable={false} />
-        <figcaption><b>{frame.name}</b><LayoutBadge format={frame.format} /><small>{photosLabel(frame.photos)}</small></figcaption>
+        <figcaption><b>{frameDisplayName(frame, language)}</b><LayoutBadge format={frame.format} language={language} /><small>{photoCount(language, frame.photos)}</small></figcaption>
       </figure>
       {onChange && <SecondaryAction icon="swap" className="g-small" disabled={busy} onClick={onChange}>{translate(language, "changeFrame")}</SecondaryAction>}
     </div>
@@ -64,6 +64,7 @@ function FrameChip({ frame, frameUrl, onChange, busy, language }: { frame: Frame
 export function GuestShoot(p: GuestShootProps) {
   const { s, camera, frame } = p;
   const t = (key: Parameters<typeof translate>[1]) => translate(p.language, key);
+  const warningKey = s.warningCode === "retake_failed" ? "warningRetake" : s.warningCode === "camera_reconnecting" ? "warningReconnect" : s.warningCode === "composition_failed" ? "warningComposition" : "warningGeneric";
   const live = s.state === "PREVIEW" || s.state === "COUNTDOWN" || s.state === "CAPTURING";
   const shotSlot = frame.photoSlots?.find((slot) => slot.photo === s.slot && slot.w > 0 && slot.h > 0);
   // Go's compositor treats a zero focus coordinate as the default center.
@@ -84,7 +85,7 @@ export function GuestShoot(p: GuestShootProps) {
           <div><strong>{t("reconnecting")}</strong><span>{t("safePhotos")}{p.slow ? t("slowReconnect") : ""}</span></div>
         </div>
       )}
-      {p.error && <GuestMessage kind="warn" role="alert" action={<button type="button" className="g-btn g-secondary g-small" onClick={p.onClearError}>OK</button>}>{t("errorGuest")}</GuestMessage>}
+      {p.error && <GuestMessage kind="warn" role="alert" action={<button type="button" className="g-btn g-secondary g-small" onClick={p.onClearError}>{t("ok")}</button>}>{t("errorGuest")}</GuestMessage>}
       {!camera.device && !camera.reconnecting && <GuestMessage kind="warn">{t("cameraNotReady")}</GuestMessage>}
 
       {live && (
@@ -92,7 +93,7 @@ export function GuestShoot(p: GuestShootProps) {
           <div className="g-stage-wrap">
             <div className="g-stage">
               {shotSlot ? (
-                <div className="g-shot-target" style={{ ["--shot-ar" as string]: shotSlot.w / shotSlot.h }} aria-label="Camera framing guide">
+                <div className="g-shot-target" style={{ ["--shot-ar" as string]: shotSlot.w / shotSlot.h }} aria-label={t("framingGuide")}>
                   <LivePreview className="g-live" fit="cover" objectPosition={`${focusX * 100}% ${focusY * 100}%`} />
                 </div>
               ) : <LivePreview className="g-live" />}
@@ -132,7 +133,7 @@ export function GuestShoot(p: GuestShootProps) {
       {s.state === "REVIEW" && (
         <>
           <div className="g-review">
-            {s.warning && <GuestMessage kind="warn">{s.warning}</GuestMessage>}
+            {s.warning && <GuestMessage kind="warn">{t(warningKey)}</GuestMessage>}
             <div className="g-review-head">
               <div><h2>{t("reviewHeading")}</h2><p>{t("reviewHint")}</p></div>
               <div className="g-review-frame">
@@ -163,14 +164,14 @@ export function GuestShoot(p: GuestShootProps) {
             <div className="g-result-media">
               <div className="g-confetti" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ ["--i" as string]: i }} />)}</div>
               {p.resultId
-                ? <Fit className="g-paper" src={p.mediaUrl(p.resultId, "preview")} alt="Your photo strip" />
+                ? <Fit className="g-paper" src={p.mediaUrl(p.resultId, "preview")} alt={t("photoStripAlt")} />
                 : <div className="g-photos loose" style={grid}>{ordered.map((t) => <img key={t.mediaId} src={p.mediaUrl(t.mediaId, "preview")} alt="" />)}</div>}
             </div>
             <div className="g-result-side">
               <span className="g-done-badge" aria-hidden="true"><Icon name="check" size={34} /></span>
               <h2>{t("allDone")}</h2>
               <p>{t("photosReady")}</p>
-              {s.warning && <GuestMessage kind="warn">{s.warning}</GuestMessage>}
+              {s.warning && <GuestMessage kind="warn">{t(warningKey)}</GuestMessage>}
               <div className="g-result-tools">
                 {p.print}
                 <SecondaryAction icon="swap" disabled={p.busy || p.finishing} onClick={p.onChangeDesign}>{t("changeDesign")}</SecondaryAction>

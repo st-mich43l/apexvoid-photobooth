@@ -3,6 +3,87 @@ import type { Frame, FrameChoice, Variant } from "./types";
 
 export const photosLabel = (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`;
 
+const builtinFrameKeys: Record<string, TranslationKey> = {
+  'white-minimal': 'builtinFrameWhiteMinimal',
+  'black-minimal': 'builtinFrameBlackMinimal',
+  'clean-border': 'builtinFrameCleanBorder',
+  'soft-gray': 'builtinFrameSoftGray',
+  'rose-pink': 'builtinFrameRosePink',
+  'lavender': 'builtinFrameLavender',
+  'cream-beige': 'builtinFrameCreamBeige',
+  'sky-blue': 'builtinFrameSkyBlue',
+  'film-strip': 'builtinFrameFilmStrip',
+  'vintage-camera': 'builtinFrameVintageCamera',
+  'polaroid': 'builtinFramePolaroid',
+  'monochrome-film': 'builtinFrameMonochromeFilm',
+  'floral': 'builtinFrameFloral',
+  'birthday': 'builtinFrameBirthday',
+  'couple': 'builtinFrameCouple',
+  'seasonal': 'builtinFrameSeasonal',
+  'plain': 'builtinFramePlain',
+};
+const builtinColorKeys: Record<string, TranslationKey> = {
+  'Amber': 'builtinColorAmber',
+  'Autumn': 'builtinColorAutumn',
+  'Baby Blue': 'builtinColorBabyBlue',
+  'Black': 'builtinColorBlack',
+  'Blossom': 'builtinColorBlossom',
+  'Blue': 'builtinColorBlue',
+  'Blue Night': 'builtinColorBlueNight',
+  'Blue Party': 'builtinColorBlueParty',
+  'Blush': 'builtinColorBlush',
+  'Charcoal': 'builtinColorCharcoal',
+  'Classic': 'builtinColorClassic',
+  'Cool Gray': 'builtinColorCoolGray',
+  'Coral': 'builtinColorCoral',
+  'Cream': 'builtinColorCream',
+  'Graphite': 'builtinColorGraphite',
+  'Soft Gray': 'builtinColorSoftGray',
+  'Ink': 'builtinColorInk',
+  'Ivory': 'builtinColorIvory',
+  'Kraft': 'builtinColorKraft',
+  'Latte': 'builtinColorLatte',
+  'Lavender': 'builtinColorLavender',
+  'Lilac': 'builtinColorLilac',
+  'Lilac Bloom': 'builtinColorLilacBloom',
+  'Mint': 'builtinColorMint',
+  'Mint Party': 'builtinColorMintParty',
+  'Mist': 'builtinColorMist',
+  'Navy': 'builtinColorNavy',
+  'Night': 'builtinColorNight',
+  'Oat': 'builtinColorOat',
+  'Ocean': 'builtinColorOcean',
+  'Olive': 'builtinColorOlive',
+  'Paper': 'builtinColorPaper',
+  'Party': 'builtinColorParty',
+  'Peach': 'builtinColorPeach',
+  'Rose': 'builtinColorRose',
+  'Sepia': 'builtinColorSepia',
+  'Sky': 'builtinColorSky',
+  'Spring': 'builtinColorSpring',
+  'Stone': 'builtinColorStone',
+  'Summer': 'builtinColorSummer',
+  'Sunflower': 'builtinColorSunflower',
+  'Violet': 'builtinColorViolet',
+  'Warm Gray': 'builtinColorWarmGray',
+  'White': 'builtinColorWhite',
+  'Wine': 'builtinColorWine',
+  'Winter': 'builtinColorWinter',
+};
+/** Translate only catalog-owned names; custom frame and variant names stay untouched. */
+export function frameDisplayName(frame: { id: string; name: string; builtin?: boolean }, language?: string): string {
+  const key = language === "vi" && frame.builtin ? builtinFrameKeys[frame.id.split(".")[0]] : undefined;
+  return key ? translate(language, key) : frame.name;
+}
+export function variantDisplayName(frame: { builtin?: boolean }, variant: Variant, language?: string): string {
+  const key = language === "vi" && frame.builtin ? builtinColorKeys[variant.name] : undefined;
+  return key ? translate(language, key) : variant.name;
+}
+export function layoutLabel(format: string, language?: string): string {
+  if (language !== "vi") return format;
+  return format.replace(/ strip$/, ` ${translate(language, "layoutStrip")}`).replace(/ sheet$/, ` ${translate(language, "layoutSheet")}`);
+}
+
 /** Colour shown for a variant button. */
 export const swatch = (v: Variant, f: Frame): string => v.background || v.accent || f.background;
 
@@ -42,5 +123,5 @@ export function explainFit(f: Fit, name: string, language?: string): string {
 }
 
 export const choiceOf = (f: Frame, variantId: string, caption: string): FrameChoice =>
-  ({ id: f.id, name: f.name, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format,
+  ({ id: f.id, name: f.name, builtin: f.builtin, variantId, caption: f.captionEnabled ? caption.trim() : "", photos: f.photos, format: f.format,
     photoSlots: f.slots.map(({ photo, w, h, focusX, focusY }) => ({ photo, w, h, focusX, focusY })) });

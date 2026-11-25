@@ -1,6 +1,6 @@
 import { formatTranslation, photoCount, translate } from "../i18n";
 import { useEffect, useRef, useState } from "react";
-import { fitFor, explainFit, categoryLabel, photoCounts, swatch, type Fit } from "../frameInfo";
+import { fitFor, explainFit, categoryLabel, frameDisplayName, variantDisplayName, photoCounts, swatch, type Fit } from "../frameInfo";
 import { Icon } from "../icons";
 import type { Frame } from "../types";
 import { FrameThumb, Fit as FitImage, LayoutBadge, PhotoDots, PrimaryAction, SecondaryAction } from "./parts";
@@ -41,7 +41,7 @@ export function GuestFrames(p: GuestFramesProps) {
   return (
     <div className="g-frames" data-typing={typing ? "true" : "false"}>
       <div className="g-frames-main">
-        <section className="g-gallery" aria-label="Frames">
+        <section className="g-gallery" aria-label={t("frames")}>
           <div className="g-titlebar">
             <h1>{p.title}</h1>
             <p>{t("tapDesign")}</p>
@@ -64,10 +64,10 @@ export function GuestFrames(p: GuestFramesProps) {
           <div className={`g-scroll ${scroller.more ? "more" : ""}`}>
             <div ref={scroller.ref} className="g-scroll-area" onScroll={scroller.onScroll}>
               {p.shown.length === 0 && <p className="g-empty">{t("noFramesMatch")}</p>}
-              <div className="g-grid" role="radiogroup" aria-label="Frames">
+              <div className="g-grid" role="radiogroup" aria-label={t("frames")}>
                 {p.shown.map((f) => {
                   const mis = fitFor(f, p.takenPhotos).kind !== "ok";
-                  return <FrameThumb key={f.id} frame={f} src={p.thumbUrl(f)} selected={f.id === p.pickId} mismatch={mis} note={formatTranslation(p.language, "needsPhotos", { count: f.photos })} onSelect={() => p.select(f)} />;
+                  return <FrameThumb language={p.language} key={f.id} frame={f} src={p.thumbUrl(f)} selected={f.id === p.pickId} mismatch={mis} note={formatTranslation(p.language, "needsPhotos", { count: f.photos })} onSelect={() => p.select(f)} />;
                 })}
               </div>
             </div>
@@ -78,23 +78,23 @@ export function GuestFrames(p: GuestFramesProps) {
         <aside className="g-detail" aria-label={t("selectedFrame")}>
           {picked ? (
             <>
-              <FitImage className="g-detail-img" src={p.bigUrl(picked)} alt={formatTranslation(p.language, "framePreview", { name: picked.name })} />
+              <FitImage className="g-detail-img" src={p.bigUrl(picked)} alt={formatTranslation(p.language, "framePreview", { name: frameDisplayName(picked, p.language) })} />
               <div className="g-detail-info">
-                <h2>{picked.name}</h2>
-                <p className="g-detail-meta"><LayoutBadge format={picked.format} /><PhotoDots n={picked.photos} /><span>{photoCount(p.language, picked.photos)}</span></p>
+                <h2>{frameDisplayName(picked, p.language)}</h2>
+                <p className="g-detail-meta"><LayoutBadge language={p.language} format={picked.format} /><PhotoDots n={picked.photos} /><span>{photoCount(p.language, picked.photos)}</span></p>
                 {variants.length > 1 && (
                   <div className="g-colors">
                     <div className="g-swatches" role="radiogroup" aria-label={t("chooseColor")}>
                       {variants.map((v, i) => {
                         const on = p.variantId === v.id || (!p.variantId && i === 0);
                         return (
-                          <button key={v.id} type="button" role="radio" aria-checked={on} aria-label={v.name} title={v.name} className={`g-swatch ${on ? "on" : ""}`}
+                          <button key={v.id} type="button" role="radio" aria-checked={on} aria-label={variantDisplayName(picked, v, p.language)} title={variantDisplayName(picked, v, p.language)} className={`g-swatch ${on ? "on" : ""}`}
                             style={{ background: i === 0 ? picked.background : swatch(v, picked) }} onClick={() => p.setVariantId(i === 0 ? "" : v.id)}>
                           </button>
                         );
                       })}
                     </div>
-                    <span className="g-swatch-name">{activeVariant?.name}</span>
+                    <span className="g-swatch-name">{activeVariant && variantDisplayName(picked, activeVariant, p.language)}</span>
                   </div>
                 )}
                 {picked.captionEnabled && (
@@ -106,7 +106,7 @@ export function GuestFrames(p: GuestFramesProps) {
                       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
                   </label>
                 )}
-                {p.fit.kind !== "ok" && <div className="g-message warn" role="status"><div className="g-message-body"><div>{explainFit(p.fit, picked.name, p.language)}</div></div></div>}
+                {p.fit.kind !== "ok" && <div className="g-message warn" role="status"><div className="g-message-body"><div>{explainFit(p.fit, frameDisplayName(picked, p.language), p.language)}</div></div></div>}
               </div>
             </>
           ) : <p className="g-empty">{t("selectFrame")}</p>}

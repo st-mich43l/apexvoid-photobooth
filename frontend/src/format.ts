@@ -1,9 +1,11 @@
-export function bytes(n: number): string {
-  if (n < 0) return "unknown";
+import { translate } from "./i18n";
+
+export function bytes(n: number, language?: string): string {
+  if (n < 0) return translate(language, "unknown");
   const u = ["B", "KB", "MB", "GB", "TB"];
   let i = 0, v = n;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+  return `${new Intl.NumberFormat(language === "vi" ? "vi-VN" : "en-US", { minimumFractionDigits: i === 0 ? 0 : 1, maximumFractionDigits: i === 0 ? 0 : 1 }).format(v)} ${u[i]}`;
 }
 export function clock(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));

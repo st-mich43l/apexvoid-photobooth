@@ -101,6 +101,49 @@ func (s *Service) SetKioskPin(current, next string) error {
 	return nil
 }
 
+// PinFailure preserves the original diagnostic message while exposing a stable
+// machine-readable reason to the structured verification endpoint.
+type PinFailure struct {
+	Code        string
+	WaitSeconds int
+	Message     string
+}
+
+func (e *PinFailure) Error() string { return e.Message }
+
+type PinVerification struct {
+	OK           bool   `json:"ok"`
+	Code         string `json:"code,omitempty"`
+	RetrySeconds int    `json:"retrySeconds,omitempty"`
+	Diagnostic   string `json:"diagnostic,omitempty"`
+}
+
+// VerifyKioskPinDetailed keeps the legacy VerifyKioskPin contract intact while
+// returning a structured result over Wails, which serializes Go errors as text.
+func (s *Service) VerifyKioskPinDetailed(pin string) PinVerification {
+	err := s.VerifyKioskPin(pin)
+	if err == nil {
+		return PinVerification{OK: true}
+	}
+	if failure, ok := err.(*PinFailure); ok {
+		return PinVerification{Code: failure.Code, RetrySeconds: failure.WaitSeconds}
+	}
+	return PinVerification{Code: "pin_unavailable"}
+}
+
+// SetKioskPinDetailed preserves the old method while returning machine-readable
+// verification failures across the Wails boundary.
+func (s *Service) SetKioskPinDetailed(current, next string) PinVerification {
+	err := s.SetKioskPin(current, next)
+	if err == nil {
+		return PinVerification{OK: true}
+	}
+	if failure, ok := err.(*PinFailure); ok {
+		return PinVerification{Code: failure.Code, RetrySeconds: failure.WaitSeconds}
+	}
+	return PinVerification{Code: "pin_setting_failed", Diagnostic: err.Error()}
+}
+
 const (
 	pinMaxFails = 5
 	pinLockout  = 30 * time.Second
@@ -112,7 +155,7 @@ func (s *Service) VerifyKioskPin(pin string) error {
 	s.pinMu.Lock()
 	defer s.pinMu.Unlock()
 	if wait := time.Until(s.pinLockedUntil); wait > 0 {
-		return newUserErr(fmt.Sprintf("Too many wrong PINs. Try again in %d seconds.", int(wait.Seconds())+1), "")
+		return &PinFailure{Code: "pin_locked", WaitSeconds: int(wait.Seconds()) + 1, Message: fmt.Sprintf("Too many wrong PINs. Try again in %d seconds.", int(wait.Seconds())+1)}
 	}
 	rec := s.settings.Get().KioskPin
 	if rec == "" {
@@ -125,9 +168,9 @@ func (s *Service) VerifyKioskPin(pin string) error {
 	s.pinFails++
 	if s.pinFails >= pinMaxFails {
 		s.pinFails, s.pinLockedUntil = 0, time.Now().Add(pinLockout)
-		return newUserErr("Too many wrong PINs. Locked for 30 seconds.", "")
+		return &PinFailure{Code: "pin_locked", WaitSeconds: 30, Message: "Too many wrong PINs. Locked for 30 seconds."}
 	}
-	return newUserErr("Wrong PIN.", "")
+	return &PinFailure{Code: "pin_wrong", Message: "Wrong PIN."}
 }
 
 // guardWrite stops operations that would write to the library while it is
