@@ -244,7 +244,7 @@ test.describe("download", () => {
     await expect(page.locator('main a[href*="/downloads/releases/"]')).toHaveCount(0);
     await serveManifest(page, manifest("manifest-valid.json"));
     await panel(page).getByRole("button", { name: "Try again" }).click();
-    await expect(panel(page)).toHaveAttribute("data-state", "available");
+    await expect(page.locator("[data-download-panel]")).toHaveAttribute("data-state", "available");
   });
 
   for (const [label, body] of [
