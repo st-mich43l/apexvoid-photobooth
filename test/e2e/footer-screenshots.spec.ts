@@ -53,10 +53,10 @@ test.describe("footer behavior", () => {
     await page.goto("/download/");
     const footer = page.locator("footer");
     await footer.locator('[data-locale-link="vi"]').click();
-    await expect(page).toHaveURL(/\\/vi\\/download\\/$/);
+    await expect(page).toHaveURL(new RegExp("/vi/download/$"));
     await expect(page.locator("html")).toHaveAttribute("lang", "vi");
     await page.locator("footer [data-locale-link=\"en\"]").click();
-    await expect(page).toHaveURL(/\\/download\\/$/);
+    await expect(page).toHaveURL(new RegExp("/download/$"));
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
 });
