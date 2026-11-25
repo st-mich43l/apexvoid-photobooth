@@ -1,21 +1,84 @@
 ---
-import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
 import CircleDashed from "@lucide/astro/icons/circle-dashed";
-import { useDict, formatDate, type Locale } from "../../i18n";
-import { sortReleases, type Release } from "../../lib/releases";
+import LoaderCircle from "@lucide/astro/icons/loader-circle";
+import CloudOff from "@lucide/astro/icons/cloud-off";
+import TriangleAlert from "@lucide/astro/icons/triangle-exclamation-point";
+import RotateCw from "@lucide/astro/icons/rotate-cw";
+import { useDict, type Locale } from "../../i18n";
+import { MANIFEST_URL } from "../../lib/releases";
 
+/** Every published release, newest first, from /downloads/index.json at runtime (src/lib/client/downloads.ts). */
 interface Props {
   locale: Locale;
-  releases: Release[];
 }
-const { locale, releases } = Astro.props;
+const { locale } = Astro.props;
 const all = useDict(locale);
 const t = all.releases;
-const list = sortReleases(releases);
+const d = all.download;
 ---
 
-{list.length === 0 ? (
-  <div class="panel flex flex-col gap-5 p-7 sm:flex-row sm:p-10" data-releases-state="empty">
+<div data-release-list data-state="loading" aria-live="polite" aria-busy="true">
+  <noscript>
+    <style>
+      [data-release-list] [data-when="loading"] {
+        display: none;
+      }
+    </style>
+    <p class="text-muted">
+      {d.noscript}
+      <a class="link" href={MANIFEST_URL}>
+        {d.manifest}
+      </a>
+    </p>
+  </noscript>
+
+  <div data-when="loading" class="flex items-center gap-3 text-muted">
+    <LoaderCircle size={20} aria-hidden="true" class="motion-safe:animate-spin" />
+    <p>{t.loading}</p>
+  </div>
+
+  <div data-when="list" hidden>
+    <ol class="divide-y divide-[var(--border)] border-y border-line" data-items></ol>
+    <template data-item>
+      <li class="flex flex-col gap-4 py-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0">
+          <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold">
+            <span>
+              <span data-field="name"></span> <span data-field="version"></span>
+            </span>
+            <span class="pill pill-verified" data-if="current">
+              {t.current}
+            </span>
+            <span class="pill pill-testing" data-if="preview">
+              {t.prerelease}
+            </span>
+          </h2>
+          <p class="mt-1 text-sm text-muted">
+            <span data-field="tag"></span> · <time data-field="date"></time> · <span data-field="size"></span>
+          </p>
+          <p class="mt-2 font-mono text-xs break-all text-subtle">
+            SHA-256 <span data-field="sha256"></span>
+          </p>
+        </div>
+        <p class="flex shrink-0 flex-wrap gap-x-5 gap-y-2 text-sm">
+          <a data-href="download" class="link font-medium" download>
+            {t.download}
+          </a>
+          <a data-href="notes" class="link">
+            {d.notes}
+          </a>
+          <a data-href="checksums" class="link">
+            {d.checksums}
+          </a>
+          <a data-href="notices" class="link">
+            {d.notices}
+          </a>
+        </p>
+      </li>
+    </template>
+  </div>
+
+  <div data-when="empty" hidden class="panel flex flex-col gap-5 p-7 sm:flex-row sm:p-10">
     <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
       <CircleDashed size={22} aria-hidden="true" />
     </span>
@@ -24,25 +87,28 @@ const list = sortReleases(releases);
       <p class="mt-3 text-muted max-w-prose">{t.emptyBody}</p>
     </div>
   </div>
-) : (
-  <ol class="divide-y divide-[var(--border)] border-y border-line" data-releases-state="list">
-    {list.map((r) => (
-      <li class="flex flex-col gap-2 py-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="font-semibold text-lg">
-            {r.name}
-            {r.prerelease && <span class="pill pill-testing ml-2 align-middle">{t.prerelease}</span>}
-          </h2>
-          <p class="text-sm text-muted">
-            {r.tag} · <time datetime={r.publishedAt}>{formatDate(r.publishedAt, locale)}</time>
-          </p>
-        </div>
-        <a href={r.notesUrl} target="_blank" rel="noopener" class="link inline-flex items-center gap-1 text-sm">
-          {all.download.notes}
-          <ArrowUpRight size={14} aria-hidden="true" />
-          <span class="sr-only">{all.a11y.newTab}</span>
-        </a>
-      </li>
-    ))}
-  </ol>
-)}
+
+  <div data-when="unavailable" hidden class="panel flex flex-col gap-5 p-7 sm:flex-row sm:p-10">
+    <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-2 text-subtle">
+      <CloudOff size={22} aria-hidden="true" />
+    </span>
+    <div>
+      <h2 class="t-3">{t.unavailable}</h2>
+      <p class="mt-3 text-muted max-w-prose">{t.unavailableBody}</p>
+      <button type="button" class="btn btn-secondary mt-7" data-retry>
+        <RotateCw size={18} aria-hidden="true" />
+        {d.retry}
+      </button>
+    </div>
+  </div>
+
+  <div data-when="invalid" hidden class="panel flex flex-col gap-5 p-7 sm:flex-row sm:p-10">
+    <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-warn-soft text-warn">
+      <TriangleAlert size={22} aria-hidden="true" />
+    </span>
+    <div>
+      <h2 class="t-3">{t.invalid}</h2>
+      <p class="mt-3 text-muted max-w-prose">{t.invalidBody}</p>
+    </div>
+  </div>
+</div>

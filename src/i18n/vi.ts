@@ -183,8 +183,8 @@ export const vi: Dict = {
     },
     downloadCta: {
       eyebrow: "Tải xuống",
-      title: "Sẵn sàng khi có bản phát hành đầu tiên.",
-      body: "Hiện chưa có bản phát hành công khai chính thức. Khi bản đầu tiên được công bố, nó sẽ xuất hiện tại đây cùng số phiên bản, ghi chú phát hành và mã kiểm tra.",
+      title: "Tải cho Windows.",
+      body: "Trang tải xuống hiển thị bản phát hành chính thức hiện tại, khi đã có, cùng số phiên bản, dung lượng, ghi chú phát hành và mã kiểm tra SHA-256.",
       primary: "Đến trang tải xuống",
     },
   },
@@ -261,11 +261,7 @@ export const vi: Dict = {
     ],
     notYet: {
       title: "Chưa có",
-      items: [
-        "Phiên bản cho macOS và Linux",
-        "Quay phim trực tiếp trên máy ảnh qua Canon SDK",
-        "Trình cài đặt có chữ ký số và bản phát hành công khai chính thức",
-      ],
+      items: ["Phiên bản cho macOS và Linux", "Quay phim trực tiếp trên máy ảnh qua Canon SDK", "Tệp chạy có chữ ký số"],
     },
     gallery: {
       title: "Từ ứng dụng",
@@ -277,12 +273,23 @@ export const vi: Dict = {
   },
   download: {
     title: "Tải xuống — ApexVoid Photobooth",
-    description: "Tải ApexVoid Photobooth cho Windows 10 và 11 (x64). Hiện chưa có bản phát hành công khai chính thức.",
+    description:
+      "Tải ApexVoid Photobooth cho Windows 10 và 11 (x64): bản phát hành chính thức hiện tại cùng mã kiểm tra SHA-256, ghi chú phát hành và thông báo bên thứ ba.",
     eyebrow: "Tải xuống",
     heading: "Tải cho Windows",
-    emptyTitle: "Hiện chưa có bản phát hành công khai chính thức.",
+    loading: "Đang kiểm tra bản phát hành hiện tại…",
+    emptyTitle: "Chưa có bản phát hành chính thức nào.",
     emptyBody:
-      "Hôm nay trang này chưa có bản phát hành, số phiên bản hay mã kiểm tra nào để tải. Trang sẽ hiển thị bản mới nhất ngay khi có bản được công bố trên GitHub.",
+      "Trang này chưa có phiên bản, tệp hay mã kiểm tra nào để tải. Bản phát hành hiện tại sẽ xuất hiện tại đây ngay khi được công bố.",
+    unavailableTitle: "Hiện không tải được thông tin phát hành.",
+    unavailableBody:
+      "Không thể tải danh sách phát hành. Hãy kiểm tra kết nối và thử lại; trang sẽ không đưa ra tệp tải nào cho đến khi tải được danh sách.",
+    invalidTitle: "Không xác minh được thông tin phát hành.",
+    invalidBody:
+      "Danh sách phát hành đã công bố không vượt qua kiểm tra của trang, nên không có tệp nào được đưa ra để tải. Vui lòng thử lại sau hoặc báo trên GitHub.",
+    retry: "Thử lại",
+    noscript: "Bản phát hành hiện tại được tải bằng JavaScript. Nếu không dùng JavaScript, hãy mở trực tiếp danh sách phát hành:",
+    manifest: "danh sách phát hành (JSON)",
     watch: "Theo dõi kho mã trên GitHub",
     devTitle: "Bản dựng phát triển",
     devBody:
@@ -297,34 +304,58 @@ export const vi: Dict = {
     ],
     notSupported: "Không hỗ trợ macOS và Linux.",
     latest: "Bản phát hành mới nhất",
+    previewTitle: "Bản xem trước",
+    previewBody:
+      "Chưa có bản phát hành ổn định nào. Bản xem trước này dùng để thử nghiệm: có thể còn tính năng chưa hoàn thiện và chưa qua kiểm định phần cứng.",
     version: "Phiên bản",
     published: "Ngày phát hành",
     file: "Tệp",
     size: "Dung lượng",
     checksum: "SHA-256",
     notes: "Ghi chú phát hành",
+    checksums: "SHA256SUMS",
+    notices: "Thông báo bên thứ ba",
+    unsignedTitle: "Chưa ký số",
+    unsignedBody:
+      "Tệp chạy này chưa có chữ ký số, nên Windows SmartScreen có thể cảnh báo rằng nhà phát hành không xác định. Chỉ tải tệp từ trang này và kiểm tra mã SHA-256 trước khi chạy.",
+    signedBody: "Tệp chạy có chữ ký số Authenticode.",
+    canonIncluded: "Bao gồm thư viện Canon EDSDK dùng cho máy ảnh Canon.",
+    canonNotIncluded: "Không bao gồm Canon EDSDK. Máy ảnh Canon cần cài đặt SDK riêng; xem hướng dẫn cài đặt.",
+    verifyTitle: "Kiểm tra tệp đã tải",
+    verifyBody: "Trong PowerShell, tại thư mục chứa tệp đã tải, chạy lệnh sau và so sánh kết quả với mã SHA-256 ở trên:",
   },
   releases: {
     title: "Phiên bản — ApexVoid Photobooth",
-    description: "Lịch sử phát hành của ApexVoid Photobooth. Chưa có bản phát hành công khai nào.",
+    description:
+      "Lịch sử phát hành của ApexVoid Photobooth cho Windows: mọi bản phát hành chính thức cùng số phiên bản, ngày, ghi chú, mã kiểm tra và tệp tải.",
     eyebrow: "Phiên bản",
     heading: "Lịch sử phát hành",
-    empty: "Chưa có bản phát hành công khai nào.",
-    emptyBody:
-      "Khi bắt đầu phát hành, mỗi bản sẽ được liệt kê tại đây với số phiên bản, ngày, ghi chú và tệp tải — lấy từ GitHub Releases, không bao giờ viết tay.",
-    channels: "Cách phát hành sẽ hoạt động",
+    loading: "Đang tải lịch sử phát hành…",
+    empty: "Chưa có bản phát hành chính thức nào.",
+    emptyBody: "Mỗi bản phát hành chính thức sẽ được liệt kê tại đây cùng số phiên bản, ngày, ghi chú phát hành, mã kiểm tra và tệp tải.",
+    unavailable: "Hiện không tải được lịch sử phát hành.",
+    unavailableBody: "Không thể tải danh sách phát hành. Hãy kiểm tra kết nối và thử lại.",
+    invalid: "Không xác minh được lịch sử phát hành.",
+    invalidBody: "Danh sách phát hành đã công bố không vượt qua kiểm tra của trang, nên không hiển thị nội dung nào từ đó.",
+    channels: "Cách phát hành hoạt động",
     channelItems: [
       {
         title: "Ổn định",
-        body: "Bản phát hành chính thức đến từ nhánh master, nơi chứa ứng dụng desktop ổn định.",
+        body: "Bản phát hành chính thức được dựng từ nhánh master, nơi chứa ứng dụng desktop ổn định. Bản ổn định mới nhất là bản được đưa ra để tải.",
+      },
+      {
+        title: "Xem trước",
+        body: "Các phiên bản trước phát hành để thử nghiệm. Chúng được ghi rõ là bản xem trước và không bao giờ thay thế bản ổn định hiện tại.",
       },
       {
         title: "Phát triển",
-        body: "Tính năng mới được phát triển trên nhánh community. Bản dựng từ nhánh này chỉ để thử nghiệm.",
+        body: "Tính năng mới được phát triển trên nhánh community. Bản dựng từ nhánh này chỉ để thử nghiệm và không bao giờ được công bố tại đây.",
       },
     ],
-    github: "GitHub Releases",
-    prerelease: "Bản thử nghiệm",
+    github: "Mã nguồn trên GitHub",
+    prerelease: "Xem trước",
+    current: "Hiện tại",
+    download: "Tải xuống",
   },
   docs: {
     title: "Tài liệu — ApexVoid Photobooth",

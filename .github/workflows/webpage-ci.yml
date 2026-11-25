@@ -49,10 +49,13 @@ jobs:
       - name: Build the static site and check every internal link and route
         run: npm run build
 
+      - name: Nginx /downloads/ infrastructure test (real Nginx, read-only test storage, no production data)
+        run: scripts/test-downloads-nginx.sh
+
       - name: Install the browser for smoke tests
         run: npx playwright install --with-deps chromium
 
-      - name: Browser journeys (routes, language, theme, mobile nav, download state, layout widths, axe)
+      - name: Browser journeys (routes, language, theme, mobile nav, download states, layout widths, axe)
         run: npm run test:e2e
 
       - name: Upload the built site
@@ -82,6 +85,9 @@ jobs:
     with:
       project: apexvoid-photobooth-webpage
       registry-namespace: mich43l
+      # Pinned: the compose template needs photobooth_release_public_dir and the storage provisioning role
+      # (ansible-library #163). Bump deliberately when ansible-library changes this project.
+      ansible-library-ref: bf688bcfc0cc52493490764814588bd23bdd7b58
       images: >-
         [
           {"name": "apexvoid-photobooth-webpage", "context": ".", "dockerfile": "deploy/Dockerfile"}

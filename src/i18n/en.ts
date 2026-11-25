@@ -188,8 +188,8 @@ export const en = {
     },
     downloadCta: {
       eyebrow: "Download",
-      title: "Ready when the first release is.",
-      body: "Official public releases are not available yet. When the first release is published, it will appear here with its version, notes and checksum.",
+      title: "Get it for Windows.",
+      body: "The download page shows the current official release, when one is published, with its version, size, release notes and SHA-256 checksum.",
       primary: "Go to the download page",
     },
   },
@@ -266,11 +266,7 @@ export const en = {
     ],
     notYet: {
       title: "Not available",
-      items: [
-        "macOS and Linux versions",
-        "Camera-native movie recording through the Canon SDK",
-        "Signed installers and official public releases",
-      ],
+      items: ["macOS and Linux versions", "Camera-native movie recording through the Canon SDK", "Code-signed executables"],
     },
     gallery: {
       title: "From the application",
@@ -282,12 +278,23 @@ export const en = {
   },
   download: {
     title: "Download — ApexVoid Photobooth",
-    description: "Download ApexVoid Photobooth for Windows 10 and 11 (x64). Official public releases are not available yet.",
+    description:
+      "Download ApexVoid Photobooth for Windows 10 and 11 (x64): the current official release with its SHA-256 checksum, release notes and third-party notices.",
     eyebrow: "Download",
     heading: "Download for Windows",
-    emptyTitle: "Official public releases are not available yet.",
+    loading: "Checking for the current release…",
+    emptyTitle: "No official release has been published yet.",
     emptyBody:
-      "There is no published release, version or checksum to download from this site today. This page will list the latest release as soon as one is published on GitHub.",
+      "There is no version, file or checksum to download from this site yet. This page shows the current release as soon as one is published.",
+    unavailableTitle: "Release information is unavailable right now.",
+    unavailableBody:
+      "The list of releases could not be loaded. Check your connection and try again; nothing is offered for download until it loads.",
+    invalidTitle: "Release information could not be verified.",
+    invalidBody:
+      "The published release list did not pass this site's checks, so no download is offered. Please try again later or report it on GitHub.",
+    retry: "Try again",
+    noscript: "The current release is loaded with JavaScript. Without it, open the release list directly:",
+    manifest: "release list (JSON)",
     watch: "Follow the repository on GitHub",
     devTitle: "Development builds",
     devBody:
@@ -302,34 +309,58 @@ export const en = {
     ],
     notSupported: "macOS and Linux are not supported.",
     latest: "Latest release",
+    previewTitle: "Preview build",
+    previewBody:
+      "No stable release has been published yet. This preview is for testing: it may contain unfinished features and has not passed hardware acceptance.",
     version: "Version",
     published: "Published",
     file: "File",
     size: "Size",
     checksum: "SHA-256",
     notes: "Release notes",
+    checksums: "SHA256SUMS",
+    notices: "Third-party notices",
+    unsignedTitle: "Not code-signed",
+    unsignedBody:
+      "This executable has no digital signature yet, so Windows SmartScreen may warn that the publisher is unknown. Download it only from this site and check its SHA-256 before running it.",
+    signedBody: "The executable carries an Authenticode digital signature.",
+    canonIncluded: "Includes the Canon EDSDK runtime used for Canon cameras.",
+    canonNotIncluded: "Does not include the Canon EDSDK. Canon cameras need the SDK set up separately; see the installation guide.",
+    verifyTitle: "Check the download",
+    verifyBody: "In PowerShell, in the folder you downloaded to, run this and compare the result with the SHA-256 above:",
   },
   releases: {
     title: "Releases — ApexVoid Photobooth",
-    description: "Release history of ApexVoid Photobooth. No public release has been published yet.",
+    description:
+      "Release history of ApexVoid Photobooth for Windows: every official release with its version, date, notes, checksum and download.",
     eyebrow: "Releases",
     heading: "Release history",
-    empty: "No public release has been published yet.",
-    emptyBody:
-      "When releases start, each one will be listed here with its version, date, notes and download — taken from GitHub Releases, never written by hand.",
-    channels: "How releases will work",
+    loading: "Loading the release history…",
+    empty: "No official release has been published yet.",
+    emptyBody: "Each official release will be listed here with its version, date, release notes, checksum and download.",
+    unavailable: "The release history is unavailable right now.",
+    unavailableBody: "The list of releases could not be loaded. Check your connection and try again.",
+    invalid: "The release history could not be verified.",
+    invalidBody: "The published release list did not pass this site's checks, so nothing from it is shown.",
+    channels: "How releases work",
     channelItems: [
       {
         title: "Stable",
-        body: "Official releases come from the master branch, which holds the stable desktop application.",
+        body: "Official releases are built from the master branch, which holds the stable desktop application. The newest stable release is the one offered for download.",
+      },
+      {
+        title: "Preview",
+        body: "Pre-release versions for testing. They are labelled as previews and never replace the current stable release.",
       },
       {
         title: "Development",
-        body: "Feature work happens on the community branch. Its builds are for testing only.",
+        body: "Feature work happens on the community branch. Its builds are for testing only and are never published here.",
       },
     ],
-    github: "GitHub Releases",
-    prerelease: "Pre-release",
+    github: "Source code on GitHub",
+    prerelease: "Preview",
+    current: "Current",
+    download: "Download",
   },
   docs: {
     title: "Documentation — ApexVoid Photobooth",
