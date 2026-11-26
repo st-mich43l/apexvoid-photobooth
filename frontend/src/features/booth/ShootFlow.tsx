@@ -12,6 +12,7 @@ import { SourceChip } from "./SourceChip";
 import { formatTranslation, photoCount, translate } from "../../shared/i18n";
 import { useLocale } from "../../shared/locale";
 import { useApp } from "../../app/state";
+import { MediaImage } from "../../shared/MediaImage";
 import { ErrorNote, LocalizedDiagnostic, LivePreview, SimulatedRibbon, useAction } from "../../shared/ui";
 import type { FrameChoice } from "../../shared/types";
 
@@ -45,11 +46,15 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   const [abandon, setAbandon] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [ready, setReady] = useState(false); // the previous session's reset is over
+  const [mediaReady, setMediaReady] = useState<Record<string, boolean>>({});
   const { busy, error, run, clear } = useAction();
   const booth = variant === "booth";
 
   // The guest's choice among the captured candidates. One model for Booth and Studio, scoped to the session.
   const selection = usePhotoSelection(shoot.sessionId, shoot.taken, frame.photos);
+  useEffect(() => setMediaReady({}), [shoot.sessionId]);
+  const previewsReady = shoot.taken.length > 0 && shoot.taken.every((shot) => mediaReady[shot.mediaId] === true);
+  const imageStatus = (id: string, isReady: boolean) => setMediaReady((current) => current[id] === isReady ? current : { ...current, [id]: isReady });
   const submitChoice = () => selection.submit(async (slots) => {
     let ok = true;
     await run(async () => { try { await api.accept(slots); } catch (e) { ok = false; throw e; } });
@@ -142,7 +147,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           print={resultId ? <ResultPrint mediaId={resultId} booth /> : null}
           onStart={() => run(() => api.startShooting(frame.id, frame.variantId, frame.caption))}
           onChangeFrame={onChangeFrame ? () => onChangeFrame(frame) : undefined}
-          selection={selection} mirrored={!!settings?.previewMirror} onContinue={() => { void submitChoice(); }} onCancel={() => setAbandon(true)}
+          selection={selection} previewsReady={previewsReady} onImageStatus={imageStatus} mirrored={!!settings?.previewMirror} onContinue={() => { void submitChoice(); }} onCancel={() => setAbandon(true)}
           onChangeDesign={() => setChanging(true)} onFinish={finish}
           onRetryPreview={() => { clear(); started.current = false; run(() => api.startPreview()); }} onReset={() => { void sessionGate.reset(); }} />
         {dialogs}
@@ -203,7 +208,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           <p className="muted">{t("selectHint")}</p>
           <div className="pick-count" role="status" aria-live="polite"><b>{formatTranslation(language, "selectedCount", { selected: selection.count, required: selection.required })}</b>
             {" "}<span className="muted">{selection.complete ? formatTranslation(language, "selectionReady", { count: selection.required }) : selection.remaining === 1 ? t("chooseMoreOne") : formatTranslation(language, "chooseMoreMany", { count: selection.remaining })}</span></div>
-          <PhotoSelectGrid candidates={s.taken} selection={selection} mediaUrl={mediaUrl} language={language} disabled={busy || selection.submitting}
+          <PhotoSelectGrid candidates={s.taken} selection={selection} mediaUrl={mediaUrl} language={language} disabled={busy || selection.submitting} onImageStatus={imageStatus}
             renderExtra={(shot) => (
               // operator-only: the guest screen has no retake
               <button className="g-pick-retake" disabled={busy || camera.reconnecting} onClick={() => run(() => api.retake(shot.slot))}>{translate(language, "retake")} {formatTranslation(language, "photoNumber", { number: shot.slot + 1 })}</button>
@@ -211,7 +216,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           <div className="review-frame">{chip}<button disabled={busy} onClick={() => setChanging(true)}>{t("changeDesign")}</button></div>
           <div className="controls">
             <button disabled={busy} onClick={() => setAbandon(true)}>{t("startOver")}</button>
-            <button className="primary big" disabled={busy || selection.submitting || !selection.complete} onClick={() => { void submitChoice(); }}>{t("continueLabel")}</button>
+            <button className="primary big" disabled={busy || selection.submitting || !selection.complete || !previewsReady} onClick={() => { void submitChoice(); }}>{t("continueLabel")}</button>
           </div>
         </div>
       )}
@@ -225,8 +230,8 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           {s.warning && <div className="note warn"><LocalizedDiagnostic text={s.warning} summary="captureWarning" /></div>}
           <div className="result">
             {resultId
-              ? <img className="strip" src={mediaUrl(resultId, "preview")} alt={t("photoStripAlt")} />
-              : <div className={`thumbs n${s.shots}`}>{s.taken.map((t) => <img key={t.mediaId} src={mediaUrl(t.mediaId, "preview")} alt="" />)}</div>}
+              ? <MediaImage className="strip" diagnosticId={resultId} src={mediaUrl(resultId, "preview")} alt={t("photoStripAlt")} revision={resultId} />
+              : <div className={`thumbs n${s.shots}`}>{s.taken.map((t) => <MediaImage key={t.mediaId} diagnosticId={t.mediaId} src={mediaUrl(t.mediaId, "preview")} alt="" revision={t.mediaId} />)}</div>}
           </div>
           <div className="controls">
             <button disabled={busy || finishing} onClick={() => setChanging(true)}>{t("changeDesign")}</button>

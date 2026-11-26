@@ -1,6 +1,9 @@
 package app
 
 import (
+	"bytes"
+	"fmt"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"os"
@@ -360,13 +363,116 @@ func TestLoopbackServerRequiresTokenAndServesMediaWithRange(t *testing.T) {
 	_ = s.ResetShooting()
 	_ = s.StartPreview()
 	resp := get("/preview.mjpg?t="+tok, nil)
-	defer resp.Body.Close()
 	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "multipart/x-mixed-replace") {
 		t.Fatalf("content-type %q", resp.Header.Get("Content-Type"))
 	}
 	buf := make([]byte, 4096)
 	if n, _ := io.ReadFull(resp.Body, buf); n < 1000 || !strings.Contains(string(buf[:200]), "image/jpeg") {
 		t.Fatalf("no preview data (%d bytes)", n)
+	}
+	_ = resp.Body.Close() // cancel the browser's endless request on leaving live view
+	deadline := time.Now().Add(time.Second)
+	for s.httpd.streams.Load() != 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if active := s.httpd.streams.Load(); active != 0 {
+		t.Fatalf("MJPEG stream leaked after client close: %d active", active)
+	}
+}
+
+func TestCapturedCandidatesAndCompositionAreImmediatelyServedAsJPEG(t *testing.T) {
+	s, _, _ := newTestApp(t)
+	connectMock(t, s)
+	base, token := s.httpd.base, s.httpd.token
+	getJPEG := func(id string) {
+		t.Helper()
+		resp, err := http.Get(base + "/media/" + id + "/preview?t=" + token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/jpeg") || len(data) == 0 {
+			t.Fatalf("media %s response status=%d type=%q bytes=%d", id, resp.StatusCode, resp.Header.Get("Content-Type"), len(data))
+		}
+		if _, err := jpeg.DecodeConfig(bytes.NewReader(data)); err != nil {
+			t.Fatalf("media %s is not a decodable JPEG: %v", id, err)
+		}
+	}
+	shoot := func() capture.Snapshot {
+		t.Helper()
+		if err := s.StartPreview(); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.StartShooting(frameFor(2), "", ""); err != nil {
+			t.Fatal(err)
+		}
+		return waitShoot(t, s, capture.Review)
+	}
+	for session := 0; session < 2; session++ {
+		sn := shoot()
+		for _, shot := range sn.Taken {
+			getJPEG(shot.MediaID)
+		}
+		if session == 0 {
+			var wg sync.WaitGroup
+			errs := make(chan string, 4)
+			for i := 0; i < 4; i++ {
+				id := sn.Taken[i%len(sn.Taken)].MediaID
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					resp, err := http.Get(base + "/media/" + id + "/preview?t=" + token)
+					if err != nil {
+						errs <- err.Error()
+						return
+					}
+					data, readErr := io.ReadAll(resp.Body)
+					_ = resp.Body.Close()
+					if readErr != nil {
+						errs <- readErr.Error()
+						return
+					}
+					if resp.StatusCode == http.StatusOK {
+						if _, decodeErr := jpeg.DecodeConfig(bytes.NewReader(data)); decodeErr == nil {
+							return
+						}
+					}
+					errs <- fmt.Sprintf("concurrent media status=%d type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
+				}()
+			}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				t.Error(err)
+			}
+		}
+		if session == 0 {
+			previewPath, err := s.store.FilePath(sn.Taken[0].MediaID, "preview")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(previewPath); err != nil {
+				t.Fatal(err)
+			}
+			getJPEG(sn.Taken[0].MediaID) // safe original fallback keeps review recoverable without restarting
+		}
+		if err := s.AcceptPhotos(); err != nil {
+			t.Fatal(err)
+		}
+		done := waitShoot(t, s, capture.Completed)
+		if done.ResultID == "" {
+			t.Fatalf("session %d completed without a composition", session+1)
+		}
+		getJPEG(done.ResultID)
+		if session == 0 {
+			if err := s.ResetShooting(); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }
 

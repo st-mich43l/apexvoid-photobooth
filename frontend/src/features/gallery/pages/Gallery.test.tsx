@@ -31,7 +31,9 @@ describe("session gallery", () => {
  it("navigates images with the keyboard and handles a missing thumbnail", async () => {
   h.api.querySessionMedia.mockResolvedValue({ items: [item, { ...item, id: "M2", slot: 1 }], nextOffset: 2, hasMore: false });
   render(<Gallery />); await screen.findByText("S001");
-  fireEvent.error(document.querySelector(".session-card img")!); expect(await screen.findByText("No thumbnail")).toBeTruthy();
+  const thumb = document.querySelector(".session-card img")!;
+  fireEvent.error(thumb);
+  expect(document.querySelector(".session-card .media-image")?.getAttribute("data-state")).toBe("retrying");
   fireEvent.click(screen.getByText("S001")); await screen.findAllByRole("button", { name: /photo from/ });
   fireEvent.click(screen.getAllByRole("button", { name: /photo from/ })[0]);
   expect((screen.getByAltText("Selected photo") as HTMLImageElement).src).toContain("/media/M1");

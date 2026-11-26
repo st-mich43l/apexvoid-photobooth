@@ -9,8 +9,10 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,10 +22,11 @@ import (
 // a random port and requires a per-run random token, so no other program or
 // web page can read photos. It uses no network.
 type mediaServer struct {
-	s     *Service
-	srv   *http.Server
-	base  string
-	token string
+	s       *Service
+	srv     *http.Server
+	base    string
+	token   string
+	streams atomic.Int64
 }
 
 func startMediaServer(s *Service) (*mediaServer, error) {
@@ -53,18 +56,63 @@ func (m *mediaServer) Close() {
 
 func (m *mediaServer) auth(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		sw := &mediaResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("t")), []byte(m.token)) != 1 {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			sw.Header().Set("Cache-Control", "no-store")
+			http.Error(sw, "forbidden", http.StatusForbidden)
+			m.logRequest(r, sw.status, started, "auth")
 			return
 		}
 		// only the app's own web view may embed these (no cross-site reads)
-		w.Header().Set("Cache-Control", "no-store")
-		h(w, r)
+		sw.Header().Set("Cache-Control", "no-store")
+		h(sw, r)
+		m.logRequest(r, sw.status, started, "")
 	}
+}
+
+type mediaResponseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *mediaResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w *mediaResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *mediaResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+func (m *mediaServer) logRequest(r *http.Request, status int, started time.Time, failure string) {
+	if !strings.HasPrefix(r.URL.Path, "/media/") && r.URL.Path != "/preview.mjpg" {
+		return
+	}
+	attrs := []any{"media_type", "preview", "http_status", status, "duration_ms", time.Since(started).Milliseconds()}
+	if strings.HasPrefix(r.URL.Path, "/media/") {
+		parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/media/"), "/"), "/")
+		if len(parts) == 2 {
+			attrs[1] = parts[1]
+			attrs = append(attrs, "media_id", parts[0])
+		}
+	}
+	if failure != "" {
+		attrs = append(attrs, "failure", failure)
+	}
+	m.s.log.Info("media http request", attrs...)
 }
 
 func (m *mediaServer) preview(w http.ResponseWriter, r *http.Request) {
 	const boundary = "frame"
+	active := m.streams.Add(1)
+	started := time.Now()
+	defer func() {
+		m.streams.Add(-1)
+		m.s.log.Info("mjpeg stream closed", "active", m.streams.Load(), "duration_ms", time.Since(started).Milliseconds())
+	}()
+	m.s.log.Info("mjpeg stream opened", "active", active)
 	f, err := m.s.mgr.WaitFrame(r.Context(), 0)
 	if err != nil {
 		http.Error(w, "no live view: "+err.Error(), http.StatusServiceUnavailable)
@@ -74,6 +122,9 @@ func (m *mediaServer) preview(w http.ResponseWriter, r *http.Request) {
 	fl, _ := w.(http.Flusher)
 	seq := uint64(0)
 	for {
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil && err != http.ErrNotSupported {
+			return
+		}
 		if _, err := fmt.Fprintf(w, "--%s\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", boundary, len(f.JPEG)); err != nil {
 			return
 		}
@@ -114,16 +165,59 @@ func (m *mediaServer) file(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	p, err := m.s.store.FilePath(parts[0], parts[1])
+	kind := parts[1]
+	p, err := m.s.store.FilePath(parts[0], kind)
+	var info os.FileInfo
+	if err == nil {
+		info, err = os.Stat(p)
+	}
+	if (err != nil || info.Size() == 0) && (kind == "preview" || kind == "thumb") {
+		fallbackKinds := []string{"preview", "original"}
+		if kind == "preview" {
+			fallbackKinds = []string{"original"}
+		}
+		for _, fallback := range fallbackKinds {
+			fallbackPath, pathErr := m.s.store.FilePath(parts[0], fallback)
+			if pathErr != nil {
+				continue
+			}
+			fallbackInfo, statErr := os.Stat(fallbackPath)
+			if statErr == nil && fallbackInfo.Size() > 0 {
+				m.s.log.Warn("media derivative fallback", "media_id", parts[0], "media_type", kind, "fallback_type", fallback)
+				p, info, err = fallbackPath, fallbackInfo, nil
+				break
+			}
+		}
+	}
 	if err != nil {
+		w.Header().Set("Cache-Control", "no-store")
+		m.s.log.Warn("media file unavailable", "media_id", parts[0], "media_type", parts[1], "reason", errorClass(err))
 		http.NotFound(w, r)
 		return
 	}
+	if info.Size() == 0 {
+		w.Header().Set("Cache-Control", "no-store")
+		m.s.log.Warn("media file empty", "media_id", parts[0], "media_type", parts[1])
+		http.Error(w, "empty media", http.StatusInternalServerError)
+		return
+	}
+	m.s.log.Debug("media file available", "media_id", parts[0], "media_type", parts[1], "size_bytes", info.Size())
 	if ct := mime.TypeByExtension(strings.ToLower(filepath.Ext(p))); ct != "" {
 		w.Header().Set("Content-Type", ct)
 	}
 	w.Header().Set("Cache-Control", "private, max-age=60")
 	http.ServeFile(w, r, p) // handles Range for <video>
+}
+
+func errorClass(err error) string {
+	switch {
+	case os.IsNotExist(err):
+		return "not_found"
+	case os.IsPermission(err):
+		return "permission_denied"
+	default:
+		return "io_or_database_error"
+	}
 }
 
 // frame serves /frame/<id>/<variant>?w=<px>&caption=<text>: a preview of a

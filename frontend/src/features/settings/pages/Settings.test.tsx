@@ -43,6 +43,13 @@ describe("Settings: a stale copy can never overwrite newer preferences", () => {
   it("an untouched page simply follows background updates and shows nothing to save", () => {
     set({ ...base(), countdownSeconds: 8 });
     expect((screen.getByLabelText(/Countdown/) as HTMLInputElement).value).toBe("8");
-    expect((screen.getByRole("button", { name: "Save settings" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull();
+  });
+
+  it("shows the matte action panel and unsaved indicator only after a change", () => {
+    expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Countdown/), { target: { value: "5" } });
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeTruthy();
   });
 });

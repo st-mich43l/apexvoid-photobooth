@@ -109,6 +109,8 @@ type Options struct {
 	RestoreUnselected func(sessionID string) error
 	// OnChange receives every new snapshot, in order.
 	OnChange func(Snapshot)
+	// OnMediaReady runs after AddPhoto has durably written files and committed the media record.
+	OnMediaReady func(sessions.Media)
 	// CaptureRetries is how many times a failed capture is retried (not for disconnects).
 	CaptureRetries int
 	// ReconnectWait is how long a session waits for a camera that was lost
@@ -298,6 +300,9 @@ func (e *Engine) runShots(ctx context.Context, gen uint64, sessionID string, fro
 		if m.ID == "" { // nothing was stored
 			e.failSession(sessionID, fmt.Errorf("could not save photo: %w", err))
 			return
+		}
+		if e.o.OnMediaReady != nil {
+			e.o.OnMediaReady(m)
 		}
 		// err != nil with m.ID set only means thumbnails failed; the original is safe.
 		if replace != "" {

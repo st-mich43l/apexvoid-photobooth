@@ -1,6 +1,7 @@
 import { formatTranslation, photoCount, translate } from "../../../shared/i18n";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Icon } from "../../../shared/icons";
+import { MediaImage } from "../../../shared/MediaImage";
 import { frameDisplayName, swatch } from "../../../shared/frameInfo";
 import type { Frame } from "../../../shared/types";
 
@@ -116,5 +117,5 @@ export function FrameThumb({ frame, src, selected, mismatch, note, onSelect, lan
 
 /** An image that fills the space it is given without ever being stretched: the picture is centred and contained. */
 export function Fit({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
-  return <div className={`g-fit ${className}`}><img src={src} alt={alt} decoding="async" draggable={false} /></div>;
+  return <div className={`g-fit ${className}`}><MediaImage src={src} alt={alt} revision={src} /></div>;
 }

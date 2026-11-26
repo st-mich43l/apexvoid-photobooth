@@ -14,6 +14,13 @@ describe("language resources", () => {
     expect(translate("vi", "builderTitle")).toBe("Trình tạo khung");
     expect(translate("vi", "builderRepeatPhoto")).toContain("Lặp số ảnh");
   });
+
+  it("provides recovery and settings action bar labels in both languages", () => {
+    expect(translate("en", "loadingPhoto")).toBe("Loading photo…");
+    expect(translate("vi", "preparingPhotos")).toBe("Đang chuẩn bị ảnh…");
+    expect(translate("vi", "couldNotLoadPhoto")).toBe("Không thể tải ảnh này");
+    expect(translate("en", "unsavedChanges")).toBe("Unsaved changes");
+  });
 });
 
 it("has nonempty translations with matching named placeholders", async () => {
