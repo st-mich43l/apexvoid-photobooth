@@ -31,6 +31,6 @@ elif [ "${REQUIRE_EMBEDDED_FFMPEG:-0}" = 1 ]; then
 else
   echo 'Note: FFmpeg is not staged; video requires a separate FFmpeg installation.' >&2
 fi
-version=${APP_VERSION:-0.2.1-dev}
+version=${APP_VERSION:-0.3.0-dev}
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -tags "$tags" -ldflags "-H windowsgui -s -w -X main.version=$version" -o "$output_dir/ApexVoidPhotobooth-canon.exe" ./cmd/photobooth
 printf 'Built %s/ApexVoidPhotobooth-canon.exe\n' "$output_dir"

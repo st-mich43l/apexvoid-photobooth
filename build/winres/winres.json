@@ -4,16 +4,16 @@
   "RT_VERSION": {
     "#1": {
       "0000": {
-        "fixed": { "file_version": "0.2.1.0", "product_version": "0.2.1.0" },
+        "fixed": { "file_version": "0.3.0.0", "product_version": "0.3.0.0" },
         "info": {
           "0409": {
             "CompanyName": "ApexVoid",
             "FileDescription": "ApexVoid Photobooth",
-            "FileVersion": "0.2.1",
+            "FileVersion": "0.3.0",
             "InternalName": "photobooth",
             "OriginalFilename": "ApexVoidPhotobooth.exe",
             "ProductName": "ApexVoid Photobooth",
-            "ProductVersion": "0.2.1"
+            "ProductVersion": "0.3.0"
           }
         }
       }
