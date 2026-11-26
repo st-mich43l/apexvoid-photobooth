@@ -89,7 +89,7 @@ jobs:
       registry-namespace: mich43l
       # Pinned: the compose template needs photobooth_release_public_dir and the storage provisioning role
       # (ansible-library #163). Bump deliberately when ansible-library changes this project.
-      ansible-library-ref: bf688bcfc0cc52493490764814588bd23bdd7b58
+      ansible-library-ref: 39b1186
       images: >-
         [
           {"name": "apexvoid-photobooth-webpage", "context": ".", "dockerfile": "deploy/Dockerfile"}

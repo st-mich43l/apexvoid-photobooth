@@ -7,17 +7,18 @@ import RotateCw from "@lucide/astro/icons/rotate-cw";
 import { useDict, type Locale } from "../../i18n";
 import { MANIFEST_URL } from "../../lib/releases";
 
-/** Every published release, newest first, from /downloads/index.json at runtime (src/lib/client/downloads.ts). */
+/** Runtime current release and the bounded archive from /downloads/index.json. */
 interface Props {
   locale: Locale;
+  archiveOnly?: boolean;
 }
-const { locale } = Astro.props;
+const { locale, archiveOnly = false } = Astro.props;
 const all = useDict(locale);
 const t = all.releases;
 const d = all.download;
 ---
 
-<div data-release-list data-state="loading" aria-live="polite" aria-busy="true">
+<div data-release-list data-mode={archiveOnly ? "archive" : "history"} data-state="loading" aria-live="polite" aria-busy="true">
   <noscript>
     <style>
       [data-release-list] [data-when="loading"] {
@@ -48,9 +49,6 @@ const d = all.download;
             </span>
             <span class="pill pill-verified" data-if="current">
               {t.current}
-            </span>
-            <span class="pill pill-testing" data-if="preview">
-              {t.prerelease}
             </span>
           </h2>
           <p class="mt-1 text-sm text-muted">
@@ -83,8 +81,8 @@ const d = all.download;
       <CircleDashed size={22} aria-hidden="true" />
     </span>
     <div>
-      <h2 class="t-3">{t.empty}</h2>
-      <p class="mt-3 text-muted max-w-prose">{t.emptyBody}</p>
+      <h2 class="t-3">{archiveOnly ? all.download.archiveEmpty : t.empty}</h2>
+      <p class="mt-3 text-muted max-w-prose">{archiveOnly ? all.download.archiveEmptyBody : t.emptyBody}</p>
     </div>
   </div>
 

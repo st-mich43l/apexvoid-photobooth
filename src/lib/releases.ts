@@ -176,22 +176,30 @@ export function validateManifest(m: unknown): ValidationResult {
 /** Newest first by version precedence. */
 export const sortReleases = (list: readonly Release[]): Release[] => [...list].sort((a, b) => compareVersions(b.version, a.version));
 
-export type DownloadView =
-  | { state: "available"; release: Release; asset: ReleaseAsset }
-  | { state: "preview-only"; release: Release; asset: ReleaseAsset }
-  | { state: "empty" };
+export type DownloadView = { state: "available"; release: Release; asset: ReleaseAsset } | { state: "empty" };
 
-/**
- * What the download box offers: the manifest's current stable release; with no stable release, the newest
- * preview, clearly labelled; otherwise nothing.
- */
+/** Resolve current by the authoritative pointer; a rollback may intentionally point below the newest version. */
+export function currentRelease(m: Manifest): Release | undefined {
+  return m.latest.stable ? m.releases.find((r) => r.version === m.latest.stable && r.channel === "stable") : undefined;
+}
+
+/** The four highest SemVer stable versions other than the current pointer. */
+export function archiveReleases(m: Manifest, limit = 4): Release[] {
+  const current = currentRelease(m)?.version;
+  return sortReleases(m.releases.filter((r) => r.channel === "stable" && r.version !== current)).slice(0, Math.max(0, limit));
+}
+
+/** Current first, followed by the bounded public archive. */
+export function retainedPublicReleases(m: Manifest): Release[] {
+  const current = currentRelease(m);
+  return [...(current ? [current] : []), ...archiveReleases(m)];
+}
+
+/** The download box only offers the manifest's current stable release. */
 export function downloadView(m: Manifest): DownloadView {
-  const stable = m.latest.stable ? m.releases.find((r) => r.version === m.latest.stable) : undefined;
+  const stable = currentRelease(m);
   const stableAsset = stable && windowsAsset(stable);
   if (stable && stableAsset) return { state: "available", release: stable, asset: stableAsset };
-  const preview = sortReleases(m.releases).find((r) => r.channel === "preview" && windowsAsset(r));
-  const previewAsset = preview && windowsAsset(preview);
-  if (preview && previewAsset) return { state: "preview-only", release: preview, asset: previewAsset };
   return { state: "empty" };
 }
 

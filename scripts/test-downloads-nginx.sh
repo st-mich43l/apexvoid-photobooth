@@ -85,7 +85,7 @@ expect "HEAD exe 200" 200 "$(status -I "$E")"
 expect "exe size" "$SIZE" "$(header content-length -I "$E")"
 expect "exe type" "application/octet-stream" "$(header content-type -I "$E")"
 expect "exe attachment" "attachment; filename=\"$EXE\"" "$(header content-disposition -I "$E")"
-expect "exe immutable" "public, max-age=31536000, immutable" "$(header cache-control -I "$E")"
+expect "exe bounded revalidation cache" "public, max-age=300, must-revalidate" "$(header cache-control -I "$E")"
 expect "exe accepts ranges" "bytes" "$(header accept-ranges -I "$E")"
 expect "exe range 206" 206 "$(status -r 0-99 "$E")"
 expect "exe content-range" "bytes 0-99/$SIZE" "$(header content-range -r 0-99 "$E")"
@@ -105,6 +105,8 @@ for f in SHA256SUMS RELEASE-NOTES.md THIRD-PARTY-NOTICES.txt; do
   expect "$f text" "text/plain; charset=utf-8" "$(header content-type "$BASE/downloads/releases/v$V/$f")"
 done
 expect "missing optional LICENSE.txt is 404" 404 "$(status "$BASE/downloads/releases/v$V/LICENSE.txt")"
+expect "missing executable has no cache policy" "" "$(header cache-control -I "$BASE/downloads/releases/v0.0.2/ApexVoidPhotobooth-v0.0.2-windows-x64.exe")"
+expect "missing executable has no attachment header" "" "$(header content-disposition -I "$BASE/downloads/releases/v0.0.2/ApexVoidPhotobooth-v0.0.2-windows-x64.exe")"
 
 echo "allowlist, listing, private storage, traversal, symlinks"
 for p in /downloads/ /downloads/releases/ "/downloads/releases/v$V/" "/downloads/releases/v$V" \

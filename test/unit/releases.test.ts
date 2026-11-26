@@ -5,7 +5,9 @@ import {
   compareVersions,
   downloadUrl,
   downloadView,
+  archiveReleases,
   formatBytes,
+  retainedPublicReleases,
   sortReleases,
   validateManifest,
   type Manifest,
@@ -101,15 +103,40 @@ describe("what the download box offers", () => {
     const v = downloadView(ok(m));
     expect(v.state === "available" && v.release.version).toBe("0.2.0");
   });
-  it("a labelled preview when no stable release exists", () => {
+  it("does not offer previews when no stable release exists", () => {
     const m = ok(load("manifest-valid.json"));
     m.releases = m.releases.filter((r) => r.channel === "preview");
     m.latest.stable = null;
     const v = downloadView(ok(m));
-    expect(v.state).toBe("preview-only");
+    expect(v.state).toBe("empty");
   });
   it("nothing when the manifest is empty", () => {
     expect(downloadView(ok(load("manifest-empty.json"))).state).toBe("empty");
+  });
+});
+
+describe("retained public release selectors", () => {
+  it("uses the manifest pointer for current and returns no more than four previous stable releases", () => {
+    const m = ok(load("manifest-valid.json"));
+    const base = m.releases.find((r) => r.channel === "stable")!;
+    const older = ["0.2.2", "0.2.3", "0.2.4", "0.2.5", "0.2.6", "0.2.7"].map((version) => {
+      const rel = structuredClone(base);
+      rel.version = version;
+      rel.tag = `v${version}`;
+      rel.publishedAt = "2026-11-25T00:00:00Z";
+      rel.notesPath = `releases/v${version}/RELEASE-NOTES.md`;
+      rel.checksumsPath = `releases/v${version}/SHA256SUMS`;
+      rel.noticesPath = `releases/v${version}/THIRD-PARTY-NOTICES.txt`;
+      rel.assets[0]!.filename = `ApexVoidPhotobooth-v${version}-windows-x64.exe`;
+      rel.assets[0]!.path = `releases/v${version}/${rel.assets[0]!.filename}`;
+      return rel;
+    });
+    m.releases = [...m.releases, ...older];
+    m.latest.stable = "0.2.0"; // deliberate rollback; 0.2.1 stays an archive entry
+    const validated = ok(m);
+    expect(retainedPublicReleases(validated).map((r) => r.version)).toEqual(["0.2.0", "0.2.7", "0.2.6", "0.2.5", "0.2.4"]);
+    expect(archiveReleases(validated).map((r) => r.version)).toEqual(["0.2.7", "0.2.6", "0.2.5", "0.2.4"]);
+    expect(archiveReleases(validated).some((r) => r.version === validated.latest.stable)).toBe(false);
   });
 });
 

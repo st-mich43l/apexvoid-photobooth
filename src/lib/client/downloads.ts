@@ -1,8 +1,9 @@
 import {
   downloadUrl,
   downloadView,
+  archiveReleases,
   formatBytes,
-  sortReleases,
+  retainedPublicReleases,
   windowsAsset,
   type Manifest,
   type Release,
@@ -64,7 +65,7 @@ function assetFlags(a: ReleaseAsset): Record<string, boolean> {
 function renderPanel(root: HTMLElement, m: Manifest): void {
   const v = downloadView(m);
   if (v.state === "empty") return show(root, "empty");
-  fill(root, v.release, v.asset, { stable: v.state === "available", preview: v.state === "preview-only", ...assetFlags(v.asset) });
+  fill(root, v.release, v.asset, { stable: true, preview: false, ...assetFlags(v.asset) });
   show(root, v.state);
 }
 
@@ -72,11 +73,12 @@ function renderList(root: HTMLElement, m: Manifest): void {
   const list = root.querySelector<HTMLOListElement>("[data-items]");
   const tpl = root.querySelector<HTMLTemplateElement>("template[data-item]");
   if (!list || !tpl) return;
-  const items = sortReleases(m.releases).flatMap((r) => {
+  const releases = root.dataset.mode === "archive" ? archiveReleases(m) : retainedPublicReleases(m);
+  const items = releases.flatMap((r) => {
     const a = windowsAsset(r);
     if (!a) return [];
     const li = tpl.content.cloneNode(true) as DocumentFragment;
-    fill(li, r, a, { current: r.version === m.latest.stable, preview: r.channel === "preview", ...assetFlags(a) });
+    fill(li, r, a, { current: r.version === m.latest.stable, preview: false, ...assetFlags(a) });
     li.querySelectorAll("[data-if][hidden]").forEach((el) => el.remove()); // fresh copies: drop what does not apply
     return [li];
   });

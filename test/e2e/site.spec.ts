@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -221,14 +221,15 @@ test.describe("mobile navigation", () => {
 test.describe("download", () => {
   const panel = (page: Page) => page.locator("[data-download-panel]");
   const list = (page: Page) => page.locator("[data-release-list]");
-  const visibleStates = (page: Page) => page.locator("main [data-when]:visible");
+  const visibleStates = (root: Locator) => root.locator("[data-when]:visible");
 
   for (const path of ["/download/", "/vi/download/", "/releases/", "/vi/releases/"]) {
     test(`${path} with the empty manifest shows the honest empty state and no invented release facts`, async ({ page }) => {
       const errors = watchConsole(page);
       await page.goto(path);
-      await expect(page.locator("main [data-state]")).toHaveAttribute("data-state", "empty");
-      await expect(visibleStates(page)).toHaveCount(1);
+      const root = path.includes("/download/") ? panel(page) : list(page);
+      await expect(root).toHaveAttribute("data-state", "empty");
+      await expect(visibleStates(root)).toHaveCount(1);
       const text = (await page.locator("main").innerText()) ?? "";
       expect(text).not.toMatch(/\bv?\d+\.\d+\.\d+\b/);
       expect(text).not.toMatch(/\b[a-f0-9]{64}\b/);
@@ -243,7 +244,7 @@ test.describe("download", () => {
     await page.goto("/download/");
     const p = panel(page);
     await expect(p).toHaveAttribute("data-state", "available");
-    await expect(visibleStates(page)).toHaveCount(1);
+    await expect(visibleStates(p)).toHaveCount(1);
     await expect(p.getByRole("heading", { level: 2 })).toHaveText("ApexVoid Photobooth 0.2.1");
     await expect(p).toContainText("v0.2.1");
     await expect(p).toContainText("3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d");
@@ -265,29 +266,45 @@ test.describe("download", () => {
     await expect(p).not.toContainText("0.3.0-rc.1");
   });
 
-  test("the release history lists every release newest first with current and preview labels", async ({ page }) => {
+  test("release history shows the current stable version and only stable archives", async ({ page }) => {
     await serveManifest(page, manifest("manifest-valid.json"));
     await page.goto("/releases/");
     await expect(list(page)).toHaveAttribute("data-state", "list");
     const items = list(page).locator("li");
-    await expect(items).toHaveCount(3);
-    await expect(items.locator("h2")).toHaveText([/0\.3\.0-rc\.1\s*Preview/, /0\.2\.1\s*Current/, /0\.2\.0$/]);
-    await expect(items.nth(2).getByRole("link", { name: "Download" })).toHaveAttribute(
+    await expect(items).toHaveCount(2);
+    await expect(items.locator("h2")).toHaveText([/0\.2\.1\s*Current/, /0\.2\.0$/]);
+    await expect(items.nth(1).getByRole("link", { name: "Download" })).toHaveAttribute(
       "href",
       "/downloads/releases/v0.2.0/ApexVoidPhotobooth-v0.2.0-windows-x64.exe",
     );
   });
 
-  test("with only a preview, it is offered clearly labelled as a preview", async ({ page }) => {
+  test("with only a preview, no public download or archive is offered", async ({ page }) => {
     const m = JSON.parse(manifest("manifest-valid.json"));
     m.releases = m.releases.filter((r: { channel: string }) => r.channel === "preview");
     m.latest.stable = null;
     await serveManifest(page, JSON.stringify(m));
     await page.goto("/download/");
-    await expect(panel(page)).toHaveAttribute("data-state", "preview-only");
-    await expect(panel(page).getByText("Preview build")).toBeVisible();
-    await expect(panel(page).getByText("Latest release")).toBeHidden();
-    await expect(panel(page).getByText(/No stable release has been published yet/)).toBeVisible();
+    await expect(panel(page)).toHaveAttribute("data-state", "empty");
+    await expect(list(page)).toHaveAttribute("data-state", "empty");
+    await expect(page.locator('main a[href*="/downloads/releases/"]')).toHaveCount(0);
+  });
+
+  test("download page presents the previous-version archive below the current release", async ({ page }) => {
+    await serveManifest(page, manifest("manifest-valid.json"));
+    await page.goto("/download/");
+    await expect(panel(page)).toHaveAttribute("data-state", "available");
+    await expect(
+      page.getByText("Only the four most recent previous versions are retained. We recommend using the latest version."),
+    ).toBeVisible();
+    await expect(list(page)).toHaveAttribute("data-mode", "archive");
+    const rows = list(page).locator("li");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first().locator("h2")).toContainText("0.2.0");
+    await expect(rows.first().getByRole("link", { name: "Download" })).toHaveAttribute(
+      "href",
+      "/downloads/releases/v0.2.0/ApexVoidPhotobooth-v0.2.0-windows-x64.exe",
+    );
   });
 
   test("an unreachable manifest offers nothing and can be retried", async ({ page }) => {
@@ -309,7 +326,8 @@ test.describe("download", () => {
       await serveManifest(page, body);
       for (const path of ["/download/", "/releases/"]) {
         await page.goto(path);
-        await expect(page.locator("main [data-state]")).toHaveAttribute("data-state", "invalid");
+        const root = path === "/download/" ? panel(page) : list(page);
+        await expect(root).toHaveAttribute("data-state", "invalid");
         await expect(page.locator('main a[href*="/downloads/releases/"], main a[href*="evil"]')).toHaveCount(0);
         expect(await page.locator("main").innerText()).not.toMatch(/\b[a-f0-9]{64}\b/);
       }
@@ -339,7 +357,8 @@ test.describe("download", () => {
           await serveManifest(page, manifest("manifest-valid.json"));
           await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
           await page.goto(path);
-          await expect(page.locator("main [data-state]")).not.toHaveAttribute("data-state", "loading");
+          const root = path === "/download/" ? panel(page) : list(page);
+          await expect(root).not.toHaveAttribute("data-state", "loading");
           const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
           expect(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.target.join(" ")} — ${v.help}`)).toEqual([]);
         });

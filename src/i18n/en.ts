@@ -297,9 +297,11 @@ export const en = {
       "A Windows printer driver if you want to print (optional)",
     ],
     notSupported: "macOS and Linux are not supported.",
-    latest: "Latest release",
-    previewTitle: "Preview build",
-    previewBody: "No stable release has been published yet. This preview is for testing and may contain unfinished features.",
+    latest: "Current release",
+    archiveTitle: "Previous versions",
+    archiveDescription: "Only the four most recent previous versions are retained. We recommend using the latest version.",
+    archiveEmpty: "No previous versions",
+    archiveEmptyBody: "There are no earlier stable releases in the archive yet.",
     version: "Version",
     published: "Published",
     file: "File",
@@ -319,8 +321,7 @@ export const en = {
   },
   releases: {
     title: "Releases — ApexVoid Photobooth",
-    description:
-      "Release history of ApexVoid Photobooth for Windows: every official release with its version, date, notes, checksum and download.",
+    description: "Current and archived stable versions of ApexVoid Photobooth for Windows, with release notes, checksums and downloads.",
     eyebrow: "Releases",
     heading: "Release history",
     loading: "Loading the release history…",
@@ -334,11 +335,11 @@ export const en = {
     channelItems: [
       {
         title: "Stable",
-        body: "Official releases are built from the master branch, which holds the stable desktop application. The newest stable release is the one offered for download.",
+        body: "Official stable releases are built from the master branch. The release manifest selects the current version, including after an operator rollback.",
       },
       {
-        title: "Preview",
-        body: "Pre-release versions for testing. They are labelled as previews and never replace the current stable release.",
+        title: "Archive",
+        body: "The current stable release and up to four previous stable versions are listed. Older public release files are removed automatically.",
       },
       {
         title: "Development",
@@ -346,7 +347,6 @@ export const en = {
       },
     ],
     github: "Source code on GitHub",
-    prerelease: "Preview",
     current: "Current",
     download: "Download",
   },
