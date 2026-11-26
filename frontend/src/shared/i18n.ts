@@ -321,9 +321,49 @@ const builderEn = {
 const builderVi: Record<keyof typeof builderEn, string> = {
   builderTitle: "Trình tạo khung", builderBack: "← Khung", builderSnap: "Căn chỉnh", builderSnapHint: "Căn theo đường dẫn và lưới 0,05 in", builderGrid: "Lưới", builderZoom: "Thu phóng", builderZoomOut: "Thu nhỏ", builderZoomIn: "Phóng to", builderFit: "Vừa khung", builderPreview: "Xem trước", builderReset: "Đặt lại", builderSaveCopy: "Lưu thành bản sao", builderSaving: "Đang lưu…", builderSave: "Lưu", builderImportResult: "Kết quả nhập", builderDismissNotes: "Ẩn ghi chú nhập", builderAdd: "Thêm", builderPhotoSlot: "Vùng ảnh", builderLayers: "Lớp", builderFrontFirst: "(lớp trước ở trên)", builderNoLayers: "Chưa có lớp nào.", builderForward: "Đưa lên trước", builderBackward: "Đưa xuống sau", builderDuplicate: "Nhân bản", builderDelete: "Xóa", builderPreviewColor: "Màu xem trước", builderSampleCaption: "Chú thích mẫu", builderCanvasHint: "Kéo để di chuyển, kéo tay nắm để đổi kích thước. Dùng phím mũi tên để dịch chuyển (Shift = 0,1 in). Del để xóa; Ctrl+Z / Ctrl+Y để hoàn tác / làm lại; Ctrl+D để nhân bản. Ảnh xem trước dùng ảnh mẫu và cùng bộ dựng ảnh như bản in cuối.", builderProperties: "Thuộc tính", builderDiscardChanges: "Bỏ thay đổi?", builderUnsavedFrame: "Khung này có thay đổi chưa được lưu.", builderKeepEditing: "Tiếp tục chỉnh sửa", builderDiscard: "Bỏ thay đổi", builderPreviewDetails: "Ảnh mẫu, không phải ảnh chụp.", builderSlotProperties: "Thuộc tính vùng ảnh", builderSlotNumber: "Vùng ảnh {number}", builderPhotoNumber: "Số thứ tự ảnh", builderRepeatPhoto: "Lặp số ảnh để hiển thị cùng một ảnh hai lần (bố cục hai ảnh trên một tờ).", builderCropFocusX: "Điểm lấy nét cắt X", builderCropFocusY: "Điểm lấy nét cắt Y", builderLockPosition: "Khóa vị trí", builderLayerProperties: "Thuộc tính lớp", builderLayerName: "Tên lớp", builderText: "Văn bản", builderCaptionHelp: "{caption} = chú thích của khách, {date} = ngày chụp, {caption|date} = chú thích nếu có, nếu không thì dùng ngày.", builderFont: "Phông chữ", builderTextSize: "Cỡ chữ", builderAlign: "Căn chỉnh", builderShape: "Hình dạng", builderElement: "Thành phần", builderElementSize: "Kích thước thành phần", builderSpacing: "Khoảng cách", builderScatter: "Rải ngẫu nhiên (pháo giấy)", builderOutlineWidth: "Độ dày viền (0 = tô kín)", builderCornerRadius: "Bán kính góc", builderFitMode: "Cách đặt ảnh", builderContain: "Vừa khung, giữ nguyên toàn ảnh", builderCover: "Lấp đầy khung, có thể cắt ảnh", builderReplaceImage: "Thay ảnh…", builderColor: "Màu", builderOpacity: "Độ mờ", builderBehindPhotos: "Phía sau ảnh", builderHidden: "Ẩn", builderNoAsset: "Không có", builderFrameProperties: "Thuộc tính khung", builderFrame: "Khung", builderCategory: "Danh mục", builderDescription: "Mô tả", builderOfferInBooth: "Cung cấp trong chế độ Buồng chụp", builderAllowCaption: "Cho phép khách nhập chú thích ngắn", builderPrintResolution: "Độ phân giải in", builderRecommended: "(đề xuất)", builderColorsBorders: "Màu sắc và viền", builderBackground: "Nền", builderPhotoBorderWidth: "Độ dày viền ảnh", builderPhotoBorderColor: "Màu viền ảnh", builderPhotoCornerRadius: "Bo góc ảnh", builderAccentColor: "Màu nhấn", builderTextColor: "Màu chữ", builderArtwork: "Hình ảnh trang trí", builderBackgroundImage: "Ảnh nền", builderImportBackground: "Nhập ảnh nền…", builderRemove: "Gỡ bỏ", builderTransparentOverlay: "Lớp phủ trong suốt (PNG)", builderImportOverlay: "Nhập lớp phủ…", builderOverlayHint: "Được vẽ phía trên ảnh. Vùng trong suốt sẽ để lộ ảnh bên dưới.", builderColorOptions: "Tùy chọn màu cho khách", builderOptionName: "Tên tùy chọn", builderBorder: "Viền", builderRemoveOption: "Xóa tùy chọn", builderAddOption: "Thêm tùy chọn màu", builderRegular: "Thông thường", builderBold: "Đậm", builderItalic: "Nghiêng", builderMono: "Đơn cách", frameNameTitle: "Tên khung", builderImporting: "Đang nhập…", builderX: "X", builderY: "Y", builderWidth: "Chiều rộng", builderHeight: "Chiều cao", builderCustom: "Tùy chỉnh", builderAccent: "Màu nhấn", builderTextToken: "Màu chữ", builderBorderToken: "Màu viền", builderSendBackward: "Đưa ra sau", builderSaveFrame: "Lưu khung", builderFrameName: "Tên khung",
 };
-export type TranslationKey = keyof typeof en | keyof typeof enMore | keyof typeof builderEn;
-export const translationDomains = [en, enMore, builderEn] as const;
-export const enAll: Record<TranslationKey, string> = { ...en, ...enMore, ...builderEn };
+const galleryEn = {
+  sdSessionDetails: "Session details", sdBreadcrumb: "Breadcrumb", sdOriginalPhotos: "Original photos", sdFinalComposition: "Final composition",
+  sdVideos: "Videos", sdRecordings: "Recordings", sdRecording: "Recording", sdPrintHistory: "Print history",
+  sdExportSession: "Export session", sdSessionId: "Session ID", sdCopy: "Copy", sdCopyId: "Copy session ID", sdCopied: "Session ID copied", sdCopyFailed: "The session ID could not be copied. Select it and copy it manually.",
+  sdMoreActions: "More session actions", sdSessionActions: "Session actions",
+  sdStatusActive: "Active", sdStatusCompleted: "Completed", sdStatusCancelled: "Cancelled", sdStatusFailed: "Failed", sdStatusInterrupted: "Interrupted", sdStatusTrashing: "Moving to trash", sdStatusTrashed: "In trash",
+  sdExportHelp: "Saves a ZIP archive of this session's original photos, compositions and videos to a folder you choose.",
+  sdIncludeEdited: "Include edited photos", sdIncludeEditedHint: "Edited copies go into their own folder in the archive. Originals are never changed.",
+  sdChooseFolder: "Choose folder and export",
+  sdNoComposition: "No final composition yet", sdNoCompositionHint: "Create one from the original photos by choosing a design.",
+  sdNoCompositionNoPhotos: "This session has no photos to compose.", sdCompositionElsewhere: "The final composition is on another media page.",
+  sdChooseDesign: "Choose design…", sdChangeDesign: "Change design…", sdExportImage: "Export image", sdImageExported: "Image exported to {path}", sdExportVideo: "Export video", sdVideoExported: "Video exported to {path}",
+  sdOpenComposition: "Open composition {index} in the viewer", sdSelectComposition: "Composition {index}, {format}", sdCompositionPosition: "{index} of {count}", sdCompositions: "Compositions",
+  sdFormatStrip: "{size} strip", sdFormatSheet: "{size} print", sdPortrait: "portrait", sdLandscape: "landscape", sdPixels: "{width}×{height} px",
+  sdFormat: "Format", sdFrame: "Frame", sdCreated: "Created", sdDuration: "Duration", sdResolution: "Resolution", sdFileSize: "File size",
+  sdOpenPhoto: "Open photo {number} from {date}", sdPlayVideo: "Play video {number}, {duration}", sdPlay: "Play", sdVideoNumber: "Video {number}",
+  sdNoOriginals: "No original photos on this media page.", sdOneJob: "1 job", sdJobCount: "{count} jobs", sdLoadingJobs: "Loading print history…",
+  sdSpoolerNote: "Shows up to 50 recent jobs. “Printed” means Windows finished spooling the job; it does not confirm the paper came out.",
+  sdCopies: "{count} {copyLabel}", sdMediaRange: "Items {from}–{to}",
+} as const;
+const galleryVi: Record<keyof typeof galleryEn, string> = {
+  sdSessionDetails: "Chi tiết phiên", sdBreadcrumb: "Đường dẫn", sdOriginalPhotos: "Ảnh gốc", sdFinalComposition: "Ảnh ghép",
+  sdVideos: "Video", sdRecordings: "Bản ghi video", sdRecording: "Bản ghi", sdPrintHistory: "Lịch sử in",
+  sdExportSession: "Xuất phiên", sdSessionId: "Mã phiên", sdCopy: "Sao chép", sdCopyId: "Sao chép mã phiên", sdCopied: "Đã sao chép mã phiên", sdCopyFailed: "Không thể sao chép mã phiên. Hãy chọn mã và sao chép thủ công.",
+  sdMoreActions: "Thao tác khác cho phiên", sdSessionActions: "Thao tác với phiên",
+  sdStatusActive: "Đang hoạt động", sdStatusCompleted: "Hoàn tất", sdStatusCancelled: "Đã hủy", sdStatusFailed: "Thất bại", sdStatusInterrupted: "Gián đoạn", sdStatusTrashing: "Đang chuyển vào thùng rác", sdStatusTrashed: "Trong thùng rác",
+  sdExportHelp: "Lưu tệp ZIP gồm ảnh gốc, ảnh ghép và video của phiên này vào thư mục bạn chọn.",
+  sdIncludeEdited: "Bao gồm ảnh đã chỉnh sửa", sdIncludeEditedHint: "Bản chỉnh sửa được đặt trong thư mục riêng của tệp nén. Ảnh gốc không bao giờ bị thay đổi.",
+  sdChooseFolder: "Chọn thư mục và xuất",
+  sdNoComposition: "Chưa có ảnh ghép", sdNoCompositionHint: "Chọn một thiết kế để tạo ảnh ghép từ ảnh gốc.",
+  sdNoCompositionNoPhotos: "Phiên này không có ảnh để ghép.", sdCompositionElsewhere: "Ảnh ghép nằm ở trang ảnh khác.",
+  sdChooseDesign: "Chọn thiết kế…", sdChangeDesign: "Đổi thiết kế…", sdExportImage: "Xuất ảnh", sdImageExported: "Đã xuất ảnh đến {path}", sdExportVideo: "Xuất video", sdVideoExported: "Đã xuất video đến {path}",
+  sdOpenComposition: "Mở ảnh ghép {index} trong trình xem", sdSelectComposition: "Ảnh ghép {index}, {format}", sdCompositionPosition: "{index}/{count}", sdCompositions: "Các ảnh ghép",
+  sdFormatStrip: "Dải ảnh {size}", sdFormatSheet: "Ảnh in {size}", sdPortrait: "dọc", sdLandscape: "ngang", sdPixels: "{width}×{height} px",
+  sdFormat: "Khổ", sdFrame: "Khung", sdCreated: "Tạo lúc", sdDuration: "Thời lượng", sdResolution: "Độ phân giải", sdFileSize: "Dung lượng",
+  sdOpenPhoto: "Mở ảnh {number} chụp lúc {date}", sdPlayVideo: "Phát video {number}, {duration}", sdPlay: "Phát", sdVideoNumber: "Video {number}",
+  sdNoOriginals: "Trang này không có ảnh gốc.", sdOneJob: "1 lệnh in", sdJobCount: "{count} lệnh in", sdLoadingJobs: "Đang tải lịch sử in…",
+  sdSpoolerNote: "Hiển thị tối đa 50 lệnh gần đây. “Đã in” nghĩa là Windows đã gửi xong lệnh in; điều này không xác nhận ảnh đã ra giấy.",
+  sdCopies: "{count} {copyLabel}", sdMediaRange: "Mục {from}–{to}",
+};
+export type TranslationKey = keyof typeof en | keyof typeof enMore | keyof typeof builderEn | keyof typeof galleryEn;
+export const translationDomains = [en, enMore, builderEn, galleryEn] as const;
+export const enAll: Record<TranslationKey, string> = { ...en, ...enMore, ...builderEn, ...galleryEn };
 const viMore: Record<keyof typeof enMore, string> = {
   studioOperator: "Studio · người vận hành", openBooth: "Mở chế độ buồng chụp", photoSession: "Phiên chụp ảnh", recordVideo: "Quay video",
   libraryTotals: "Tổng quan thư viện", demoSimulated: "Mô phỏng", notConnected: "Chưa kết nối", readyForGuests: "Sẵn sàng đón khách",
@@ -641,6 +681,7 @@ export const vi: Record<TranslationKey, string> = {
   frameStep: "Khung", shootStep: "Chụp", reviewStep: "Xem lại", doneStep: "Hoàn tất",
   ...viMore,
   ...builderVi,
+  ...galleryVi,
 };
 export function translate(language: string | undefined, key: TranslationKey): string {
   return (language === "vi" ? vi[key] : undefined) ?? enAll[key];

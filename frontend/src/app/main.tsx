@@ -6,6 +6,7 @@ import "./styles.css";
 import "../features/booth/guest/guest.css";
 import "../features/studio/operator/operator.css";
 import "../features/studio/studio-shell.css";
+import "../features/gallery/gallery.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode><AppProvider><App /></AppProvider></StrictMode>,

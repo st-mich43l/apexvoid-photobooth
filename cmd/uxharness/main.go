@@ -57,7 +57,10 @@ func (f *fakePrinter) Submit(context.Context, printing.SubmitRequest) (string, e
 	f.n++
 	return fmt.Sprint(f.n), nil
 }
-func (f *fakePrinter) Status(context.Context, string, string) (printing.JobState, error) {
+func (f *fakePrinter) Status(_ context.Context, _ string, nativeID string) (printing.JobState, error) {
+	if nativeID == "1" { // the first job "finishes", so screenshots show a completed job with its reprint action
+		return printing.JobState{Status: printing.StatusCompleted, Detail: "The spooler reports the job as printed (this is not proof that paper came out)."}, nil
+	}
 	return printing.JobState{Status: printing.StatusQueued, Detail: "Sent to the Windows print queue."}, nil
 }
 
@@ -113,6 +116,7 @@ func main() {
 	fewFrames := flag.Bool("few-frames", false, "leave the default set of frames (instead of switching every design on)")
 	printer := flag.Bool("printer", true, "configure the fake printer")
 	seed := flag.Int("seed-sessions", 0, "create synthetic completed sessions for gallery screenshots")
+	seedGallery := flag.Bool("seed-gallery", false, "create the Gallery session-detail scenarios (compositions, videos, print jobs)")
 	flag.Parse()
 
 	dir, _ := os.MkdirTemp("", "uxharness")
@@ -164,6 +168,11 @@ func main() {
 		}
 	}
 
+	var gallery []seededSession
+	if *seedGallery {
+		gallery = seedGalleryStore(st.MediaDir)
+	}
+
 	h := &hub{subs: map[chan []byte]struct{}{}}
 	opts := app.Options{Version: "0.2.0", ConfigPath: cfg, Emit: h.emit, Tick: *tick,
 		DisableDriver: map[string]bool{"canon-edsdk": true, "uvc": true}, PrintDriver: &fakePrinter{}, PickFolder: func() (string, error) { return filepath.Join(dir, "sample-exports"), nil }}
@@ -192,6 +201,10 @@ func main() {
 		if err := svc.ConnectCamera("mock-0"); err != nil {
 			log.Printf("connect simulated camera: %v", err)
 		}
+	}
+
+	if *seedGallery {
+		finishGallerySeed(svc, gallery)
 	}
 
 	mux := http.NewServeMux()

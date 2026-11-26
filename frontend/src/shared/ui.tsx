@@ -5,7 +5,8 @@ import { useApp } from "../app/state";
 import { AppError, toAppError } from "./api";
 import type { Support } from "./types";
 
-export function Badge({ kind, children }: { kind: "ok" | "warn" | "err" | "info" | "sim"; children: ReactNode }) {
+export type BadgeKind = "ok" | "warn" | "err" | "info" | "sim";
+export function Badge({ kind, children }: { kind: BadgeKind; children: ReactNode }) {
   return <span className={`badge ${kind}`}>{children}</span>;
 }
 

@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../shared/api";
 import { MediaImage } from "../../../shared/MediaImage";
-import { bytes, clock, when } from "../../../shared/format";
+import { when } from "../../../shared/format";
 import { useApp, useT } from "../../../app/state";
-import { Badge, Confirm, ErrorNote, Modal, useAction } from "../../../shared/ui";
+import { Badge, Confirm, ErrorNote, useAction } from "../../../shared/ui";
 import type { Media, PrintJob, SessionCard, SessionQuery } from "../../../shared/types";
-import { Editor } from "./Editor";
-import { PrintPanel } from "../../printer/PrintPanel";
-import { FrameSelection } from "../../frames/FrameSelection";
-import type { FrameChoice } from "../../../shared/types";
-import { jobActive } from "../../../shared/printInfo";
 import type { TranslationKey } from "../../../shared/i18n";
+import { Viewer } from "./MediaViewer";
+import { SessionDetail } from "./SessionDetail";
 
 const initialQuery: SessionQuery = { search: "", mode: "", status: "", simulated: "all", from: "", to: "", cursor: "", limit: 40 };
-const jobStatusKey = { submitting: "jobStatusSubmitting", queued: "jobStatusQueued", printing: "jobStatusPrinting", completed: "jobStatusCompleted", removed: "jobStatusRemoved", failed: "jobStatusFailed", unknown: "jobStatusUnknown" } as const;
 const sessionStatusKeys: Record<string, TranslationKey> = {
   active: "sessionActive", completed: "sessionCompleted", cancelled: "statusSessionCancelled", failed: "sessionFailed",
   interrupted: "sessionInterrupted", trashing: "sessionTrashing", trashed: "sessionTrashed",
@@ -38,9 +34,8 @@ export function Gallery() {
   const [open, setOpen] = useState<Media | null>(null);
   const [confirm, setConfirm] = useState<Media | null>(null);
   const [trashSession, setTrashSession] = useState(false);
-  const [includeEdited, setIncludeEdited] = useState(true);
   const [printJobs, setPrintJobs] = useState<PrintJob[]>([]);
-  const [jobsError, setJobsError] = useState(false);
+  const [jobsState, setJobsState] = useState<"loading" | "error" | "ready">("loading");
   const [confirmPrint, setConfirmPrint] = useState<PrintJob | null>(null);
   const request = useRef(0); const mediaRequest = useRef(0); const pendingViewer = useRef<"first" | "last" | null>(null);
   const { error, run, clear } = useAction();
@@ -57,21 +52,24 @@ export function Gallery() {
   useEffect(() => {
     const id = ++mediaRequest.current; setItems([]); setMediaOffset(0); setMediaMore(false);
     if (!selected) { setMediaLoading(false); return; }
-    setMediaLoading(true); setPrintJobs([]); setJobsError(false);
-    api.listSessionPrintJobs(selected.id).then((jobs) => { if (id === mediaRequest.current) setPrintJobs(jobs); }).catch(() => { if (id === mediaRequest.current) setJobsError(true); });
+    setMediaLoading(true); setPrintJobs([]); setJobsState("loading");
+    api.listSessionPrintJobs(selected.id).then((jobs) => { if (id === mediaRequest.current) { setPrintJobs(jobs); setJobsState("ready"); } }).catch(() => { if (id === mediaRequest.current) setJobsState("error"); });
     api.querySessionMedia(selected.id, 50, mediaStart).then((p) => { if (id === mediaRequest.current) { setItems(p.items); setMediaOffset(p.nextOffset); setMediaMore(p.hasMore); if (pendingViewer.current) { setOpen(p.items[pendingViewer.current === "first" ? 0 : p.items.length - 1] ?? null); pendingViewer.current = null; } } })
       .catch((e) => { if (id === mediaRequest.current) void run(async () => { throw e; }); }).finally(() => { if (id === mediaRequest.current) setMediaLoading(false); });
     return () => { mediaRequest.current++; };
   }, [selected?.id, mediaStart, libraryVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  // keep the open session's card (status, frame, composition flag) in step with the refreshed list
+  useEffect(() => { if (selected) { const fresh = sessions.find((s) => s.id === selected.id); if (fresh && fresh !== selected) setSelected(fresh); } }, [sessions]); // eslint-disable-line react-hooks/exhaustive-deps
   const update = (patch: Partial<SessionQuery>) => { setPageCursor(""); setHistory([]); setQuery((q) => ({ ...q, ...patch, cursor: "" })); };
   const del = (m: Media) => run(async () => { await api.trashMedia(m.id); setConfirm(null); setOpen(null); bumpLibrary(); toast(t("mediaMovedToTrash"), "ok", () => { void run(async () => { await api.restoreMedia(m.id); bumpLibrary(); }); }); });
-  const exportSession = () => selected && run(async () => { const folder = await api.pickFolder(); if (!folder) return; const p = await api.exportSession(selected.id, folder, includeEdited); toast(tf("sessionExported", { path: p })); });
+  const exportSession = (includeEdited: boolean) => selected && run(async () => { const folder = await api.pickFolder(); if (!folder) return; const p = await api.exportSession(selected.id, folder, includeEdited); toast(tf("sessionExported", { path: p })); });
+  const restoreSession = () => selected && run(async () => { await api.restoreSession(selected.id); setSelected(null); bumpLibrary(); toast(t("sessionRestored")); });
   const trash = () => selected && run(async () => { const id = selected.id; try { await api.trashSession(id); } catch (e) { setTrashSession(false); setSelected(null); bumpLibrary(); throw e; } setTrashSession(false); setSelected(null); bumpLibrary(); toast(t("sessionMovedToTrash"), "ok", () => { void run(async () => { await api.restoreSession(id); bumpLibrary(); }); }); });
   const activeIndex = open ? items.findIndex((m) => m.id === open.id) : -1;
   const sessionStatusLabel = (status: string) => sessionStatusKeys[status] ? t(sessionStatusKeys[status]) : status;
 
   return <div className="page">
-    <header className="row"><h1>{t("gallery")}</h1>{selected && <button onClick={() => { setSelected(null); setOpen(null); }}>{t("allSessions")}</button>}</header>
+    {!selected && <header className="row"><h1>{t("gallery")}</h1></header>}
     <ErrorNote error={error} onClose={clear} />
     {!selected ? <>
       <div className="gallery-filters" aria-label={t("galleryFilters")}>
@@ -88,127 +86,19 @@ export function Gallery() {
         <strong>{when(s.createdAt, settings?.language)}</strong><span>{t(s.mode === "photo" ? "photoMode" : "videoMode")} · {tf(s.photoCount === 1 ? "onePhoto" : "photosCount", { count: s.photoCount })} {s.hasStrip ? `· ${t("composition")}` : `· ${t("compositionMissing")}`}</span><span>{s.frameName || t("noFrame")} · {sessionStatusLabel(s.status)}</span><small>{s.id}</small>{s.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}{s.note === "Operator camera test" && <Badge kind="info">{t("testBadge")}</Badge>}
       </button>)}</div>
       {loading && <p role="status">{t("loadingSessions")}</p>}<div className="row">{history.length > 0 && <button onClick={previousPage} disabled={loading}>{t("previousSessions")}</button>}{more && <button onClick={nextPage} disabled={loading}>{t("nextSessions")}</button>}</div>
-    </> : <>
-      <section className="card session-summary"><h2>{when(selected.createdAt, settings?.language)} {selected.simulated && <Badge kind="sim">{t("simulatedBadge")}</Badge>}</h2>
-        <p>{selected.id} · {t(selected.mode === "photo" ? "photoMode" : "videoMode")} · {sessionStatusLabel(selected.status)} · {selected.frameName || t("noFrame")} · {tf(selected.photoCount === 1 ? "onePhoto" : "photosCount", { count: selected.photoCount })}</p>
-        {selected.note && <p className="note warn">{selected.note}</p>}
-        <div className="row"><label className="inline"><input type="checkbox" checked={includeEdited} onChange={(e) => setIncludeEdited(e.target.checked)} /> {t("includeEdits")}</label><button onClick={exportSession} disabled={selected.status === "active" || selected.status === "trashing" || selected.status === "trashed"}>{t("exportSession")}</button>
-          {(selected.status === "trashing" || selected.status === "trashed") ? <button onClick={() => run(async () => { await api.restoreSession(selected.id); setSelected(null); bumpLibrary(); toast(t("sessionRestored")); })}>{t("restoreSession")}</button> : <button className="danger" disabled={selected.status === "active"} onClick={() => setTrashSession(true)}>{t("trashSession")}</button>}</div>
-      </section>
-      <h3>{t("sessionMedia")}</h3><p className="muted small">{t("originalsOrder")}</p>
-      <div className="gallery">{items.map((m) => <button key={m.id} className={`tile ${m.kind}`} onClick={() => setOpen(m)} aria-label={tf("mediaFrom", { kind: m.kind === "photo" ? t("photo").toLowerCase() : m.kind === "video" ? t("video").toLowerCase() : t("photoStrip").toLowerCase(), date: when(m.capturedAt, settings?.language) })}>
-        {m.status === "missing" ? <div className="no-thumb err">{t("fileMissing")}</div> : m.thumbRel ? <Thumbnail src={mediaUrl(m.id, "thumb", m.editedRel || m.thumbRel)} fallback={t("thumbUnavailable")} /> : <div className="no-thumb">{m.kind}</div>}
-        <span className="tag">{m.kind === "video" ? `▶ ${clock(m.durationMs)}` : m.kind === "photo" ? tf("photoSlot", { number: m.slot + 1 }) : m.kind}</span>{m.editedRel && <span className="edit-tag">{t("editedTag")}</span>}{m.status === "partial" && <span className="sim-tag warn">{t("partialRecording")}</span>}
-      </button>)}</div>
-      <section className="card">
-        <h3>{t("recentJobs")}</h3>
-        {printJobs.length > 0 ? (
-          <>
-            {printJobs.map((j) => (
-              <div className="row" key={j.id}>
-                <span>{when(j.createdAt, settings?.language)} · {j.printer} · {j.paperName} · {t(jobStatusKey[j.status])}{j.parentId ? ` · ${tf("reprintNumber", { number: j.attempt - 1 })}` : ""}</span>
-                {!jobActive(j.status) && j.status !== "unknown" && <button onClick={() => setConfirmPrint(j)}>{t("reprint")}</button>}
-              </div>
-            ))}
-          </>
-        ) : <p className="muted">{jobsError ? t("jobHistoryError") : t("noJobs")}</p>}
-        <p className="muted small">{t("jobHistoryLimit")}</p>
-      </section>
-      {mediaLoading && <p role="status">{t("loadingMedia")}</p>}{!mediaLoading && !items.length && <p className="muted">{t("noMedia")}</p>}<div className="row">{mediaStart > 0 && <button onClick={() => setMediaStart(Math.max(0, mediaStart - 50))} disabled={mediaLoading}>{t("previousMedia")}</button>}{mediaMore && <button onClick={() => setMediaStart(mediaOffset)} disabled={mediaLoading}>{t("nextMedia")}</button>}</div>
-    </>}
+    </> : <SessionDetail session={selected} items={items} mediaLoading={mediaLoading} mediaStart={mediaStart} mediaMore={mediaMore}
+      onPreviousMedia={() => setMediaStart(Math.max(0, mediaStart - 50))} onNextMedia={() => setMediaStart(mediaOffset)}
+      jobs={printJobs} jobsState={jobsState} onBack={() => { setSelected(null); setOpen(null); }} onOpen={setOpen}
+      onExport={(edited) => void exportSession(edited)} onTrash={() => setTrashSession(true)} onRestore={() => void restoreSession()}
+      onReprint={setConfirmPrint} onComposed={() => bumpLibrary()} />}
     {open && <Viewer media={open} onClose={() => { pendingViewer.current = null; setOpen(null); }} onDelete={() => setConfirm(open)} onChanged={(m) => { setOpen(m); bumpLibrary(); }}
       onPrevious={activeIndex > 0 ? () => setOpen(items[activeIndex - 1]) : mediaStart > 0 ? () => { pendingViewer.current = "last"; setMediaStart(Math.max(0, mediaStart - 50)); } : undefined} onNext={activeIndex >= 0 && activeIndex < items.length - 1 ? () => setOpen(items[activeIndex + 1]) : mediaMore ? () => { pendingViewer.current = "first"; setMediaStart(mediaOffset); } : undefined} />}
     {confirm && <Confirm title={t("deleteQuestion")} danger confirmLabel={t("deleteToTrash")} onNo={() => setConfirm(null)} onYes={() => del(confirm)} body={<p>{tf("trashItemHelp", { kind: confirm.kind })}</p>} />}
-    {confirmPrint && <Confirm title={t("reprintImageQuestion")} confirmLabel={t("reprintImage")} onNo={() => setConfirmPrint(null)} onYes={() => { const j = confirmPrint; setConfirmPrint(null); void run(async () => { await api.reprint(j.id, true); if (selected) setPrintJobs(await api.listSessionPrintJobs(selected.id)); toast(t("reprintToWindowsQueue")); }); }} body={<p>{tf("reprintPrompt", { count: confirmPrint.copies, copyLabel: t(confirmPrint.copies === 1 ? "copySingular" : "copyPlural"), printer: confirmPrint.printer, paper: confirmPrint.paperName })}</p>} />}
+    {confirmPrint && <Confirm title={t("reprintImageQuestion")} confirmLabel={t("reprintImage")} onNo={() => setConfirmPrint(null)} onYes={() => { const j = confirmPrint; setConfirmPrint(null); void run(async () => { await api.reprint(j.id, true); if (selected) { setPrintJobs(await api.listSessionPrintJobs(selected.id)); setJobsState("ready"); } toast(t("reprintToWindowsQueue")); }); }} body={<p>{tf("reprintPrompt", { count: confirmPrint.copies, copyLabel: t(confirmPrint.copies === 1 ? "copySingular" : "copyPlural"), printer: confirmPrint.printer, paper: confirmPrint.paperName })}</p>} />}
     {trashSession && selected && <Confirm title={t("trashQuestion")} danger confirmLabel={t("trashConfirm")} onNo={() => setTrashSession(false)} onYes={trash} body={<p>{t("trashHelp")}</p>} />}
   </div>;
 }
 
 function Thumbnail({ src, fallback }: { src: string; fallback: string }) {
   return <MediaImage src={src} alt={fallback} manualRetry={false} />;
-}
-
-function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { media: Media; onClose: () => void; onDelete: () => void; onChanged: (m: Media) => void; onPrevious?: () => void; onNext?: () => void }) {
-  const { mediaUrl, toast, settings } = useApp();
-  const { t, tf } = useT();
-  const [editing, setEditing] = useState(false);
-  const [printing, setPrinting] = useState(false);
-  const [reframe, setReframe] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const { error, run } = useAction();
-  useEffect(() => { setShowOriginal(false); setZoom(1); }, [media.id]);
-  useEffect(() => { if (editing || printing || reframe) return; const key = (e: KeyboardEvent) => { if (e.target instanceof HTMLElement && (e.target.matches("input, textarea, select, video") || e.target.isContentEditable)) return; if (e.key === "ArrowLeft" && onPrevious) { e.preventDefault(); onPrevious(); } if (e.key === "ArrowRight" && onNext) { e.preventDefault(); onNext(); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [editing, printing, reframe, onPrevious, onNext]);
-  const isVideo = media.kind === "video";
-  const ver = media.editedRel || media.id;
-
-  return (
-    <Modal title={isVideo ? t("video") : media.kind === "strip" ? t("photoStrip") : t("photo")} onClose={onClose} wide>
-      <div className="viewer">
-        <ErrorNote error={error} />
-        {media.status === "missing" ? <div className="note err">{t("viewerMissingFile")}</div>
-          : isVideo ? <video controls playsInline autoPlay src={mediaUrl(media.id, "original")} className="player" />
-          : <div className="viewer-image-viewport" style={{ zoom }}><MediaImage diagnosticId={media.id} revision={ver + (showOriginal ? "o" : "")} src={mediaUrl(media.id, showOriginal ? "original" : "preview", ver + (showOriginal ? "o" : ""))} alt={t("selectedPhoto")} /></div>}
-        <dl className="meta">
-          <dt>{t("capturedAt")}</dt><dd>{when(media.capturedAt, settings?.language)}</dd>
-          <dt>{t("size")}</dt><dd>{media.width}×{media.height}{isVideo ? ` · ${clock(media.durationMs)}` : ""} · {bytes(media.sizeBytes, settings?.language)}</dd>
-          {media.frameName && <><dt>{t("frame")}</dt><dd>{media.frameName}{media.variantId ? ` · ${media.variantId}` : ""}</dd></>}
-          <dt>{t("sourceLabel")}</dt><dd>{media.source || "—"} {media.simulated && <Badge kind="sim">{t("simulatedNotPhoto")}</Badge>} {media.status === "partial" && <Badge kind="warn">{t("partialRecording")}</Badge>}</dd>
-        </dl>
-      </div>
-      <footer>
-        <button disabled={!onPrevious} onClick={onPrevious}>{t("previousLabel")}</button><button disabled={!onNext} onClick={onNext}>{t("nextLabel")}</button>
-        {!isVideo && <><button onClick={() => setZoom((z) => Math.max(1, z - 0.5))} disabled={zoom <= 1}>{t("zoomOut")}</button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((z) => Math.min(3, z + 0.5))} disabled={zoom >= 3}>{t("zoomIn")}</button></>}
-        <button className="danger" onClick={onDelete}>{t("deleteEllipsis")}</button>
-        <button onClick={() => run(() => api.revealMedia(media.id))}>{t("showInFolder")}</button>
-        <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", false); toast(tf("exportOriginalToast", { path: p })); })}>{t("exportOriginal")}</button>
-        {media.editedRel && <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", true); toast(tf("exportEditedToast", { path: p })); })}>{t("exportEdited")}</button>}
-        {media.editedRel && <button onClick={() => setShowOriginal((v) => !v)}>{showOriginal ? t("showEdited") : t("showOriginal")}</button>}
-        {media.kind === "strip" && <button onClick={() => setReframe(true)}>{t("changeFrameEllipsis")}</button>}
-        {!isVideo && <button onClick={() => setPrinting(true)}>{t("printEllipsis")}</button>}
-        {media.kind === "photo" && <button className="primary" onClick={() => setEditing(true)}>{t("edit")}</button>}
-      </footer>
-      {editing && <Editor media={media} onClose={() => setEditing(false)} onSaved={onChanged} />}
-      {printing && <PrintDialog media={media} onClose={() => setPrinting(false)} />}
-      {reframe && <ReframeDialog media={media} onClose={() => setReframe(false)} onDone={(m) => { setReframe(false); onChanged(m); }} />}
-    </Modal>
-  );
-}
-
-function PrintDialog({ media, onClose }: { media: Media; onClose: () => void }) {
-  const { t } = useT();
-  return (
-    <Modal title={t("print")} onClose={onClose} wide>
-      <div className="modal-body">
-        {media.kind === "photo" && <p className="muted small">{t("singlePhotoLayoutHint")}</p>}
-        <PrintPanel mediaId={media.id} onPrinted={onClose} />
-      </div>
-    </Modal>
-  );
-}
-
-/** Give a finished session another frame, using its original photos (no retake). */
-function ReframeDialog({ media, onClose, onDone }: { media: Media; onClose: () => void; onDone: (m: Media) => void }) {
-  const { toast } = useApp();
-  const { t, tf } = useT();
-  const [photos, setPhotos] = useState<number | null>(null);
-  const { busy, error, run } = useAction();
-  useEffect(() => {
-    api.listMedia(media.sessionId, 200, 0).then((ms) => setPhotos(ms.filter((m) => m.kind === "photo").length)).catch(() => setPhotos(0));
-  }, [media.sessionId]);
-  const apply = (c: FrameChoice, d: { useFirst: boolean; restart: boolean }) => {
-    if (d.restart) { toast(tf("reframeNewSessionHint", { frame: c.name, count: c.photos })); onClose(); return; }
-    run(async () => { const m = await api.composeSession(media.sessionId, c.id, c.variantId, c.caption, d.useFirst); toast(tf("newImageMadeWith", { frame: c.name })); onDone(m); });
-  };
-  return (
-    <Modal title={t("reframeTitle")} onClose={onClose} wide>
-      <div className="modal-body">
-        <ErrorNote error={error} />
-        <p className="muted small">{t("originalPhotosUntouched")}</p>
-        {photos === null ? <div className="spinner" /> : photos === 0
-          ? <div className="note err">{t("noPhotosCompose")}</div>
-          : <FrameSelection variant="studio" takenPhotos={photos} initial={{ id: media.frameId, variantId: media.variantId }} confirmLabel={t("makeImage")} busy={busy} title={t("chooseFrameForReframe")} onConfirm={apply} />}
-      </div>
-    </Modal>
-  );
 }
