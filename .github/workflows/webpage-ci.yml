@@ -87,9 +87,9 @@ jobs:
     with:
       project: apexvoid-photobooth-webpage
       registry-namespace: mich43l
-      # Pinned: the compose template needs photobooth_release_public_dir and the storage provisioning role
-      # (ansible-library #163). Bump deliberately when ansible-library changes this project.
-      ansible-library-ref: 39b1186
+      # Pinned to the retention publisher and storage provisioning changes in ansible-library #164.
+      # Bump deliberately when ansible-library changes this project's deployment requirements.
+      ansible-library-ref: 39b11863a4683dc5c3c4dd444300becda8cc3b81
       images: >-
         [
           {"name": "apexvoid-photobooth-webpage", "context": ".", "dockerfile": "deploy/Dockerfile"}
