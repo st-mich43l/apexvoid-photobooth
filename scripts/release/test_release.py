@@ -58,7 +58,9 @@ class Repo:
 
 
 def manifest(*versions: str) -> dict:
-    return {"schemaVersion": 1, "updatedAt": "2027-01-01T00:00:00Z", "latest": {"stable": None}, "releases": [{"version": v} for v in versions]}
+    return {"schemaVersion": 1, "updatedAt": "2027-01-01T00:00:00Z",
+            "latest": {"stable": versions[-1] if versions else None},
+            "releases": [{"version": v, "channel": "stable"} for v in versions]}
 
 
 class VersionTests(unittest.TestCase):
@@ -146,11 +148,34 @@ class EligibilityTests(unittest.TestCase):
         self.assertTrue(res["publish"])
         self.assertEqual((res["version"], res["channel"], res["variant"]), ("0.3.0", "stable", "standard"))
 
-    def test_prerelease_is_a_preview(self):
+    def test_prerelease_is_not_published_in_public_catalog(self):
         self.r.set_version("0.4.0-rc.1")
         self.r.publication()
         self.r.notes("0.4.0-rc.1")
-        self.assertEqual(self.decide()["channel"], "preview")
+        result = self.decide()
+        self.assertEqual(result["channel"], "preview")
+        self.assertFalse(result["publish"])
+        self.assertIn("not published", result["reason"])
+
+    def test_stale_release_jobs_are_skipped_by_semver(self):
+        self.r.set_version("0.2.9")
+        self.r.publication()
+        self.r.notes("0.2.9")
+        latest = manifest("0.2.10")
+        latest["latest"]["stable"] = "0.2.10"
+        result = self.decide(m=latest)
+        self.assertFalse(result["publish"])
+        self.assertIn("not newer", result["reason"])
+
+    def test_rollback_pointer_does_not_allow_version_older_than_retained_release(self):
+        self.r.set_version("0.2.11")
+        self.r.publication()
+        self.r.notes("0.2.11")
+        current = manifest("0.2.10", "0.3.0")
+        current["latest"]["stable"] = "0.2.10"  # intentional rollback while 0.3.0 remains archived
+        result = self.decide(m=current)
+        self.assertFalse(result["publish"])
+        self.assertIn("highest published stable v0.3.0", result["reason"])
 
     def test_published_version_skips_on_push_and_retries_explicitly(self):
         self.r.publication()
