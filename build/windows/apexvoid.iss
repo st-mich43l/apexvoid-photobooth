@@ -1,6 +1,6 @@
 #define AppName "ApexVoid Photobooth"
 #ifndef AppVersion
-#define AppVersion "0.2.1-dev"
+#define AppVersion "0.3.0-dev"
 #endif
 [Setup]
 AppId={{48D3E7E4-4F93-4A1E-9C3A-2AFB0C82906D}
