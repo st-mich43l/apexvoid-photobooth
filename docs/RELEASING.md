@@ -16,9 +16,10 @@ A push to `master` (or a manual run of CI on `master`) publishes when **all** of
 1. every validation job passed: `go`, `frontend`, `windows`, `canon-portable`, `canon-windows-smoke`;
 2. `release/publication.json` has `"enabled": true` and every gate required by its `variant` is approved (below);
 3. `docs/releases/v<version>.md` exists — the approved release notes are the release intent;
-4. the version is not published yet. A push of an already published version is skipped. A **manual** run of an
-   already published version is an explicit retry: identical files are a no-op, a different file fails with a
-   conflict. Published versions are never overwritten.
+4. the version is not published yet and is newer than every retained stable version. A stale run is skipped by CI
+   and rejected again by the VPS publisher. A push of an already published version is skipped. A **manual** run of
+   the highest published version is an explicit retry: identical files are a no-op, a different file fails with a
+   conflict. Expired versions remain tombstoned privately and cannot be republished.
 
 Otherwise the `Release decision` job succeeds with the reason (and the open gates) in its job summary, and nothing
 is published.
@@ -28,9 +29,9 @@ is published.
 `frontend/package.json` is the single version authority (SemVer, no build metadata). `build/winres/winres.json` must
 match it — CI's `go` job fails otherwise (`python3 scripts/release/release.py check-version`). The public version is
 `<version>`, the tag `v<version>`, the file `ApexVoidPhotobooth-v<version>-windows-x64.exe`. A version with a
-pre-release part (`1.0.0-rc.1`) is published as a **preview**: it is listed and labelled, and never becomes the
-current download. An older version can be published (for example a patch of an earlier line); it never replaces a
-newer stable release as the current one.
+pre-release part (`1.0.0-rc.1`) is not published in the public catalog. Older release builds remain available as CI
+artifacts for development and testing. Stable public releases are strictly increasing; intentional rollback is an
+operator action limited to retained versions.
 
 ## Publication gates (`release/publication.json`)
 

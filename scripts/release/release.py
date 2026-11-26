@@ -111,6 +111,16 @@ def release_notes(version: str, root: Path = ROOT) -> Path:
     return root / "docs/releases" / f"v{version}.md"
 
 
+def semver_key(version: str) -> tuple:
+    """SemVer ordering key used to skip stale CI jobs before they reach the VPS publisher."""
+    match = SEMVER.fullmatch(version)
+    if not match:
+        raise ReleaseError(f"not a semantic version: {version!r}")
+    major, minor, patch, prerelease = match.groups()
+    pre_key = tuple((0, int(part)) if part.isdigit() else (1, part) for part in prerelease.split(".")) if prerelease else ()
+    return int(major), int(minor), int(patch), 1 if prerelease is None else 0, pre_key
+
+
 def fetch_manifest(url: str, timeout: float = 20.0) -> dict:
     req = urllib.request.Request(url, headers={"Accept": "application/json", "Cache-Control": "no-cache"})
     with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (fixed https URL)
@@ -149,6 +159,14 @@ def eligibility(event: str, ref: str, root: Path = ROOT, manifest: dict | None =
     published = any(isinstance(r, dict) and r.get("version") == version for r in manifest["releases"])
     if published and event == "push":
         out["reason"] = f"v{version} is already published; bump the version to release again"
+        return out
+    if out["channel"] != "stable":
+        out["reason"] = "preview releases are not published in the stable public catalog"
+        return out
+    stable_versions = [r.get("version") for r in manifest["releases"] if isinstance(r, dict) and r.get("channel") == "stable" and isinstance(r.get("version"), str) and SEMVER.fullmatch(r["version"])]
+    highest = max(stable_versions, key=semver_key, default=None)
+    if highest and version != highest and semver_key(version) <= semver_key(highest):
+        out["reason"] = f"v{version} is not newer than the highest published stable v{highest}; stale release jobs are skipped"
         return out
     out["publish"] = True
     out["reason"] = (

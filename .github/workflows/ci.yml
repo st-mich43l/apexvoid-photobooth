@@ -397,7 +397,7 @@ jobs:
       cancel-in-progress: false
     env:
       # Pinned: the publisher, its storage contract and the pinned VPS host key. Bump deliberately.
-      ANSIBLE_LIBRARY_REF: bf688bcfc0cc52493490764814588bd23bdd7b58
+      ANSIBLE_LIBRARY_REF: 39b1186
       VERSION: ${{ needs.release-gate.outputs.version }}
       VARIANT: ${{ needs.release-gate.outputs.variant }}
     steps:
