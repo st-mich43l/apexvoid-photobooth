@@ -180,10 +180,12 @@ func New(o Options) (*Service, error) {
 
 	s.eng = capture.New(capture.Options{
 		Camera: s.mgr, Store: s.store, Tick: o.Tick, CaptureRetries: 1,
-		IsSimulated:        func() bool { st := s.mgr.Status(); return st.Device != nil && st.Device.Simulated },
-		Finalize:           s.finalizeStrip,
-		BeginSession:       s.beginSession,
-		KeepSelectedPhotos: s.store.KeepSelectedPhotos,
+		IsSimulated:       func() bool { st := s.mgr.Status(); return st.Device != nil && st.Device.Simulated },
+		Finalize:          s.finalizeStrip,
+		BeginSession:      s.beginSession,
+		SelectPhotos:      s.store.SelectPhotos,
+		PruneUnselected:   s.store.PruneDiscardedPhotos,
+		RestoreUnselected: s.store.RestoreDiscardedPhotos,
 		OnChange: func(sn capture.Snapshot) {
 			if sn.State == capture.Error {
 				s.log.Warn("capture failed")

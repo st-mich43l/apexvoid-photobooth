@@ -11,7 +11,7 @@ export interface GuestFramesProps {
   category: string; setCategory: (c: string) => void; count: number; setCount: (n: number) => void;
   picked?: Frame; pickId: string; select: (f: Frame) => void;
   variantId: string; setVariantId: (id: string) => void; caption: string; setCaption: (c: string) => void;
-  fit: Fit; takenPhotos?: number; busy?: boolean;
+  fit: Fit; takenPhotos?: number; pool?: boolean; busy?: boolean;
   title: string; confirmLabel?: string; backLabel?: string; onBack?: () => void;
   confirm: (d: { useFirst?: boolean; restart?: boolean }) => void;
   thumbUrl: (f: Frame) => string; bigUrl: (f: Frame) => string; portrait: boolean;
@@ -66,7 +66,7 @@ export function GuestFrames(p: GuestFramesProps) {
               {p.shown.length === 0 && <p className="g-empty">{t("noFramesMatch")}</p>}
               <div className="g-grid" role="radiogroup" aria-label={t("frames")}>
                 {p.shown.map((f) => {
-                  const mis = fitFor(f, p.takenPhotos).kind !== "ok";
+                  const mis = fitFor(f, p.takenPhotos, p.pool).kind !== "ok";
                   return <FrameThumb language={p.language} key={f.id} frame={f} src={p.thumbUrl(f)} selected={f.id === p.pickId} mismatch={mis} note={formatTranslation(p.language, "needsPhotos", { count: f.photos })} onSelect={() => p.select(f)} />;
                 })}
               </div>

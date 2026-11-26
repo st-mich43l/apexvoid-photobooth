@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CameraStatus, FrameChoice, ShootSnapshot } from "../../../shared/types";
 
-vi.mock("../../../shared/ui", () => ({ LivePreview: (p: { fit?: string; objectPosition?: string }) => <div data-testid="live" data-fit={p.fit ?? "contain"} data-position={p.objectPosition ?? "50% 50%"} /> }));
+vi.mock("../../../shared/ui", () => ({ LivePreview: (p: { fit?: string; objectPosition?: string; mediaStyle?: object }) => <div data-testid="live" data-fit={p.fit ?? "contain"} data-position={p.objectPosition ?? "50% 50%"} data-media={p.mediaStyle ? JSON.stringify(p.mediaStyle) : ""} /> }));
 import { GuestShoot, type GuestShootProps } from "./GuestShoot";
+import { usePhotoSelection, DOUBLE_TAP_MS, type PhotoSelection } from "../photoSelection";
 import { Welcome, type WelcomeProps } from "./Welcome";
 import { StepIndicator } from "./parts";
 
@@ -101,8 +102,9 @@ const cam = (o: Partial<CameraStatus> = {}): CameraStatus => ({ state: "liveview
 const G = (s: ShootSnapshot, o: Partial<GuestShootProps> = {}): GuestShootProps => ({
   s, camera: cam(), frame: FRAME, countdownSeconds: 3, busy: false, error: false, onClearError: vi.fn(), slow: false,
   mediaUrl: (id) => `/m/${id}`, frameUrl: (id) => `/f/${id}`, finishing: false, print: null,
-  onStart: vi.fn(), onChangeFrame: vi.fn(), onRetake: vi.fn(), onAccept: vi.fn(), onCancel: vi.fn(), onChangeDesign: vi.fn(), onFinish: vi.fn(), onRetryPreview: vi.fn(), onReset: vi.fn(), ...o,
+  selection: stubSelection(), onStart: vi.fn(), onChangeFrame: vi.fn(), onContinue: vi.fn(), onCancel: vi.fn(), onChangeDesign: vi.fn(), onFinish: vi.fn(), onRetryPreview: vi.fn(), onReset: vi.fn(), ...o,
 });
+const stubSelection = (): PhotoSelection => ({ selectedIds: [], orderOf: () => 0, toggle: vi.fn(), count: 0, required: 4, remaining: 4, complete: false, notice: null, slots: [], submit: vi.fn(), submitting: false });
 
 describe("live preview", () => {
   it("shows the camera, the chosen frame, the photo count and one Start action", () => {
@@ -118,19 +120,51 @@ describe("live preview", () => {
     render(<GuestShoot {...G(snap("PREVIEW"), { camera: cam({ liveView: false }) })} />);
     expect((screen.getByRole("button", { name: /Start shooting/ }) as HTMLButtonElement).disabled).toBe(true);
   });
-  it("frames the upcoming shot to its frame slot and focus", () => {
-    const frame = { ...FRAME, photoSlots: [
-      { photo: 0, w: 0.4, h: 0.8, focusX: 0.25, focusY: 0.75 },
-      { photo: 1, w: 0.8, h: 0.4, focusX: 0.6, focusY: 0.2 },
-    ] };
-    const { container, rerender } = render(<GuestShoot {...G(snap("PREVIEW"), { frame })} />);
-    expect(container.querySelector(".g-shot-target")?.getAttribute("style")).toContain("--shot-ar: 0.5");
-    expect(screen.getByTestId("live").getAttribute("data-fit")).toBe("cover");
-    expect(screen.getByTestId("live").getAttribute("data-position")).toBe("25% 75%");
-    rerender(<GuestShoot {...G(snap("COUNTDOWN", { slot: 1, remaining: 2 }), { frame })} />);
-    expect(container.querySelector(".g-shot-target")?.getAttribute("style")).toContain("--shot-ar: 2");
-    expect(screen.getByTestId("live").getAttribute("data-position")).toBe("60% 20%");
+  const slot = (photo: number, w: number, h: number, focusX?: number, focusY?: number) => ({ photo, w, h, focusX, focusY });
+  const framed = (slots: ReturnType<typeof slot>[], o: Partial<FrameChoice> = {}): FrameChoice => ({ ...FRAME, photos: slots.length, photoSlots: slots, dpi: 300, borderIn: 0, ...o });
+  const guideOf = (c: HTMLElement) => ({ box: c.querySelector(".g-shot-target")?.getAttribute("style"), media: screen.getByTestId("live").getAttribute("data-media") });
+
+  it("frames the shot with the frame's photo WINDOW and keeps that guide before, during and after every one of eight captures", () => {
+    for (const photos of [1, 3, 4, 6]) {
+      const frame = framed(Array.from({ length: photos }, (_, i) => slot(i, 1.7, 1.2)));
+      const { container, rerender, unmount } = render(<GuestShoot {...G(snap("PREVIEW", { shots: 8 }), { frame })} />);
+      const first = guideOf(container);
+      expect(first.box, `${photos}-photo frame`).toContain("--shot-ar");
+      expect(first.media).toContain("objectFit");
+      // eight candidates: the capture index runs past the frame's photo count and the guide must not move or vanish
+      for (let capture = 0; capture < 8; capture++) {
+        for (const state of ["COUNTDOWN", "CAPTURING"] as const) {
+          rerender(<GuestShoot {...G(snap(state, { shots: 8, slot: capture, remaining: 2, taken: taken(capture) }), { frame })} />);
+          expect(guideOf(container), `${photos}-photo frame, capture ${capture + 1}, ${state}`).toEqual(first);
+        }
+      }
+      unmount();
+    }
   });
+
+  it("the guide is the window shape: a wide window is wide, not the shape of the 1:3 paper", () => {
+    const { container } = render(<GuestShoot {...G(snap("PREVIEW"), { frame: framed([slot(0, 1.7, 1.2), slot(1, 1.7, 1.2)]) })} />);
+    const ar = parseFloat(/--shot-ar:\s*([\d.]+)/.exec(container.querySelector(".g-shot-target")!.getAttribute("style")!)![1]);
+    expect(ar).toBeCloseTo(1.7 / 1.2, 2);
+  });
+
+  it("changing the frame before shooting recalculates the guide", () => {
+    const { container, rerender } = render(<GuestShoot {...G(snap("PREVIEW"), { frame: framed([slot(0, 1.7, 1.2)]) })} />);
+    const wide = guideOf(container);
+    rerender(<GuestShoot {...G(snap("PREVIEW"), { frame: framed([slot(0, 1.7, 2.6)]) })} />);
+    expect(guideOf(container)).not.toEqual(wide);
+  });
+
+  it("an off-centre focus and a mirrored live view move the guide to the matching side", () => {
+    const frame = framed([slot(0, 1, 1, 0.1, 0.5)]);
+    const left = (c: HTMLElement) => parseFloat(JSON.parse(guideOf(c).media!).left);
+    const a = render(<GuestShoot {...G(snap("PREVIEW"), { frame })} />);
+    const plain = left(a.container);
+    a.unmount();
+    const b = render(<GuestShoot {...G(snap("PREVIEW"), { frame, mirrored: true })} />);
+    expect(left(b.container)).not.toBeCloseTo(plain, 3); // flipped to the other side: the saved photo is not mirrored
+  });
+
   it("uses centered framing when a legacy frame has no slot geometry", () => {
     render(<GuestShoot {...G(snap("PREVIEW"))} />);
     expect(screen.getByTestId("live").getAttribute("data-fit")).toBe("contain");
@@ -159,10 +193,6 @@ describe("countdown and capture feedback", () => {
     expect(screen.getByText("Smile!")).toBeTruthy();
     expect(screen.getByText(/Hold still/)).toBeTruthy();
   });
-  it("a retake is named as one", () => {
-    render(<GuestShoot {...G(snap("COUNTDOWN", { slot: 2, remaining: 3, taken: taken(4) }))} />);
-    expect(screen.getByText("Retaking photo 3")).toBeTruthy();
-  });
   it("Cancel asks first (handler only; the dialog is UX-1's)", () => {
     const p = G(snap("COUNTDOWN", { remaining: 3 })); render(<GuestShoot {...p} />);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -175,38 +205,148 @@ describe("countdown and capture feedback", () => {
   });
 });
 
-describe("review", () => {
-  it("renders review and retake actions in Vietnamese", () => {
-    render(<GuestShoot {...G(snap("REVIEW", { taken: taken(1) }), { language: "vi" })} />);
-    expect(screen.getByText("Bạn thấy ảnh thế nào?")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Chụp lại ảnh 1" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Ảnh đẹp rồi" })).toBeTruthy();
+describe("review: choose your favorites", () => {
+  let now = 0;
+  const clock = () => now;
+  /** The real selection model wired to the real screen; `sent` records what Continue submits. */
+  function Review(props: { snapshot: ShootSnapshot; frame?: FrameChoice; language?: string; sent: number[][]; extra?: Partial<GuestShootProps> }) {
+    const f = props.frame ?? { ...FRAME, photos: 6 };
+    const selection = usePhotoSelection(props.snapshot.sessionId, props.snapshot.taken, f.photos, clock);
+    return <GuestShoot {...G(props.snapshot, { frame: f, language: props.language, selection, onContinue: () => { void selection.submit(async (slots) => { props.sent.push(slots); return true; }); }, ...props.extra })} />;
+  }
+  const eight = () => snap("REVIEW", { shots: 8, taken: taken(8) });
+  const tile = (n: number) => screen.getAllByRole("button", { name: new RegExp(`^Photo ${n}\\.|^Photo ${n},`) })[0] as HTMLButtonElement;
+  const tap = (n: number) => { now += DOUBLE_TAP_MS + 50; fireEvent.click(tile(n)); };
+  const cont = () => screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
+
+  it("shows all eight candidates in capture order, with nothing selected, a count and a disabled Continue", () => {
+    const sent: number[][] = [];
+    const { container } = render(<Review snapshot={{ ...eight(), taken: [...taken(8)].reverse() }} sent={sent} />);
+    expect(screen.getByRole("heading", { name: "Choose your favorites" })).toBeTruthy();
+    expect(screen.getByText("Tap to select or unselect a photo")).toBeTruthy();
+    expect(Array.from(container.querySelectorAll(".g-pick-tile")).map((b) => b.getAttribute("data-slot"))).toEqual(["0", "1", "2", "3", "4", "5", "6", "7"]);
+    expect(container.querySelectorAll(".g-pick.on")).toHaveLength(0);
+    expect(screen.getByText("0 of 6 selected")).toBeTruthy();
+    expect(screen.getByText("Choose 6 more photos")).toBeTruthy();
+    expect(cont().disabled).toBe(true);
+    expect((container.querySelector(".g-pick-grid") as HTMLElement).style.getPropertyValue("--cl")).toBe("4");
+    expect((container.querySelector(".g-pick-grid") as HTMLElement).style.getPropertyValue("--rl")).toBe("2");
   });
-  it("lists photos in capture order and each Retake names its photo", () => {
-    const p = G(snap("REVIEW", { taken: [...taken(4)].reverse() })); render(<GuestShoot {...p} />);
-    const imgs = screen.getAllByRole("img").filter((i) => /^Photo \d$/.test(i.getAttribute("alt") ?? "")).map((i) => i.getAttribute("alt"));
-    expect(imgs).toEqual(["Photo 1", "Photo 2", "Photo 3", "Photo 4"]);
-    fireEvent.click(screen.getByRole("button", { name: "Retake photo 3" }));
-    expect(p.onRetake).toHaveBeenCalledWith(2);
-    expect(p.onRetake).toHaveBeenCalledTimes(1);
+
+  it("a tap selects, a second tap unselects; numbers follow the order of the taps and close up when one is removed", () => {
+    render(<Review snapshot={eight()} sent={[]} />);
+    for (const n of [2, 4, 1]) tap(n);
+    const badge = (n: number) => within(tile(n)).getByText(/^\d+$/).textContent;
+    expect([badge(2), badge(4), badge(1)]).toEqual(["1", "2", "3"]);
+    expect(tile(2).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("3 of 6 selected")).toBeTruthy();
+    tap(4);
+    expect(tile(4).getAttribute("aria-pressed")).toBe("false");
+    expect([badge(2), badge(1)]).toEqual(["1", "2"]);
+    expect(screen.getByText("2 of 6 selected")).toBeTruthy();
   });
-  it("Retake is disabled while busy or reconnecting (no double submit)", () => {
-    render(<GuestShoot {...G(snap("REVIEW", { taken: taken(2), shots: 2 }), { busy: true })} />);
-    for (const b of screen.getAllByRole("button", { name: /Retake photo/ })) expect((b as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "Looks good" }) as HTMLButtonElement).disabled).toBe(true);
+
+  it("never selects more than the frame needs, and says so", () => {
+    render(<Review snapshot={eight()} sent={[]} />);
+    for (const n of [1, 2, 3, 4, 5, 6]) tap(n);
+    tap(7);
+    expect(tile(7).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText(/already chose 6/)).toBeTruthy();
+    expect(screen.getByText("6 of 6 selected")).toBeTruthy();
+    expect(cont().disabled).toBe(false);
   });
-  it("has one dominant action plus design and start-over, and shows the frame summary", () => {
-    const p = G(snap("REVIEW", { taken: taken(4) })); render(<GuestShoot {...p} />);
+
+  it("the spec example: pick 2, 4, 1, 7, 5, 8 and Continue submits those capture slots in that order, once", () => {
+    const sent: number[][] = [];
+    render(<Review snapshot={eight()} sent={sent} />);
+    for (const n of [2, 4, 1, 7, 5]) tap(n);
+    expect(cont().disabled).toBe(true);
+    expect(screen.getByText("Choose 1 more photo")).toBeTruthy();
+    tap(8);
+    expect(cont().disabled).toBe(false);
+    fireEvent.click(cont()); fireEvent.click(cont()); fireEvent.click(cont());
+    expect(sent).toEqual([[1, 3, 0, 6, 4, 7]]);
+  });
+
+  it("an accidental double tap on a photo does not select-then-unselect it", () => {
+    render(<Review snapshot={eight()} sent={[]} />);
+    now += 1000; fireEvent.click(tile(3)); now += 90; fireEvent.click(tile(3));
+    expect(tile(3).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("has no Retake, frame-slot assignment, automatic selection or Start over controls", () => {
+    render(<Review snapshot={eight()} sent={[]} />);
+    expect(screen.queryByRole("button", { name: /retake/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /frame photo|use for|selected for/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /start over/i })).toBeNull();
+    expect(screen.queryByText(/retake|chụp lại/i)).toBeNull();
+    // nothing is pre-selected
+    expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+  });
+
+  it("selecting photos never calls anything but the selection model", () => {
+    const p = { onStart: vi.fn(), onContinue: vi.fn(), onCancel: vi.fn(), onChangeDesign: vi.fn(), onRetryPreview: vi.fn(), onReset: vi.fn(), onFinish: vi.fn() };
+    render(<Review snapshot={eight()} sent={[]} extra={p} />);
+    for (const n of [1, 2, 3, 3, 4]) tap(n);
+    for (const fn of Object.values(p)) expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("Continue and the tiles are locked while a submit is in flight or the camera is reconnecting", () => {
+    render(<Review snapshot={eight()} sent={[]} extra={{ busy: true }} />);
+    expect(tile(1).disabled).toBe(true);
+    expect(cont().disabled).toBe(true);
+    cleanup();
+    render(<Review snapshot={eight()} sent={[]} extra={{ camera: cam({ reconnecting: true }) }} />);
+    expect(tile(1).disabled).toBe(true);
+  });
+
+  it("starts empty for a new session and keeps the choice when the language changes", () => {
+    const sent: number[][] = [];
+    const { rerender } = render(<Review snapshot={eight()} sent={sent} />);
+    for (const n of [3, 5]) tap(n);
+    rerender(<Review snapshot={eight()} sent={sent} language="vi" />);
+    expect(screen.getByText("Đã chọn 2/6 ảnh")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Chọn ảnh yêu thích" })).toBeTruthy();
+    expect(screen.getByText("Chạm vào ảnh để chọn hoặc bỏ chọn")).toBeTruthy();
+    expect(screen.getByText("Chọn thêm 4 ảnh")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tiếp tục" })).toBeTruthy();
+    expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(2);
+    rerender(<Review snapshot={{ ...eight(), sessionId: "NEXT" }} sent={sent} language="vi" />);
+    expect(screen.getByText("Đã chọn 0/6 ảnh")).toBeTruthy();
+  });
+
+  it("changing the frame during review keeps the valid choices and asks for the new count", () => {
+    const sent: number[][] = [];
+    const six = { ...FRAME, photos: 6 }, four = { ...FRAME, photos: 4 };
+    const { rerender } = render(<Review snapshot={eight()} sent={sent} frame={six} />);
+    for (const n of [5, 2, 8]) tap(n);
+    rerender(<Review snapshot={eight()} sent={sent} frame={four} />);
+    expect(screen.getByText("3 of 4 selected")).toBeTruthy();
+    expect(screen.getByText("Choose 1 more photo")).toBeTruthy();
+    expect(cont().disabled).toBe(true);
+    tap(1);
+    expect(cont().disabled).toBe(false);
+    fireEvent.click(cont());
+    expect(sent).toEqual([[4, 1, 7, 0]]);
+  });
+
+  it("the frame summary and Change design stay available, and Continue is the only primary action", () => {
+    const p = { onChangeDesign: vi.fn() };
+    render(<Review snapshot={eight()} sent={[]} extra={p} />);
     expect(screen.getByLabelText("Frame: Four")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Change design" })); expect(p.onChangeDesign).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Start over" })); expect(p.onCancel).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Looks good" })); expect(p.onAccept).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Change design" }));
+    expect(p.onChangeDesign).toHaveBeenCalled();
     expect(document.querySelectorAll(".g-primary")).toHaveLength(1);
   });
-  it("tile columns follow the photo count rather than assuming four", () => {
-    const { container } = render(<GuestShoot {...G(snap("REVIEW", { shots: 6, taken: taken(6) }))} />);
-    const st = (container.querySelector(".g-photos") as HTMLElement).style;
-    expect(st.getPropertyValue("--cl")).toBe("3"); expect(st.getPropertyValue("--rl")).toBe("2"); expect(st.getPropertyValue("--cp")).toBe("2"); expect(st.getPropertyValue("--rp")).toBe("3");
+
+  it("other candidate counts get a sensible grid (4 shots → one row of four; 12 → 4×3)", () => {
+    const four = render(<Review snapshot={snap("REVIEW", { taken: taken(4) })} frame={{ ...FRAME, photos: 2 }} sent={[]} />);
+    const g = four.container.querySelector(".g-pick-grid") as HTMLElement;
+    expect([g.style.getPropertyValue("--cl"), g.style.getPropertyValue("--rl")]).toEqual(["4", "1"]);
+    four.unmount();
+    const twelve = render(<Review snapshot={snap("REVIEW", { taken: taken(12) })} frame={{ ...FRAME, photos: 4 }} sent={[]} />);
+    const h = twelve.container.querySelector(".g-pick-grid") as HTMLElement;
+    expect([h.style.getPropertyValue("--cl"), h.style.getPropertyValue("--rl"), h.style.getPropertyValue("--cp"), h.style.getPropertyValue("--rp")]).toEqual(["4", "3", "3", "4"]);
   });
 });
 

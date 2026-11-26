@@ -105,19 +105,13 @@ func compose(t Template, photos []image.Image, assets fs.FS, rc RenderContext) (
 			} else {
 				draw.Draw(canvas, r, image.NewUniform(bc), image.Point{}, draw.Src)
 			}
-			r = r.Inset(b)
 			inner = max(0, corner-b)
 		}
+		r = t.photoWindow(s)
 		if r.Empty() {
 			continue
 		}
-		fx, fy := s.FocusX, s.FocusY
-		if fx == 0 {
-			fx = 0.5
-		}
-		if fy == 0 {
-			fy = 0.5
-		}
+		fx, fy := slotFocus(s)
 		if inner > 0 {
 			tmp := image.NewNRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
 			cover(tmp, tmp.Bounds(), photos[s.Photo], fx, fy)
@@ -153,14 +147,66 @@ func layerName(l Layer) string {
 
 // cover scales src to fill r (cropping the excess around the focus point).
 func cover(dst *image.NRGBA, r image.Rectangle, src image.Image, fx, fy float64) {
-	sb := src.Bounds()
+	xdraw.CatmullRom.Scale(dst, r, src, CoverCrop(r.Dx(), r.Dy(), src.Bounds(), fx, fy), xdraw.Src, nil)
+}
+
+// CoverCrop is the part of a source image (bounds sb) that fills a w×h window when the image is scaled to cover it
+// and the excess is cut around the focus point (fx, fy in 0..1; 0.5 is the centre). It is the single definition of
+// the crop used by the compositor, and the one the capture guide in the UI must reproduce.
+func CoverCrop(w, h int, sb image.Rectangle, fx, fy float64) image.Rectangle {
 	sw, sh := float64(sb.Dx()), float64(sb.Dy())
-	scale := math.Max(float64(r.Dx())/sw, float64(r.Dy())/sh)
-	cw, chh := float64(r.Dx())/scale, float64(r.Dy())/scale // crop size in source pixels
+	scale := math.Max(float64(w)/sw, float64(h)/sh)
+	cw, chh := float64(w)/scale, float64(h)/scale // crop size in source pixels
 	x0 := float64(sb.Min.X) + (sw-cw)*fx
 	y0 := float64(sb.Min.Y) + (sh-chh)*fy
-	crop := image.Rect(int(math.Round(x0)), int(math.Round(y0)), int(math.Round(x0+cw)), int(math.Round(y0+chh))).Intersect(sb)
-	xdraw.CatmullRom.Scale(dst, r, src, crop, xdraw.Src, nil)
+	return image.Rect(int(math.Round(x0)), int(math.Round(y0)), int(math.Round(x0+cw)), int(math.Round(y0+chh))).Intersect(sb)
+}
+
+// slotFocus is the crop anchor of a slot: a zero coordinate means the default centre.
+func slotFocus(s Slot) (fx, fy float64) {
+	fx, fy = s.FocusX, s.FocusY
+	if fx == 0 {
+		fx = 0.5
+	}
+	if fy == 0 {
+		fy = 0.5
+	}
+	return fx, fy
+}
+
+// photoWindow is the pixel rectangle a slot's photograph is drawn into: the slot rounded to pixels, less the frame's
+// photo border.
+func (t Template) photoWindow(s Slot) image.Rectangle {
+	px := func(in float64) int { return int(math.Round(in * float64(t.DPI))) }
+	r := image.Rect(px(s.X), px(s.Y), px(s.X+s.W), px(s.Y+s.H))
+	if t.BorderIn > 0 {
+		r = r.Inset(px(t.BorderIn))
+	}
+	return r
+}
+
+// SlotCrop says, for one photo window of a frame, where it is on the canvas and which part of a srcW×srcH
+// photograph (after EXIF orientation) fills it.
+type SlotCrop struct {
+	Photo  int             `json:"photo"`  // index into the session's photos the compositor reads
+	Window image.Rectangle `json:"window"` // canvas pixels, after the border inset
+	Crop   image.Rectangle `json:"crop"`   // source pixels
+}
+
+// SlotCrops lists the crop of every photo window for a photograph of the given size. Candidate photographs are
+// interchangeable, so this does not depend on which capture goes where.
+func (t Template) SlotCrops(srcW, srcH int) []SlotCrop {
+	src := image.Rect(0, 0, srcW, srcH)
+	out := make([]SlotCrop, 0, len(t.Slots))
+	for _, s := range t.Slots {
+		r := t.photoWindow(s)
+		if r.Empty() {
+			continue
+		}
+		fx, fy := slotFocus(s)
+		out = append(out, SlotCrop{Photo: s.Photo, Window: r, Crop: CoverCrop(r.Dx(), r.Dy(), src, fx, fy)})
+	}
+	return out
 }
 
 // decodeAsset reads and decodes an image from the frame's assets with size,

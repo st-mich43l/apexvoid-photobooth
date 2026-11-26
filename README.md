@@ -17,7 +17,7 @@ A local-first Windows photobooth for events: connect a camera, guide guests thro
 
 ## Features
 
-- **Guest sessions:** frame selection, live preview, countdown, capture, review, individual retakes and a fullscreen Booth Mode.
+- **Guest sessions:** frame selection, live preview, countdown, capture, capture of a pool of candidate photos, a tap-to-choose review (the guest picks the photos for the frame) and a fullscreen Booth Mode.
 - **Cameras:** Canon EDSDK integration for compatible EOS cameras, Windows webcam capture through FFmpeg, and a clearly labelled simulated camera for testing.
 - **Frames and printing:** built-in layouts, a frame builder, custom PNG frames, 300/600 DPI composition, Windows printer setup, print history and reprints.
 - **Media library:** local SQLite metadata and files, paginated session browsing, search, editing, session ZIP export, recoverable trash and restoration.

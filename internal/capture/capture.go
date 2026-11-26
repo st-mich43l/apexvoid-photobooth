@@ -99,9 +99,14 @@ type Options struct {
 	// freezes the chosen frame for the session. An error aborts the session
 	// (nothing is shot) and is shown to the operator.
 	BeginSession func(sessionID string, cfg Config) error
-	// KeepSelectedPhotos keeps the selected captures for the frame and removes
-	// every other candidate photo from the session/library.
-	KeepSelectedPhotos func(sessionID string, selectedSlots []int) error
+	// SelectPhotos atomically records the guest's choice: the selected captures become the session's photos in
+	// selection order and every other photo is marked discarded. It must not delete anything.
+	SelectPhotos func(sessionID string, selectedSlots []int) error
+	// PruneUnselected permanently removes the discarded photos. It runs only after the finished image was saved;
+	// a failure leaves them hidden (not lost) and is not reported to the guest.
+	PruneUnselected func(sessionID string) error
+	// RestoreUnselected gives the discarded photos back to the library when the finished image could not be made.
+	RestoreUnselected func(sessionID string) error
 	// OnChange receives every new snapshot, in order.
 	OnChange func(Snapshot)
 	// CaptureRetries is how many times a failed capture is retried (not for disconnects).
@@ -429,32 +434,34 @@ func (e *Engine) captureWithRetry(ctx context.Context, gen uint64) (camera.Photo
 
 // Retake re-shoots one slot: REVIEW -> COUNTDOWN -> CAPTURING -> REVIEW.
 func (e *Engine) Retake(slot int) error {
-	e.mu.Lock()
-	if e.s.State != Review {
-		st := e.s.State
-		e.mu.Unlock()
-		return invalid(st, "retake")
-	}
-	var old string
-	for _, t := range e.s.Taken {
-		if t.Slot == slot {
-			old = t.MediaID
+	var old, sid string
+	var cfg Config
+	var ctx context.Context
+	var done chan struct{}
+	gen, err := e.transition(func(s *Snapshot) error {
+		if s.State != Review {
+			return invalid(s.State, "retake")
 		}
-	}
-	if old == "" {
-		e.mu.Unlock()
-		return fmt.Errorf("%w: no photo in slot %d", ErrInvalidTransition, slot)
-	}
-	sid, cfg := e.s.SessionID, e.cfg
-	ctx, cancel := context.WithCancel(context.Background())
-	e.gen++
-	gen := e.gen
-	e.stop, e.done = cancel, make(chan struct{})
-	done := e.done
-	e.mu.Unlock()
-	e.update(func(s *Snapshot) {
+		for _, t := range s.Taken {
+			if t.Slot == slot {
+				old = t.MediaID
+			}
+		}
+		if old == "" {
+			return fmt.Errorf("%w: no photo in slot %d", ErrInvalidTransition, slot)
+		}
+		sid, cfg = s.SessionID, e.cfg
+		return nil
+	}, func(s *Snapshot) {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(context.Background())
+		e.stop, e.done = cancel, make(chan struct{})
+		done = e.done
 		s.State, s.Slot, s.Remaining, s.Warning, s.WarningCode = Countdown, slot, cfg.Countdown, "", ""
 	})
+	if err != nil {
+		return err
+	}
 	go func() {
 		defer close(done)
 		e.runShots(ctx, gen, sid, slot, 1, old, cfg.FramePhotos > 0)
@@ -474,43 +481,70 @@ func (e *Engine) Accept() error {
 	return e.AcceptSelected(selected)
 }
 
-// AcceptSelected validates the chosen captures, moves them to the front of
-// the session's photo order, then finalizes the frame.
-func (e *Engine) AcceptSelected(selectedSlots []int) error {
+// transition checks and applies a state change as one step under the engine lock, so two callers can never both
+// pass the same check (a double tap on "Continue" must compose once, not twice).
+func (e *Engine) transition(check func(s *Snapshot) error, apply func(s *Snapshot)) (uint64, error) {
+	e.emit.Lock()
+	defer e.emit.Unlock()
 	e.mu.Lock()
-	if e.s.State != Review {
-		st := e.s.State
+	if err := check(&e.s); err != nil {
 		e.mu.Unlock()
-		return invalid(st, "accept")
+		return 0, err
 	}
-	sid := e.s.SessionID
-	framePhotos := e.cfg.FramePhotos
-	if framePhotos > 0 {
-		if len(selectedSlots) != framePhotos {
-			e.mu.Unlock()
-			return fmt.Errorf("select exactly %d photos for the frame", framePhotos)
-		}
-		taken := make(map[int]bool, len(e.s.Taken))
-		for _, shot := range e.s.Taken {
-			taken[shot.Slot] = true
-		}
-		seen := make(map[int]bool, len(selectedSlots))
-		for _, slot := range selectedSlots {
-			if !taken[slot] || seen[slot] {
-				e.mu.Unlock()
-				return fmt.Errorf("selected photos must be unique captures from this session")
-			}
-			seen[slot] = true
-		}
-	}
-	shots := append([]Shot(nil), e.s.Taken...)
+	apply(&e.s)
+	e.s.Version++
 	e.gen++
 	gen := e.gen
+	snap := clone(e.s)
 	e.mu.Unlock()
-	e.update(func(s *Snapshot) { s.State = Saving })
-	if e.o.KeepSelectedPhotos != nil && framePhotos > 0 {
-		if err := e.o.KeepSelectedPhotos(sid, selectedSlots); err != nil {
-			e.update(func(s *Snapshot) { s.State = Review })
+	if e.o.OnChange != nil {
+		e.o.OnChange(snap)
+	}
+	return gen, nil
+}
+
+// AcceptSelected validates the chosen captures (exactly the frame's photo count, each a distinct capture of this
+// session), keeps them in selection order as the session's photos, then finalizes the frame. The photos that were not
+// chosen are discarded first and deleted only after the finished image exists; if it cannot be made they are restored.
+func (e *Engine) AcceptSelected(selectedSlots []int) error {
+	var sid string
+	var shots []Shot
+	framePhotos := 0
+	gen, err := e.transition(func(s *Snapshot) error {
+		if s.State != Review {
+			return invalid(s.State, "accept")
+		}
+		framePhotos = e.cfg.FramePhotos
+		if framePhotos > 0 {
+			if len(selectedSlots) != framePhotos {
+				return fmt.Errorf("select exactly %d photos for the frame", framePhotos)
+			}
+			taken := make(map[int]bool, len(s.Taken))
+			for _, shot := range s.Taken {
+				taken[shot.Slot] = true
+			}
+			seen := make(map[int]bool, len(selectedSlots))
+			for _, slot := range selectedSlots {
+				if !taken[slot] || seen[slot] {
+					return fmt.Errorf("selected photos must be unique captures from this session")
+				}
+				seen[slot] = true
+			}
+		}
+		sid = s.SessionID
+		shots = append([]Shot(nil), s.Taken...)
+		return nil
+	}, func(s *Snapshot) { s.State = Saving })
+	if err != nil {
+		return err
+	}
+	if e.o.SelectPhotos != nil && framePhotos > 0 {
+		if err := e.o.SelectPhotos(sid, selectedSlots); err != nil {
+			e.update(func(s *Snapshot) {
+				if e.gen == gen {
+					s.State = Review
+				}
+			})
 			return err
 		}
 	}
@@ -539,7 +573,10 @@ func (e *Engine) AcceptSelected(selectedSlots []int) error {
 		return nil
 	}
 	if ferr != nil {
-		// photos are already safe on disk; finish the session and warn
+		// the chosen photos are safe on disk; give back the others too, finish the session and warn
+		if e.o.RestoreUnselected != nil && framePhotos > 0 {
+			_ = e.o.RestoreUnselected(sid)
+		}
 		_ = e.o.Store.SetStatus(sid, sessions.StatusCompleted, "finalize: "+ferr.Error())
 		e.update(func(s *Snapshot) {
 			s.State = Completed
@@ -552,7 +589,25 @@ func (e *Engine) AcceptSelected(selectedSlots []int) error {
 		e.failSession(sid, fmt.Errorf("could not finish session: %w", err))
 		return err
 	}
+	if e.o.PruneUnselected != nil && framePhotos > 0 {
+		_ = e.o.PruneUnselected(sid) // best effort: what remains is hidden, and is removed by the next prune
+	}
 	e.update(func(s *Snapshot) { s.State = Completed; s.ResultID = result })
+	return nil
+}
+
+// SetFramePhotos changes how many photos the guest must choose while the candidates are being reviewed, after the
+// guest picked a different frame. It never touches the captures: n must not exceed the candidates that exist.
+func (e *Engine) SetFramePhotos(sessionID string, n int) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.s.State != Review || e.s.SessionID != sessionID {
+		return invalid(e.s.State, "change the frame's photo count")
+	}
+	if n < 1 || n > len(e.s.Taken) {
+		return fmt.Errorf("a frame for %d photos cannot be filled from %d captured photos", n, len(e.s.Taken))
+	}
+	e.cfg.FramePhotos = n
 	return nil
 }
 

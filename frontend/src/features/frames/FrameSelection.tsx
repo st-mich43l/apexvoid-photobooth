@@ -17,6 +17,8 @@ interface Props {
   initial?: { id: string; variantId: string; caption?: string };
   /** After capture: how many photos exist. Frames for another number are explained, never silently swapped in. */
   takenPhotos?: number;
+  /** The taken photos are candidates the guest is still choosing from: any frame that needs no more than were taken fits. */
+  pool?: boolean;
   title?: string;
   confirmLabel?: string;
   backLabel?: string;
@@ -26,7 +28,7 @@ interface Props {
 }
 
 /** Frame selection: browse, preview, pick a colour, confirm. Used before the camera starts. */
-export function FrameSelection({ variant, initial, takenPhotos, title, confirmLabel, backLabel, busy, onConfirm, onBack }: Props) {
+export function FrameSelection({ variant, initial, takenPhotos, pool, title, confirmLabel, backLabel, busy, onConfirm, onBack }: Props) {
   const { settings, frameUrl } = useApp();
   const language = useLocale(settings.language);
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
@@ -45,7 +47,7 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
       setFrames(r.frames); setCategories(r.categories);
       setPickId((cur) => {
         if (cur && r.frames.some((f) => f.id === cur)) return cur;
-        const pre = r.frames.find((f) => f.id === (settings.templateId || r.default)) ?? r.frames.find((f) => takenPhotos ? f.photos === takenPhotos : true);
+        const pre = r.frames.find((f) => f.id === (settings.templateId || r.default)) ?? r.frames.find((f) => takenPhotos ? (pool ? f.photos <= takenPhotos : f.photos === takenPhotos) : true);
         return pre?.id ?? "";
       });
     }).catch((e) => setError(toAppError(e).message));
@@ -54,7 +56,7 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
 
   const shown = useMemo(() => filterFrames(frames ?? [], { category, photos: count }), [frames, category, count]);
   const picked = frames?.find((f) => f.id === pickId);
-  const fit = picked ? fitFor(picked, takenPhotos) : { kind: "ok" as const };
+  const fit = picked ? fitFor(picked, takenPhotos, pool) : { kind: "ok" as const };
   const booth = variant === "booth";
   const portrait = useOrientation() === "portrait";
 
@@ -81,7 +83,7 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
         {frames && frames.length > 0 && (
           <GuestFrames language={language} frames={frames} categories={categories} shown={shown} category={category} setCategory={setCategory} count={count} setCount={setCount}
             picked={picked} pickId={pickId} select={select} variantId={variantId} setVariantId={setVariantId} caption={caption} setCaption={setCaption}
-            fit={fit} takenPhotos={takenPhotos} busy={busy} title={title ?? translate(language, "framesTitle")} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
+            fit={fit} takenPhotos={takenPhotos} pool={pool} busy={busy} title={title ?? translate(language, "framesTitle")} confirmLabel={confirmLabel} backLabel={backLabel} onBack={onBack}
             confirm={confirm} portrait={portrait}
             thumbUrl={(f) => frameUrl(f.id, "", 420)}
             bigUrl={(f) => frameUrl(f.id, variantId, portrait ? 320 : 720, f.captionEnabled ? caption.trim() : "")} />
@@ -124,7 +126,7 @@ export function FrameSelection({ variant, initial, takenPhotos, title, confirmLa
             {shown.length === 0 && <p className="muted">{t("noFramesMatch")}</p>}
             <div className="frame-grid" role="radiogroup" aria-label={t("frames")}>
               {shown.map((f) => {
-                const mis = fitFor(f, takenPhotos).kind !== "ok";
+                const mis = fitFor(f, takenPhotos, pool).kind !== "ok";
                 return (
                   <button key={f.id} role="radio" aria-checked={f.id === pickId} className={`frame-card ${f.id === pickId ? "on" : ""} ${mis ? "mismatch" : ""}`} onClick={() => select(f)}>
                     <img src={frameUrl(f.id, "", 360)} alt={formatTranslation(language, "frameAlt", { name: frameDisplayName(f, language) })} loading="lazy" />

@@ -3,6 +3,8 @@ import { frameDisplayName } from "../../shared/frameInfo";
 import { api } from "../../shared/api";
 import { FrameSelection } from "../frames/FrameSelection";
 import { GuestShoot, PhotoSteps } from "./guest/GuestShoot";
+import { PhotoSelectGrid } from "./guest/PhotoSelectGrid";
+import { usePhotoSelection } from "./photoSelection";
 import { LeaveDialog } from "./LeaveDialog";
 import { ResultPrint } from "./ResultPrint";
 import { sessionGate } from "./sessionGate";
@@ -38,8 +40,6 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   const language = useLocale(settings?.language);
   const t = (key: Parameters<typeof translate>[1]) => translate(language, key);
   const [frame, setFrame] = useState(initialFrame);
-  const [reviewFrameSlot, setReviewFrameSlot] = useState(0);
-  const [reviewSelectedSlots, setReviewSelectedSlots] = useState<number[]>([]);
   const [changing, setChanging] = useState(false);
   const [composed, setComposed] = useState<{ session: string; mediaId: string } | null>(null);
   const [abandon, setAbandon] = useState(false);
@@ -48,19 +48,13 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
   const { busy, error, run, clear } = useAction();
   const booth = variant === "booth";
 
-  useEffect(() => {
-    setReviewSelectedSlots(Array.from({ length: frame.photos }, (_, i) => i));
-    setReviewFrameSlot(0);
-  }, [shoot.sessionId, frame.id, frame.photos]);
-
-  const assignReviewPhoto = (captureSlot: number) => setReviewSelectedSlots((prev) => {
-    const next = [...prev];
-    const other = next.indexOf(captureSlot);
-    if (other >= 0 && other !== reviewFrameSlot) next[other] = next[reviewFrameSlot];
-    next[reviewFrameSlot] = captureSlot;
-    return next;
+  // The guest's choice among the captured candidates. One model for Booth and Studio, scoped to the session.
+  const selection = usePhotoSelection(shoot.sessionId, shoot.taken, frame.photos);
+  const submitChoice = () => selection.submit(async (slots) => {
+    let ok = true;
+    await run(async () => { try { await api.accept(slots); } catch (e) { ok = false; throw e; } });
+    return ok;
   });
-  const selectionsComplete = reviewSelectedSlots.length === frame.photos && new Set(reviewSelectedSlots).size === frame.photos && reviewSelectedSlots.every((slot) => shoot.taken.some((shot) => shot.slot === slot));
 
   const mountState = useRef(shoot.state); // the state this screen was opened in (read synchronously, before any await)
 
@@ -133,7 +127,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
       )}
       {changing && (
         <div className="design-picker" role="dialog" aria-modal="true" aria-label={t("changeDesign")}>
-          <FrameSelection variant={variant} takenPhotos={s.taken.length} initial={{ id: frame.id, variantId: frame.variantId, caption: frame.caption }}
+          <FrameSelection variant={variant} takenPhotos={s.taken.length} pool={s.state === "REVIEW"} initial={{ id: frame.id, variantId: frame.variantId, caption: frame.caption }}
             title={t("designTitle")} backLabel={t("keepDesign")} confirmLabel={t("useDesign")} busy={busy} onConfirm={applyDesign} onBack={() => setChanging(false)} />
         </div>
       )}
@@ -148,7 +142,7 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
           print={resultId ? <ResultPrint mediaId={resultId} booth /> : null}
           onStart={() => run(() => api.startShooting(frame.id, frame.variantId, frame.caption))}
           onChangeFrame={onChangeFrame ? () => onChangeFrame(frame) : undefined}
-          onRetake={(slot) => run(() => api.retake(slot))} onAccept={(slots) => run(() => api.accept(slots))} onCancel={() => setAbandon(true)}
+          selection={selection} mirrored={!!settings?.previewMirror} onContinue={() => { void submitChoice(); }} onCancel={() => setAbandon(true)}
           onChangeDesign={() => setChanging(true)} onFinish={finish}
           onRetryPreview={() => { clear(); started.current = false; run(() => api.startPreview()); }} onReset={() => { void sessionGate.reset(); }} />
         {dialogs}
@@ -205,38 +199,19 @@ export function ShootFlow({ variant, frame: initialFrame, onChangeFrame, onDone 
       {s.state === "REVIEW" && (
         <div className="review">
           {s.warning && <div className="note warn"><LocalizedDiagnostic text={s.warning} summary="captureWarning" /></div>}
-          <h2>{booth ? t("reviewHeading") : t("review")}</h2>
-          <PhotoSteps language={language} total={s.shots} taken={s.taken.length} current={null} />
-          <section className="photo-picker">
-            <h3>{formatTranslation(language, "chooseFramePhotos", { count: frame.photos })}</h3>
-            <p className="muted">{t("chooseFramePhotosHint")}</p>
-            <div className="frame-slots" role="group" aria-label={formatTranslation(language, "chooseFramePhotos", { count: frame.photos })}>
-              {Array.from({ length: frame.photos }, (_, i) => (
-                <button key={i} className={reviewFrameSlot === i ? "primary" : ""} aria-pressed={reviewFrameSlot === i} disabled={busy} onClick={() => setReviewFrameSlot(i)}>
-                  {formatTranslation(language, "framePhotoSlot", { number: i + 1 })}
-                  <small>{reviewSelectedSlots[i] === undefined ? "—" : formatTranslation(language, "photoNumber", { number: reviewSelectedSlots[i] + 1 })}</small>
-                </button>
-              ))}
-            </div>
-          </section>
-          <div className={`thumbs n${s.shots}`}>
-            {[...s.taken].sort((a, b) => a.slot - b.slot).map((t) => (
-              <figure className={reviewSelectedSlots.includes(t.slot) ? "selected" : ""} key={t.mediaId}>
-                <img src={mediaUrl(t.mediaId, "preview")} alt={formatTranslation(language, "photoNumber", { number: t.slot + 1 })} />
-                <figcaption>
-                  <span>{formatTranslation(language, "photoNumber", { number: t.slot + 1 })}</span>
-                  <button className={reviewSelectedSlots[reviewFrameSlot] === t.slot ? "primary" : ""} aria-pressed={reviewSelectedSlots[reviewFrameSlot] === t.slot} disabled={busy} onClick={() => assignReviewPhoto(t.slot)}>
-                    {reviewSelectedSlots.includes(t.slot) ? formatTranslation(language, "selectedForFrameSlot", { number: reviewSelectedSlots.indexOf(t.slot) + 1 }) : formatTranslation(language, "useForFrameSlot", { number: reviewFrameSlot + 1 })}
-                  </button>
-                  <button disabled={busy || camera.reconnecting} onClick={() => run(() => api.retake(t.slot))}>{translate(language, "retake")}</button>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+          <h2>{t("selectHeading")}</h2>
+          <p className="muted">{t("selectHint")}</p>
+          <div className="pick-count" role="status" aria-live="polite"><b>{formatTranslation(language, "selectedCount", { selected: selection.count, required: selection.required })}</b>
+            {" "}<span className="muted">{selection.complete ? formatTranslation(language, "selectionReady", { count: selection.required }) : selection.remaining === 1 ? t("chooseMoreOne") : formatTranslation(language, "chooseMoreMany", { count: selection.remaining })}</span></div>
+          <PhotoSelectGrid candidates={s.taken} selection={selection} mediaUrl={mediaUrl} language={language} disabled={busy || selection.submitting}
+            renderExtra={(shot) => (
+              // operator-only: the guest screen has no retake
+              <button className="g-pick-retake" disabled={busy || camera.reconnecting} onClick={() => run(() => api.retake(shot.slot))}>{translate(language, "retake")} {formatTranslation(language, "photoNumber", { number: shot.slot + 1 })}</button>
+            )} />
           <div className="review-frame">{chip}<button disabled={busy} onClick={() => setChanging(true)}>{t("changeDesign")}</button></div>
           <div className="controls">
             <button disabled={busy} onClick={() => setAbandon(true)}>{t("startOver")}</button>
-            <button className="primary big" disabled={busy || !selectionsComplete} onClick={() => run(() => api.accept(reviewSelectedSlots))}>{t("looksGood")}</button>
+            <button className="primary big" disabled={busy || selection.submitting || !selection.complete} onClick={() => { void submitChoice(); }}>{t("continueLabel")}</button>
           </div>
         </div>
       )}
