@@ -186,9 +186,50 @@ func New(o Options) (*Service, error) {
 		SelectPhotos:      s.store.SelectPhotos,
 		PruneUnselected:   s.store.PruneDiscardedPhotos,
 		RestoreUnselected: s.store.RestoreDiscardedPhotos,
+		OnMediaReady: func(m sessions.Media) {
+			_, dbErr := s.store.Media(m.ID) // confirms the insert transaction is visible before the candidate is published
+			dbContention := dbErr != nil && (strings.Contains(strings.ToLower(dbErr.Error()), "locked") || strings.Contains(strings.ToLower(dbErr.Error()), "busy"))
+			originalAvailable, originalSize := false, int64(0)
+			if path, pathErr := s.store.FilePath(m.ID, "original"); pathErr == nil {
+				if info, statErr := os.Stat(path); statErr == nil {
+					originalAvailable, originalSize = info.Size() > 0, info.Size()
+				}
+			}
+			previewAvailable, previewSize := false, int64(0)
+			if m.PreviewRel != "" {
+				if path, pathErr := s.db.Layout.Abs(m.PreviewRel); pathErr == nil {
+					if info, statErr := os.Stat(path); statErr == nil {
+						previewAvailable, previewSize = info.Size() > 0, info.Size()
+					}
+				}
+			}
+			s.log.Info("capture media stored", "media_id", m.ID, "media_type", m.Kind, "db_committed", dbErr == nil, "sqlite_contention", dbContention,
+				"preview_generation_ms", m.PreviewDurationMs, "original_available", originalAvailable, "original_size_bytes", originalSize,
+				"preview_available", previewAvailable, "preview_size_bytes", previewSize)
+		},
 		OnChange: func(sn capture.Snapshot) {
 			if sn.State == capture.Error {
 				s.log.Warn("capture failed")
+			}
+			if sn.State == capture.Review || sn.State == capture.Completed {
+				s.log.Info("capture event published", "state", sn.State, "session_id", sn.SessionID, "candidate_count", len(sn.Taken), "active_mjpeg", s.httpd.streams.Load())
+				for _, shot := range sn.Taken {
+					_, err := s.store.Media(shot.MediaID)
+					available, size := false, int64(0)
+					if err == nil {
+						if path, pathErr := s.store.FilePath(shot.MediaID, "preview"); pathErr == nil {
+							if info, statErr := os.Stat(path); statErr == nil {
+								available, size = info.Size() > 0, info.Size()
+							}
+						}
+					}
+					s.log.Info("captured media ready", "media_id", shot.MediaID, "media_type", "preview", "db_record", err == nil, "file_available", available, "size_bytes", size, "state", sn.State)
+				}
+				if sn.ResultID != "" {
+					path, pathErr := s.store.FilePath(sn.ResultID, "preview")
+					info, statErr := os.Stat(path)
+					s.log.Info("composed media ready", "media_id", sn.ResultID, "db_record", pathErr == nil, "file_available", pathErr == nil && statErr == nil && info.Size() > 0, "state", sn.State)
+				}
 			}
 			s.emit("capture:state", sn)
 		},

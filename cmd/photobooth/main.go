@@ -21,7 +21,7 @@ import (
 var assets embed.FS
 
 // version is set at build time: -ldflags "-X main.version=..."
-var version = "0.2.0-dev"
+var version = "0.2.1-dev"
 
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--notices" {

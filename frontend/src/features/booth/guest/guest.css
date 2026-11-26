@@ -207,6 +207,7 @@
 .booth-root .g-caption input { min-height: clamp(52px, 6.4vmin, 72px); font-size: clamp(18px, 2.4vmin, 28px); padding: 0 18px; border-radius: 16px; background: var(--g-bg); border: 1.5px solid var(--g-line-strong); color: var(--g-text); }
 
 .g-fit { position: relative; }
+.g-fit > .media-image { position: absolute; inset: 0; }
 .g-fit img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.5)); pointer-events: none; }
 
 @media (orientation: portrait) {
@@ -292,6 +293,7 @@
 .g-pick-tile { flex: 1 1 0; min-height: 0; padding: 0; border: 0; background: transparent; cursor: pointer; container-type: size; display: grid; place-items: center; border-radius: var(--g-r-md); -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .g-pick-tile:disabled { cursor: not-allowed; opacity: 0.55; }
 .g-pick-img { position: relative; width: min(100cqw, calc(100cqh * var(--ar, 1.5))); aspect-ratio: var(--ar, 1.5); border-radius: var(--g-r-md); overflow: hidden; background: var(--g-photo-bg); border: 3px solid var(--g-line-strong, rgba(247, 242, 250, 0.3)); transition: transform 90ms ease-out, border-color 150ms, box-shadow 150ms; }
+.g-pick-img > .media-image { position: absolute; inset: 0; }
 .g-pick-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .g-pick-tile:active:not(:disabled) .g-pick-img { transform: scale(0.97); }
 .g-pick.on .g-pick-img { border-color: var(--g-rose); box-shadow: 0 0 0 4px rgba(232, 160, 195, 0.35); }

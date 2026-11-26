@@ -36,6 +36,7 @@ export function SettingsPage() {
   const save = useAction();
   const other = useAction();
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+  const showSavebar = dirty || save.busy || !!save.error;
   const set = <K extends keyof S>(k: K, v: S[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   return (
@@ -142,8 +143,10 @@ export function SettingsPage() {
         <label className="check"><input type="checkbox" checked={draft.enableMock} onChange={(e) => set("enableMock", e.target.checked)} /> {t("simulatedCamera")}</label>
       </section>
 
-      <div className="savebar">
-        <button disabled={!dirty} onClick={() => setDraft(settings)}>{translate(settings?.language, "discard")}</button>
+      <div className="savebar-slot">
+      {showSavebar && <div className="savebar" aria-live="polite">
+        <span className="savebar-status">{save.busy ? t("savingSettings") : dirty ? t("unsavedChanges") : ""}</span>
+        <button disabled={!dirty || save.busy} onClick={() => { save.clear(); setDraft(settings); }}>{translate(settings?.language, "discard")}</button>
         <button className="primary" disabled={!dirty || save.busy} onClick={() => save.run(async () => {
           // only what this page changed is sent; the backend merges it into its current settings
           const changed: Record<string, unknown> = {};
@@ -152,6 +155,7 @@ export function SettingsPage() {
           if (r.settings) { setSettings(r.settings); setDraft(r.settings); }
           toast(r.restartRequired ? t("saveRestartFolder") : t("settingsSaved"));
         })}>{translate(settings?.language, "saveSettings")}</button>
+      </div>}
       </div>
       {migrate && <MigrationDialog onClose={() => setMigrate(false)} />}
       {confirmTrash && <Confirm title={t("emptyTrashConfirmTitle")} danger confirmLabel={t("permanentlyDelete")} onNo={() => setConfirmTrash(false)}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../../shared/api";
+import { MediaImage } from "../../../shared/MediaImage";
 import { bytes, clock, when } from "../../../shared/format";
 import { useApp, useT } from "../../../app/state";
 import { Badge, Confirm, ErrorNote, Modal, useAction } from "../../../shared/ui";
@@ -124,8 +125,7 @@ export function Gallery() {
 }
 
 function Thumbnail({ src, fallback }: { src: string; fallback: string }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  return failedSrc === src ? <span className="no-thumb">{fallback}</span> : <img loading="lazy" decoding="async" src={src} alt="" onError={() => setFailedSrc(src)} />;
+  return <MediaImage src={src} alt={fallback} manualRetry={false} />;
 }
 
 function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { media: Media; onClose: () => void; onDelete: () => void; onChanged: (m: Media) => void; onPrevious?: () => void; onNext?: () => void }) {
@@ -135,10 +135,9 @@ function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { m
   const [printing, setPrinting] = useState(false);
   const [reframe, setReframe] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
-  const [imageFailed, setImageFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const { error, run } = useAction();
-  useEffect(() => { setShowOriginal(false); setImageFailed(false); setZoom(1); }, [media.id]);
+  useEffect(() => { setShowOriginal(false); setZoom(1); }, [media.id]);
   useEffect(() => { if (editing || printing || reframe) return; const key = (e: KeyboardEvent) => { if (e.target instanceof HTMLElement && (e.target.matches("input, textarea, select, video") || e.target.isContentEditable)) return; if (e.key === "ArrowLeft" && onPrevious) { e.preventDefault(); onPrevious(); } if (e.key === "ArrowRight" && onNext) { e.preventDefault(); onNext(); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [editing, printing, reframe, onPrevious, onNext]);
   const isVideo = media.kind === "video";
   const ver = media.editedRel || media.id;
@@ -149,8 +148,7 @@ function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { m
         <ErrorNote error={error} />
         {media.status === "missing" ? <div className="note err">{t("viewerMissingFile")}</div>
           : isVideo ? <video controls playsInline autoPlay src={mediaUrl(media.id, "original")} className="player" />
-          : imageFailed ? <div className="note err">{t("viewerPreviewFailed")}</div>
-          : <div className="viewer-image-viewport"><img style={{ zoom }} src={mediaUrl(media.id, showOriginal ? "original" : "preview", ver + (showOriginal ? "o" : ""))} alt={t("selectedPhoto")} onError={() => setImageFailed(true)} /></div>}
+          : <div className="viewer-image-viewport" style={{ zoom }}><MediaImage diagnosticId={media.id} revision={ver + (showOriginal ? "o" : "")} src={mediaUrl(media.id, showOriginal ? "original" : "preview", ver + (showOriginal ? "o" : ""))} alt={t("selectedPhoto")} /></div>}
         <dl className="meta">
           <dt>{t("capturedAt")}</dt><dd>{when(media.capturedAt, settings?.language)}</dd>
           <dt>{t("size")}</dt><dd>{media.width}×{media.height}{isVideo ? ` · ${clock(media.durationMs)}` : ""} · {bytes(media.sizeBytes, settings?.language)}</dd>
@@ -165,7 +163,7 @@ function Viewer({ media, onClose, onDelete, onChanged, onPrevious, onNext }: { m
         <button onClick={() => run(() => api.revealMedia(media.id))}>{t("showInFolder")}</button>
         <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", false); toast(tf("exportOriginalToast", { path: p })); })}>{t("exportOriginal")}</button>
         {media.editedRel && <button onClick={() => run(async () => { const p = await api.exportMedia(media.id, "", true); toast(tf("exportEditedToast", { path: p })); })}>{t("exportEdited")}</button>}
-        {media.editedRel && <button onClick={() => { setImageFailed(false); setShowOriginal((v) => !v); }}>{showOriginal ? t("showEdited") : t("showOriginal")}</button>}
+        {media.editedRel && <button onClick={() => setShowOriginal((v) => !v)}>{showOriginal ? t("showEdited") : t("showOriginal")}</button>}
         {media.kind === "strip" && <button onClick={() => setReframe(true)}>{t("changeFrameEllipsis")}</button>}
         {!isVideo && <button onClick={() => setPrinting(true)}>{t("printEllipsis")}</button>}
         {media.kind === "photo" && <button className="primary" onClick={() => setEditing(true)}>{t("edit")}</button>}

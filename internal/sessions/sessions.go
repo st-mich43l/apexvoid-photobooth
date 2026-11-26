@@ -89,11 +89,12 @@ type Media struct {
 	Status     string `json:"status"`
 	CapturedAt string `json:"capturedAt"`
 	// the frame that produced a composed image ("" for photos and videos)
-	FrameID   string `json:"frameId"`
-	FrameName string `json:"frameName"`
-	VariantID string `json:"variantId"`
-	FrameRev  int    `json:"frameRev"`
-	FrameDir  string `json:"frameDir"`
+	FrameID           string `json:"frameId"`
+	FrameName         string `json:"frameName"`
+	VariantID         string `json:"variantId"`
+	FrameRev          int    `json:"frameRev"`
+	FrameDir          string `json:"frameDir"`
+	PreviewDurationMs int64  `json:"-"` // transient instrumentation, never persisted or sent to the frontend
 }
 
 // Store is the session/media repository.
@@ -225,7 +226,9 @@ func (s *Store) AddPhoto(sessionID string, in PhotoInput) (Media, error) {
 	// Derived files may fail without losing the capture: report but keep the original.
 	prevAbs := filepath.Join(l.SessionDir(sessionID), "previews", base+".jpg")
 	thumbAbs := filepath.Join(l.SessionDir(sessionID), "previews", base+"_thumb.jpg")
+	previewStarted := time.Now()
 	derr := writeDerived(img, prevAbs, thumbAbs)
+	m.PreviewDurationMs = time.Since(previewStarted).Milliseconds()
 	if derr == nil {
 		m.PreviewRel, _ = l.Rel(prevAbs)
 		m.ThumbRel, _ = l.Rel(thumbAbs)

@@ -26,7 +26,7 @@ export interface GuestShootProps {
   s: ShootSnapshot; camera: CameraStatus; frame: FrameChoice; countdownSeconds?: number; language?: string;
   busy: boolean; error: boolean; onClearError: () => void; slow: boolean; plannedShots?: number;
   mediaUrl: (id: string, kind: "preview") => string; frameUrl: (id: string, variantId: string, width: number, caption?: string) => string;
-  resultId?: string; finishing: boolean; print: ReactNode;
+  resultId?: string; finishing: boolean; print: ReactNode; previewsReady?: boolean; onImageStatus?: (id: string, ready: boolean) => void;
   /** The guest's photo choice for this session (shared model, see photoSelection.ts). */
   selection: PhotoSelection; mirrored?: boolean;
   onStart: () => void; onChangeFrame?: () => void; onContinue: () => void; onCancel: () => void;
@@ -138,10 +138,11 @@ export function GuestShoot(p: GuestShootProps) {
                 <SecondaryAction icon="swap" className="g-small" disabled={p.busy} onClick={p.onChangeDesign}>{t("changeDesign")}</SecondaryAction>
               </div>
             </div>
-            <PhotoSelectGrid candidates={ordered} selection={sel} mediaUrl={p.mediaUrl} language={p.language} disabled={p.busy || sel.submitting || camera.reconnecting} />
+            <PhotoSelectGrid candidates={ordered} selection={sel} mediaUrl={p.mediaUrl} language={p.language} disabled={p.busy || sel.submitting || camera.reconnecting} onImageStatus={p.onImageStatus} />
+            {!(p.previewsReady ?? true) && <p className="g-media-hint" role="status">{t("preparingPhotos")}</p>}
           </div>
           <div className="g-actions">
-            <PrimaryAction icon="arrow" disabled={p.busy || sel.submitting || !sel.complete} onClick={p.onContinue}>{t("continueLabel")}</PrimaryAction>
+            <PrimaryAction icon="arrow" disabled={p.busy || sel.submitting || !sel.complete || !(p.previewsReady ?? true)} onClick={p.onContinue}>{t("continueLabel")}</PrimaryAction>
           </div>
         </>
       )}
@@ -155,7 +156,7 @@ export function GuestShoot(p: GuestShootProps) {
               <div className="g-confetti" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} style={{ ["--i" as string]: i }} />)}</div>
               {p.resultId
                 ? <Fit className="g-paper" src={p.mediaUrl(p.resultId, "preview")} alt={t("photoStripAlt")} />
-                : <div className="g-photos loose" style={grid}>{ordered.map((t) => <img key={t.mediaId} src={p.mediaUrl(t.mediaId, "preview")} alt="" />)}</div>}
+                : <div className="g-photos loose" style={grid}>{ordered.map((t) => <Fit key={t.mediaId} className="g-paper" src={p.mediaUrl(t.mediaId, "preview")} alt="" />)}</div>}
             </div>
             <div className="g-result-side">
               <span className="g-done-badge" aria-hidden="true"><Icon name="check" size={34} /></span>

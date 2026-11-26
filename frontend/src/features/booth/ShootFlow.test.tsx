@@ -126,7 +126,7 @@ describe("ShootFlow with a pre-selected frame", () => {
       render(<ShootFlow variant="booth" frame={FRAME} />);
       fireEvent.click(screen.getByRole("button", { name: /Print/ }));
       await waitFor(() => expect(h.api.printResult).toHaveBeenCalledWith("R1", expect.any(String)));
-      await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/Sent to the printer/));
+      await screen.findByText(/Sent to the printer/);
       expect((screen.getByRole("button", { name: "Sent to printer" }) as HTMLButtonElement).disabled).toBe(true);
       expect(screen.getByText(/another copy, please ask the operator/i)).toBeTruthy();
     });
@@ -318,6 +318,10 @@ describe("choosing photos (Booth and Studio share one model)", () => {
   const tile = (n: number) => screen.getAllByRole("button", { name: new RegExp(`^Photo ${n}[.,]`) })[0] as HTMLButtonElement;
   let t = 0;
   const tap = (n: number) => { vi.setSystemTime((t += 1000)); fireEvent.click(tile(n)); };
+  const loadPreviews = () => document.querySelectorAll<HTMLImageElement>(".g-pick-img img").forEach((image) => {
+    Object.defineProperties(image, { naturalWidth: { configurable: true, value: 1200 }, naturalHeight: { configurable: true, value: 800 } });
+    fireEvent.load(image);
+  });
   beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); t = 1_000_000; vi.setSystemTime(t); h.S.shoot = REVIEW8(); });
   afterEach(() => vi.useRealTimers());
 
@@ -325,6 +329,7 @@ describe("choosing photos (Booth and Studio share one model)", () => {
     render(<ShootFlow variant="booth" frame={FRAME} />);
     const cont = () => screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
     expect(cont().disabled).toBe(true);
+    loadPreviews();
     for (const n of [7, 2, 5]) tap(n);
     expect(cont().disabled).toBe(true);
     tap(1);
@@ -345,6 +350,7 @@ describe("choosing photos (Booth and Studio share one model)", () => {
   it("a failed submit keeps the choice and lets the guest press Continue again", async () => {
     h.api.accept.mockRejectedValueOnce(new Error("The photos could not be saved."));
     render(<ShootFlow variant="booth" frame={FRAME} />);
+    loadPreviews();
     for (const n of [1, 2, 3, 4]) tap(n);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByText(/That didn’t work/);
@@ -361,6 +367,7 @@ describe("choosing photos (Booth and Studio share one model)", () => {
     expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(2);
     h.S.shoot = { ...REVIEW8(), sessionId: "S2" };
     view.rerender(<ShootFlow variant="booth" frame={FRAME} />);
+    loadPreviews();
     expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
   });
 
