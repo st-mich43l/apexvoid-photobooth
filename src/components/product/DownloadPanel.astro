@@ -46,20 +46,13 @@ const t = all.download;
     <p>{t.loading}</p>
   </div>
 
-  <div data-when="available preview-only" hidden>
+  <div data-when="available" hidden>
     <p class="text-sm font-semibold text-accent" data-if="stable">
       {t.latest}
-    </p>
-    <p class="text-sm font-semibold text-warn" data-if="preview">
-      {t.previewTitle}
     </p>
     <h2 class="display t-2 mt-2">
       <span data-field="name"></span> <span data-field="version"></span>
     </h2>
-    <p class="mt-4 flex gap-3 rounded-[var(--radius-md)] bg-warn-soft p-4 text-sm" data-if="preview">
-      <TriangleAlert size={18} aria-hidden="true" class="mt-0.5 shrink-0 text-warn" />
-      <span>{t.previewBody}</span>
-    </p>
     <dl class="mt-6 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
       <div>
         <dt class="text-subtle">{t.version}</dt>

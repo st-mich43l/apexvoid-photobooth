@@ -293,9 +293,11 @@ export const vi: Dict = {
       "Trình điều khiển máy in Windows nếu bạn muốn in (không bắt buộc)",
     ],
     notSupported: "Không hỗ trợ macOS và Linux.",
-    latest: "Bản phát hành mới nhất",
-    previewTitle: "Bản xem trước",
-    previewBody: "Chưa có bản phát hành ổn định nào. Bản xem trước này dùng để thử nghiệm và có thể còn tính năng chưa hoàn thiện.",
+    latest: "Phiên bản hiện tại",
+    archiveTitle: "Các phiên bản trước",
+    archiveDescription: "Chỉ lưu trữ tối đa bốn phiên bản trước đó. Chúng tôi khuyến nghị sử dụng phiên bản mới nhất.",
+    archiveEmpty: "Chưa có phiên bản trước",
+    archiveEmptyBody: "Hiện chưa có bản phát hành ổn định cũ hơn trong kho lưu trữ.",
     version: "Phiên bản",
     published: "Ngày phát hành",
     file: "Tệp",
@@ -315,8 +317,7 @@ export const vi: Dict = {
   },
   releases: {
     title: "Phiên bản — ApexVoid Photobooth",
-    description:
-      "Lịch sử phát hành của ApexVoid Photobooth cho Windows: mọi bản phát hành chính thức cùng số phiên bản, ngày, ghi chú, mã kiểm tra và tệp tải.",
+    description: "Các phiên bản ổn định hiện tại và được lưu trữ của ApexVoid Photobooth cho Windows, kèm ghi chú, mã kiểm tra và tệp tải.",
     eyebrow: "Phiên bản",
     heading: "Lịch sử phát hành",
     loading: "Đang tải lịch sử phát hành…",
@@ -330,11 +331,11 @@ export const vi: Dict = {
     channelItems: [
       {
         title: "Ổn định",
-        body: "Bản phát hành chính thức được dựng từ nhánh master, nơi chứa ứng dụng desktop ổn định. Bản ổn định mới nhất là bản được đưa ra để tải.",
+        body: "Các bản ổn định chính thức được dựng từ nhánh master. Danh sách phát hành xác định phiên bản hiện tại, kể cả sau khi người vận hành khôi phục phiên bản cũ.",
       },
       {
-        title: "Xem trước",
-        body: "Các phiên bản trước phát hành để thử nghiệm. Chúng được ghi rõ là bản xem trước và không bao giờ thay thế bản ổn định hiện tại.",
+        title: "Lưu trữ",
+        body: "Trang liệt kê bản ổn định hiện tại cùng tối đa bốn phiên bản ổn định trước đó. Các tệp cũ hơn sẽ tự động bị xóa khỏi máy chủ công khai.",
       },
       {
         title: "Phát triển",
@@ -342,7 +343,6 @@ export const vi: Dict = {
       },
     ],
     github: "Mã nguồn trên GitHub",
-    prerelease: "Xem trước",
     current: "Hiện tại",
     download: "Tải xuống",
   },
