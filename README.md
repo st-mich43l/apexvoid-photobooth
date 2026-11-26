@@ -59,7 +59,7 @@ src/
   pages/            routes: one thin file per page and language (English at /, Vietnamese under /vi/)
   views/            the page bodies, shared by both languages (HomeView, FeaturesView, …)
   components/
-    common/         Logo, Screenshot, SectionHeading, StatusPill, GithubMark
+    common/         Logo, Screenshot, SectionHeading, GithubMark
     layout/         Seo (meta, canonical, hreflang, Open Graph, JSON-LD), Footer, PageIntro
     navigation/     Header (desktop + mobile menu), LanguageSwitch, ThemeSwitch
     marketing/      home page sections (Hero, Experience, FeatureGroups, Journey, Hardware, LocalFirst, DownloadCta)
@@ -77,11 +77,12 @@ deployment-template/ docker-compose.yml.j2, rendered on the VPS by ansible-libra
 
 ## Content and product claims
 
-Every product statement comes from the desktop application's own documentation on `master` (README, `docs/INSTALL`,
-`CAMERAS`, `PRINTING`, `FRAMES`, `THIRD-PARTY`, `HARDWARE_TESTS`). Rules:
+Product copy follows the desktop application's documentation on `master` (README, `docs/INSTALL`, `CAMERAS`,
+`PRINTING`, `FRAMES`, `THIRD-PARTY`, `HARDWARE_TESTS`) and confirmed test results. Rules:
 
-- Describe what the software does; never present a software integration as a verified device. The hardware section
-  has three states: _software integration_, _physically verified_ (empty today) and _needs hardware testing_.
+- Describe implemented camera workflows confidently, while tying compatibility to supported device families and
+  documented requirements. Do not claim a specific camera model, printer or touchscreen was tested unless that exact
+  result is confirmed.
 - No invented release versions, sizes, dates, checksums, download counts, prices or ratings — on pages or in
   structured data.
 - macOS and Linux are not supported. The application is MIT-licensed open source; bundled FFmpeg (LGPL), Canon EDSDK
@@ -114,8 +115,8 @@ the OS preference before first paint, so there is no flash. Without JavaScript t
 
 `src/assets/screenshots/<name>.<locale>.png` are real renders of the desktop application, made with the application's
 own browser harness (`cmd/uxharness` and `frontend/harness/*.mjs` on `master`) with the **simulated camera and fake
-printer** — the app's "SIMULATED CAMERA" ribbon is visible on purpose. They are not evidence of hardware support, and
-every page that shows them says so. Source: `master` at `e1a7aa1` (2026-11-25), see `src/config/site.ts`.
+printer** — the app's "SIMULATED CAMERA" ribbon is visible on purpose. The captures illustrate the application
+interface and are not photographs of equipment. Source: `master` at `e1a7aa1` (2026-11-25), see `src/config/site.ts`.
 
 To refresh them, check out `master` in a separate worktree, build the harness as described at the top of
 `frontend/harness/shots.mjs`, capture, and copy the PNGs here with the same names. A Vietnamese page uses the `.vi`
@@ -187,6 +188,6 @@ The routing proxy terminates TLS and sets the security headers (the site's own d
 - Downloads need JavaScript to show the current release; without it the page links to the manifest.
 - Executables are not code-signed yet.
 - Documentation is linked to GitHub (English) rather than hosted here.
-- Screenshots come from the browser harness with simulated devices; no photo of real hardware is shown.
+- Screenshots come from the browser harness with simulated devices; they show the application interface.
 - No Content-Security-Policy header yet (the inline theme script needs a hash).
 - Lighthouse results were measured on a local Nginx container with simulated throttling, not on the production host.

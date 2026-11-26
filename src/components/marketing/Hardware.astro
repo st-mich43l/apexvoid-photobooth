@@ -1,10 +1,7 @@
 ---
-import CircleDashed from "@lucide/astro/icons/circle-dashed";
-import ArrowUpRight from "@lucide/astro/icons/arrow-up-right";
+import Check from "@lucide/astro/icons/check";
 import SectionHeading from "../common/SectionHeading.astro";
-import StatusPill from "../common/StatusPill.astro";
 import { useDict, type Locale } from "../../i18n";
-import { DOCS_BASE } from "../../config/site";
 
 interface Props {
   locale: Locale;
@@ -18,41 +15,22 @@ const t = all.home.hardware;
   <div class="container-site grid gap-14 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
     <div>
       <SectionHeading eyebrow={t.eyebrow} title={t.title} lede={t.lede} id="hardware-title" />
-      <div class="mt-8 flex flex-wrap gap-2" aria-hidden="true">
-        <StatusPill status="integration" labels={all.common.status} />
-        <StatusPill status="verified" labels={all.common.status} />
-        <StatusPill status="testing" labels={all.common.status} />
-      </div>
-      <a
-        href={`${DOCS_BASE}/HARDWARE_TESTS.md`}
-        target="_blank"
-        rel="noopener"
-        class="link mt-8 inline-flex items-center gap-1.5 font-medium"
-      >
-        {t.guide}
-        <ArrowUpRight size={16} aria-hidden="true" />
-        <span class="sr-only">{all.a11y.newTab}</span>
-      </a>
+      <p class="mt-8 max-w-prose text-sm text-muted">{t.supportNote}</p>
     </div>
-    <div>
-      <ul class="divide-y divide-[var(--border)] border-y border-line">
-        {t.rows.map((r) => (
-          <li class="grid gap-3 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-6">
-            <h3 class="font-semibold text-[1.05rem]">{r.name}</h3>
-            <div class="sm:row-span-2 sm:justify-self-end">
-              <StatusPill status={r.status} labels={all.common.status} />
+    <ul class="grid gap-4 sm:grid-cols-2">
+      {t.rows.map((r) => (
+        <li class="rounded-[var(--radius-md)] border border-line bg-surface p-5 sm:p-6">
+          <div class="flex items-start gap-3">
+            <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-accent">
+              <Check size={18} aria-hidden="true" />
+            </span>
+            <div>
+              <h3 class="font-semibold text-[1.05rem]">{r.name}</h3>
+              <p class="mt-2 text-sm text-muted">{r.detail}</p>
             </div>
-            <p class="text-sm text-muted">{r.detail}</p>
-          </li>
-        ))}
-      </ul>
-      <div class="mt-6 flex gap-4 rounded-[var(--radius-md)] border border-dashed border-line-strong p-5">
-        <CircleDashed size={20} aria-hidden="true" class="mt-0.5 shrink-0 text-ok" />
-        <div>
-          <p class="font-semibold">{all.common.status.verified}</p>
-          <p class="mt-1 text-sm text-muted">{t.noneVerified}</p>
-        </div>
-      </div>
-    </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   </div>
 </section>

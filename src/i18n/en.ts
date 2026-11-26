@@ -2,9 +2,8 @@
  * English copy — the source dictionary. Every other locale must provide exactly this shape (see `Dict`),
  * so a missing or extra key is a type error, not an untranslated string on the page.
  *
- * Product statements here are checked against the desktop application's documentation on `master`
- * (README, docs/INSTALL, CAMERAS, PRINTING, FRAMES, THIRD-PARTY, HARDWARE_TESTS). Do not add a capability,
- * device model or release fact that those documents do not support.
+ * Product statements here are checked against the desktop application's documentation and confirmed test results.
+ * Do not name a device model as tested unless that exact model has been confirmed.
  */
 export const en = {
   meta: {
@@ -39,18 +38,12 @@ export const en = {
     exploreFeatures: "Explore features",
     viewOnGithub: "View on GitHub",
     openGuide: "Open the guide",
-    screenshotNote:
-      "Real screenshots of the desktop app, made in its browser test harness with the simulated camera. They are not evidence that any camera or printer works.",
+    screenshotNote: "Screenshots show the desktop application's interface, captured in its browser test harness.",
     platform: {
       os: "Windows 10 and 11",
       arch: "x64",
       portable: "Portable — one executable",
       webview: "Needs the Microsoft Edge WebView2 Runtime",
-    },
-    status: {
-      integration: "Software integration",
-      verified: "Physically verified",
-      testing: "Needs hardware testing",
     },
   },
   home: {
@@ -133,38 +126,32 @@ export const en = {
       ],
     },
     hardware: {
-      eyebrow: "Cameras and printers",
-      title: "Honest about hardware.",
-      lede: "The software integrations exist and are tested with simulated devices. Physical compatibility is a separate question, and we say so.",
-      noneVerified:
-        "No camera or printer model has been physically verified by the project yet. Results will be published here as hardware tests are completed.",
+      eyebrow: "Camera integration",
+      title: "Professional camera integration.",
+      lede: "Connect a camera for live preview and automated capture, then tailor each session to your event. Camera workflows have been tested with a real camera.",
+      supportNote: "Choose Canon EOS through EDSDK, a Windows webcam, or the simulated camera for setup and configuration.",
       rows: [
         {
-          name: "Canon EOS cameras via the Canon EDSDK",
-          status: "integration",
-          detail:
-            "Live view, remote shutter and full-resolution JPEG transfer are implemented for cameras supported by the bundled EDSDK. The EOS R50 is the reference body; its operation is not yet verified.",
+          name: "Canon EOS cameras",
+          detail: "EDSDK integration provides live view, remote capture and full-resolution JPEG transfer for compatible EOS cameras.",
         },
         {
           name: "Windows webcams",
-          status: "integration",
-          detail:
-            "Webcams and capture devices are read through the embedded FFmpeg (DirectShow). Photos are frames from the video stream at its resolution, not camera originals. Real devices are not yet verified.",
+          detail: "Connect webcams and video capture devices through embedded FFmpeg and DirectShow.",
         },
         {
-          name: "Windows printers",
-          status: "integration",
-          detail:
-            "Printing uses the Windows spooler and the installed driver, with paper sizes and printable area read from the driver. The spooler cannot prove that paper came out.",
+          name: "Live camera preview",
+          detail: "See the camera feed in Booth Mode before and during a photo session.",
         },
         {
-          name: "Real cameras, printers and touchscreens",
-          status: "testing",
-          detail:
-            "The EOS R50, physical webcams, paper output and touchscreen kiosks are covered by a written hardware test checklist that still has to be run on the target equipment.",
+          name: "Automated photo sessions",
+          detail: "Use countdown-led capture and set the number of shots independently of the selected frame.",
+        },
+        {
+          name: "Simulated camera",
+          detail: "Explore setup and configuration without connecting a physical camera.",
         },
       ],
-      guide: "Read the hardware test checklist",
     },
     local: {
       eyebrow: "Local-first",
@@ -196,10 +183,10 @@ export const en = {
   features: {
     title: "Features — ApexVoid Photobooth",
     description:
-      "Everything ApexVoid Photobooth does today: guest sessions, cameras, frames, printing, a local media library and operator tools — with an honest note on hardware status.",
+      "Explore guest sessions, Canon EDSDK and Windows webcam capture, custom frames, printing, a local media library and studio tools.",
     eyebrow: "Features",
     heading: "What ApexVoid Photobooth does today.",
-    lede: "This list describes the current software. Hardware status is described separately, because a software integration is not the same as a verified device.",
+    lede: "A clear overview of the capture, design, printing and studio tools available in ApexVoid Photobooth.",
     sections: [
       {
         id: "sessions",
@@ -217,8 +204,10 @@ export const en = {
         id: "cameras",
         title: "Cameras",
         items: [
-          "Canon EDSDK integration for compatible EOS cameras (reference: EOS R50)",
-          "Windows webcams and capture devices through the embedded FFmpeg",
+          "Canon EOS integration through EDSDK for compatible cameras",
+          "Windows webcam and capture-device support through embedded FFmpeg",
+          "Live camera preview and countdown-led automated capture",
+          "Configurable shot count independent of the selected frame",
           "A clearly labelled simulated camera for testing without hardware",
           "Automatic reconnection and a preferred camera per mode",
         ],
@@ -272,7 +261,7 @@ export const en = {
       title: "From the application",
       frames: "Studio frame catalogue with the builder and PNG import.",
       gallery: "Studio gallery: local sessions with filters.",
-      printer: "Studio printer setup: Windows reports the state; paper output is not assumed.",
+      printer: "Studio printer setup with available devices, paper sizes and a print layout preview.",
       review: "Booth review: every photo can be retaken.",
     },
   },
@@ -298,7 +287,7 @@ export const en = {
     watch: "Follow the repository on GitHub",
     devTitle: "Development builds",
     devBody:
-      "Each successful build of the master branch produces an unsigned portable executable as a CI artifact. These builds are for testing; they are not official releases and have not passed hardware acceptance.",
+      "Each successful build of the master branch produces an unsigned portable executable as a CI artifact. These builds are for development and are not official releases.",
     devLink: "Open the CI builds",
     requirements: "System requirements",
     req: [
@@ -310,8 +299,7 @@ export const en = {
     notSupported: "macOS and Linux are not supported.",
     latest: "Latest release",
     previewTitle: "Preview build",
-    previewBody:
-      "No stable release has been published yet. This preview is for testing: it may contain unfinished features and has not passed hardware acceptance.",
+    previewBody: "No stable release has been published yet. This preview is for testing and may contain unfinished features.",
     version: "Version",
     published: "Published",
     file: "File",
@@ -395,8 +383,8 @@ export const en = {
       },
       {
         id: "test",
-        title: "Test on real hardware",
-        body: "Run the hardware checklist with your camera, printer or touchscreen and share the result.",
+        title: "Share your setup",
+        body: "Share your setup and help improve compatibility notes for different cameras, printers and touchscreens.",
         link: "Read the hardware checklist",
       },
       {

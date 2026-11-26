@@ -4,8 +4,7 @@ import PageIntro from "../components/layout/PageIntro.astro";
 import Screenshot from "../components/common/Screenshot.astro";
 import Check from "@lucide/astro/icons/check";
 import Minus from "@lucide/astro/icons/minus";
-import ArrowRight from "@lucide/astro/icons/arrow-right";
-import { useDict, pathFor, type Locale } from "../i18n";
+import { useDict, type Locale } from "../i18n";
 
 interface Props {
   locale: Locale;
@@ -50,10 +49,6 @@ const t = all.features;
             </li>
           ))}
         </ul>
-        <a href={`${pathFor("home", locale)}#hardware`} class="link mt-6 inline-flex items-center gap-1.5 text-sm font-medium">
-          {all.home.hardware.title}
-          <ArrowRight size={14} aria-hidden="true" />
-        </a>
       </section>
     </div>
   </section>

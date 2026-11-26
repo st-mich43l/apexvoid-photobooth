@@ -383,10 +383,6 @@
     border-radius: 50%;
     background: currentColor;
   }
-  .pill-integration {
-    background: var(--brand-soft);
-    color: var(--accent-text);
-  }
   .pill-verified {
     background: var(--ok-soft);
     color: var(--ok);

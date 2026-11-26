@@ -34,18 +34,12 @@ export const vi: Dict = {
     exploreFeatures: "Khám phá tính năng",
     viewOnGithub: "Xem trên GitHub",
     openGuide: "Mở hướng dẫn",
-    screenshotNote:
-      "Ảnh chụp màn hình thật của ứng dụng, được tạo trong môi trường thử nghiệm trên trình duyệt với máy ảnh mô phỏng. Chúng không chứng minh rằng máy ảnh hay máy in nào hoạt động.",
+    screenshotNote: "Ảnh chụp giao diện ứng dụng desktop được tạo trong môi trường kiểm thử trên trình duyệt.",
     platform: {
       os: "Windows 10 và 11",
       arch: "x64",
       portable: "Bản di động — một tệp chạy duy nhất",
       webview: "Cần Microsoft Edge WebView2 Runtime",
-    },
-    status: {
-      integration: "Đã tích hợp phần mềm",
-      verified: "Đã kiểm chứng trên thiết bị",
-      testing: "Cần thử nghiệm phần cứng",
     },
   },
   home: {
@@ -128,38 +122,32 @@ export const vi: Dict = {
       ],
     },
     hardware: {
-      eyebrow: "Máy ảnh và máy in",
-      title: "Trung thực về phần cứng.",
-      lede: "Các tích hợp phần mềm đã có và được kiểm thử với thiết bị mô phỏng. Khả năng tương thích thực tế là một câu hỏi riêng, và chúng tôi nói rõ điều đó.",
-      noneVerified:
-        "Dự án chưa kiểm chứng thực tế bất kỳ mẫu máy ảnh hay máy in nào. Kết quả sẽ được công bố tại đây khi các bài thử nghiệm phần cứng hoàn tất.",
+      eyebrow: "Tích hợp máy ảnh",
+      title: "Tích hợp máy ảnh chuyên nghiệp.",
+      lede: "Kết nối máy ảnh để xem trực tiếp và tự động chụp, sau đó tùy chỉnh từng phiên theo sự kiện. Quy trình chụp đã được thử nghiệm với máy ảnh thật.",
+      supportNote: "Chọn Canon EOS qua EDSDK, webcam Windows hoặc máy ảnh mô phỏng để thiết lập và cấu hình.",
       rows: [
         {
-          name: "Máy ảnh Canon EOS qua Canon EDSDK",
-          status: "integration",
-          detail:
-            "Xem trực tiếp, bấm chụp từ xa và nhận ảnh JPEG độ phân giải đầy đủ đã được lập trình cho các máy ảnh được EDSDK đi kèm hỗ trợ. EOS R50 là máy tham chiếu; hoạt động thực tế của nó chưa được kiểm chứng.",
+          name: "Máy ảnh Canon EOS",
+          detail: "Tích hợp EDSDK hỗ trợ xem trực tiếp, chụp từ xa và truyền ảnh JPEG độ phân giải đầy đủ cho máy ảnh EOS tương thích.",
         },
         {
-          name: "Webcam trên Windows",
-          status: "integration",
-          detail:
-            "Webcam và thiết bị ghi hình được đọc qua FFmpeg tích hợp sẵn (DirectShow). Ảnh là khung hình lấy từ luồng video ở độ phân giải của luồng, không phải ảnh gốc từ máy ảnh. Thiết bị thật chưa được kiểm chứng.",
+          name: "Webcam Windows",
+          detail: "Kết nối webcam và thiết bị ghi hình qua FFmpeg tích hợp sẵn và DirectShow.",
         },
         {
-          name: "Máy in Windows",
-          status: "integration",
-          detail:
-            "Việc in dùng bộ đệm in của Windows và trình điều khiển đã cài, với khổ giấy và vùng in đọc từ trình điều khiển. Bộ đệm in không thể chứng minh giấy đã được in ra.",
+          name: "Xem trực tiếp từ máy ảnh",
+          detail: "Xem luồng hình ảnh ở Chế độ Booth trước và trong phiên chụp.",
         },
         {
-          name: "Máy ảnh, máy in và màn hình cảm ứng thật",
-          status: "testing",
-          detail:
-            "EOS R50, webcam thật, bản in trên giấy và kiosk cảm ứng đều có danh sách kiểm tra phần cứng bằng văn bản, nhưng vẫn cần được chạy trên thiết bị đích.",
+          name: "Phiên chụp tự động",
+          detail: "Dùng đếm ngược để chụp và đặt số ảnh độc lập với khung đã chọn.",
+        },
+        {
+          name: "Máy ảnh mô phỏng",
+          detail: "Tìm hiểu thiết lập và cấu hình mà không cần kết nối máy ảnh thật.",
         },
       ],
-      guide: "Đọc danh sách kiểm tra phần cứng",
     },
     local: {
       eyebrow: "Lưu trữ cục bộ",
@@ -191,10 +179,10 @@ export const vi: Dict = {
   features: {
     title: "Tính năng — ApexVoid Photobooth",
     description:
-      "Những gì ApexVoid Photobooth làm được hôm nay: phiên chụp cho khách, máy ảnh, khung ảnh, in ấn, thư viện cục bộ và công cụ cho người vận hành — kèm ghi chú trung thực về phần cứng.",
+      "Khám phá phiên chụp cho khách, Canon EDSDK và webcam Windows, khung ảnh tùy chỉnh, in ấn, thư viện cục bộ và công cụ Studio.",
     eyebrow: "Tính năng",
     heading: "ApexVoid Photobooth làm được gì hôm nay.",
-    lede: "Danh sách này mô tả phần mềm hiện tại. Tình trạng phần cứng được mô tả riêng, vì một tích hợp phần mềm không đồng nghĩa với một thiết bị đã được kiểm chứng.",
+    lede: "Tổng quan rõ ràng về các công cụ chụp ảnh, thiết kế, in ấn và Studio trong ApexVoid Photobooth.",
     sections: [
       {
         id: "sessions",
@@ -212,8 +200,10 @@ export const vi: Dict = {
         id: "cameras",
         title: "Máy ảnh",
         items: [
-          "Tích hợp Canon EDSDK cho máy ảnh EOS tương thích (tham chiếu: EOS R50)",
-          "Webcam và thiết bị ghi hình trên Windows qua FFmpeg tích hợp sẵn",
+          "Tích hợp Canon EOS qua EDSDK cho các máy ảnh tương thích",
+          "Hỗ trợ webcam và thiết bị ghi hình Windows qua FFmpeg tích hợp sẵn",
+          "Xem trực tiếp và tự động chụp với đếm ngược",
+          "Cấu hình số ảnh độc lập với khung đã chọn",
           "Máy ảnh mô phỏng được ghi nhãn rõ ràng để thử nghiệm khi không có phần cứng",
           "Tự động kết nối lại và máy ảnh ưu tiên cho từng chế độ",
         ],
@@ -267,7 +257,7 @@ export const vi: Dict = {
       title: "Từ ứng dụng",
       frames: "Bộ sưu tập khung trong Studio, có trình tạo khung và nhập PNG.",
       gallery: "Thư viện trong Studio: các phiên chụp cục bộ có bộ lọc.",
-      printer: "Thiết lập máy in trong Studio: Windows báo trạng thái; không mặc định là giấy đã in ra.",
+      printer: "Thiết lập máy in trong Studio với thiết bị khả dụng, khổ giấy và bản xem trước bố cục in.",
       review: "Xem lại ở Chế độ Booth: ảnh nào cũng có thể chụp lại.",
     },
   },
@@ -293,7 +283,7 @@ export const vi: Dict = {
     watch: "Theo dõi kho mã trên GitHub",
     devTitle: "Bản dựng phát triển",
     devBody:
-      "Mỗi lần nhánh master được dựng thành công sẽ tạo ra một tệp chạy di động chưa ký số dưới dạng artifact của CI. Các bản này dùng để thử nghiệm; chúng không phải bản phát hành chính thức và chưa qua kiểm định phần cứng.",
+      "Mỗi lần nhánh master được dựng thành công sẽ tạo ra một tệp chạy di động chưa ký số dưới dạng artifact của CI. Các bản này dành cho phát triển và không phải bản phát hành chính thức.",
     devLink: "Mở các bản dựng CI",
     requirements: "Yêu cầu hệ thống",
     req: [
@@ -305,8 +295,7 @@ export const vi: Dict = {
     notSupported: "Không hỗ trợ macOS và Linux.",
     latest: "Bản phát hành mới nhất",
     previewTitle: "Bản xem trước",
-    previewBody:
-      "Chưa có bản phát hành ổn định nào. Bản xem trước này dùng để thử nghiệm: có thể còn tính năng chưa hoàn thiện và chưa qua kiểm định phần cứng.",
+    previewBody: "Chưa có bản phát hành ổn định nào. Bản xem trước này dùng để thử nghiệm và có thể còn tính năng chưa hoàn thiện.",
     version: "Phiên bản",
     published: "Ngày phát hành",
     file: "Tệp",
@@ -390,8 +379,8 @@ export const vi: Dict = {
       },
       {
         id: "test",
-        title: "Thử nghiệm trên phần cứng thật",
-        body: "Chạy danh sách kiểm tra phần cứng với máy ảnh, máy in hoặc màn hình cảm ứng của bạn và chia sẻ kết quả.",
+        title: "Chia sẻ thiết lập",
+        body: "Chia sẻ thiết lập của bạn để giúp cải thiện ghi chú về khả năng tương thích với các loại máy ảnh, máy in và màn hình cảm ứng.",
         link: "Đọc danh sách kiểm tra phần cứng",
       },
       {

@@ -72,6 +72,59 @@ test.describe("routes", () => {
     expect(ld).not.toHaveProperty("aggregateRating");
     expect(ld).not.toHaveProperty("softwareVersion");
   });
+
+  for (const [path, expected] of [
+    [
+      "/",
+      [
+        "Professional camera integration.",
+        "Canon EOS cameras",
+        "Windows webcams",
+        "Live camera preview",
+        "Automated photo sessions",
+        "Simulated camera",
+      ],
+    ],
+    [
+      "/vi/",
+      [
+        "Tích hợp máy ảnh chuyên nghiệp.",
+        "Máy ảnh Canon EOS",
+        "Webcam Windows",
+        "Xem trực tiếp từ máy ảnh",
+        "Phiên chụp tự động",
+        "Máy ảnh mô phỏng",
+      ],
+    ],
+  ] as const) {
+    test(`${path} presents camera capabilities without obsolete hardware warnings`, async ({ page }) => {
+      await page.goto(path);
+      const section = page.locator("#hardware");
+      for (const text of expected) await expect(section).toContainText(text);
+      const pageText = await page.locator("main").innerText();
+      expect(pageText).not.toMatch(
+        /needs hardware testing|physically verified|no camera or printer model has been physically verified|not yet verified|hardware acceptance/i,
+      );
+      expect(pageText).not.toMatch(
+        /cần thử nghiệm phần cứng|đã kiểm chứng trên thiết bị|chưa được kiểm chứng|chưa qua kiểm định phần cứng/i,
+      );
+      await expect(section.locator(".pill")).toHaveCount(0);
+      await expect(section.locator("[class*='border-dashed']")).toHaveCount(0);
+    });
+  }
+
+  for (const path of ["/features/", "/vi/features/"]) {
+    test(`${path} has no obsolete camera-verification warning`, async ({ page }) => {
+      await page.goto(path);
+      const text = await page.locator("main").innerText();
+      expect(text).not.toMatch(
+        /needs hardware testing|physically verified|no camera or printer model has been physically verified|not yet verified|hardware acceptance|hardware status/i,
+      );
+      expect(text).not.toMatch(
+        /cần thử nghiệm phần cứng|đã kiểm chứng trên thiết bị|chưa được kiểm chứng|chưa qua kiểm định phần cứng|tình trạng phần cứng/i,
+      );
+    });
+  }
 });
 
 test.describe("language", () => {

@@ -42,10 +42,10 @@ describe("translations", () => {
     expect(vi.nav.download).not.toBe(en.nav.download);
   });
 
-  it("product names and facts stay identical across languages", () => {
+  it("product identity and page structure stay consistent across languages", () => {
     expect(vi.meta.siteName).toBe(en.meta.siteName);
     expect(vi.common.platform.arch).toBe(en.common.platform.arch);
-    expect(vi.home.hardware.rows.map((r) => r.status)).toEqual(en.home.hardware.rows.map((r) => r.status));
+    expect(vi.home.hardware.rows).toHaveLength(en.home.hardware.rows.length);
     expect(vi.docs.guides.map((g) => g.id)).toEqual(en.docs.guides.map((g) => g.id));
   });
 });
